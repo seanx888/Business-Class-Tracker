@@ -298,7 +298,7 @@ export async function runScan({
   let sent = [];
   if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
     const [owner, repo] = (env.GITHUB_REPOSITORY || '').split('/');
-    const siteUrl = env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
+    const siteUrl = env.SITE_URL || config.siteUrl || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
     try {
       sent = await sendNotifications(newGood, alertHits, { env, siteUrl, fetchImpl });
       if (sent.length) log(`🔔 notified: ${sent.join(', ')}`);

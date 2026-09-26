@@ -101,12 +101,31 @@ function applyTheme() {
 }
 
 // ───────────────────────── data ─────────────────────────
+// Fare data is committed daily to GitHub by the scanner. Reading it straight from the public repo
+// means the hosted app (Vercel / Pages) shows new fares without being redeployed.
+// Falls back to the copy bundled with the deployment (and to local files during development).
+const LOCAL_DEV = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+const REMOTE_DATA = LOCAL_DEV ? null : document.querySelector('meta[name="bct-data-url"]')?.content || null;
+const DATA_BASES = REMOTE_DATA ? [REMOTE_DATA, 'data/'] : ['data/'];
+
+async function fetchData(file, force) {
+  let lastErr;
+  for (const base of DATA_BASES) {
+    try {
+      const res = await fetch(`${base}${file}${force ? `?t=${Date.now()}` : ''}`, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
 async function loadData(force = false) {
   $('#refresh-btn').classList.add('spin');
   try {
-    const res = await fetch(`data/deals.json${force ? `?t=${Date.now()}` : ''}`, { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const data = await fetchData('deals.json', force);
     // Defence in depth: re-verify every published deal against the exclusion rules in this browser.
     const clean = (data.deals || []).filter((d) => isChinaFree(d));
     state.dropped = (data.deals || []).length - clean.length;
@@ -125,8 +144,7 @@ async function loadData(force = false) {
 async function loadHistory() {
   if (state.history) return;
   try {
-    const res = await fetch('data/history.json', { cache: 'no-cache' });
-    state.history = res.ok ? await res.json() : { routes: {} };
+    state.history = await fetchData('history.json');
   } catch {
     state.history = { routes: {} };
   }

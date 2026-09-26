@@ -1,6 +1,7 @@
 {
   "$comment": "Edit this file to change what the daily scanner watches. Personal trips / price targets are better kept in the WATCH_TRIPS / PRICE_ALERTS repository variables (see docs/SETUP.md) because this repo is public. Prices are ROUND-TRIP business class in TWD. 'typical' = normal fare, 'deal' = what a seasoned flyer would call a good buy. priority: 1 = scanned most often, 3 = least.",
   "currency": "TWD",
+  "siteUrl": "https://business-class-tracker.vercel.app/",
   "homeAirports": ["TPE", "TSA", "KHH"],
   "searchesPerRun": { "serpapi": 8, "duffel": 30, "demo": 999 },
   "dealTtlDays": 4,

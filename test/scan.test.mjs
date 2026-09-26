@@ -93,7 +93,7 @@ test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pu
     const u = new URL(url);
     if (u.hostname === 'serpapi.com') return new Response(serp);
     if (u.hostname === 'ntfy.sh') {
-      pushed.push({ topic: u.pathname.slice(1), body: init.body });
+      pushed.push({ topic: u.pathname.slice(1), body: init.body, click: init.headers.Click });
       return new Response('ok');
     }
     throw new Error('offline');
@@ -110,6 +110,7 @@ test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pu
   assert.ok(pushed.some((p) => p.topic === 't-blue' && /target NT\$130,000/.test(p.body)));
   assert.ok(!pushed.some((p) => p.topic === 't-sean' && /target/.test(p.body)), 'Sean does not get Blue\'s personal alert');
   assert.equal(JSON.stringify(out).includes('t-blue'), false, 'topics never published');
+  assert.ok(pushed.every((p) => p.click === 'https://business-class-tracker.vercel.app/'), 'push links open the Vercel app');
 });
 
 test('invalid JSON in variables is ignored, not fatal', async () => {
