@@ -1,7 +1,8 @@
 name: Daily fare scan & deploy
 
-# Deploy target — repository variable DEPLOY_TARGET:
-#   pages (default) · vercel · pages,vercel · none
+# The app is hosted on Vercel and reads fare data straight from this repo (web/data/),
+# so the daily scan only needs to commit data — no deploy step, no Vercel token.
+# Optional repository variable DEPLOY_TARGET: none (default) · pages · vercel · pages,vercel
 on:
   schedule:
     - cron: '40 21 * * *' # 05:40 Taipei time (UTC+8) every day
@@ -24,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET || 'pages' }}
+  DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET || 'none' }}
 
 jobs:
   build:
@@ -96,7 +97,7 @@ jobs:
 
   deploy-pages:
     needs: build
-    if: contains(vars.DEPLOY_TARGET || 'pages', 'pages')
+    if: contains(vars.DEPLOY_TARGET || 'none', 'pages')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

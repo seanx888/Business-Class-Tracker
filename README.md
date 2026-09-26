@@ -20,6 +20,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 | 🛏 | 平躺座椅、直飛、混艙、過夜轉機、廉航商務、疑似錯誤票價 標記 | Lie-flat, nonstop, mixed-cabin, overnight layover, budget-biz and error-fare flags |
 | 📈 | 航線價格歷史、30 天／歷史最低、目標價提醒 | Per-route price history, 30-day/all-time lows, target-price alerts |
 | 🔗 | 一鍵開啟 Google Flights / Skyscanner / KAYAK / 航空公司官網（商務艙預設）| One-tap deep links, business cabin pre-selected |
+| ☁️ | Vercel 託管，資料每天由 GitHub Actions 更新、App 直接讀取 | Hosted on Vercel; data refreshed daily from the repo |
 | 🔔 | ntfy 每日推播：Sean、Blue 各自的語言；個人目標價只推給本人 | ntfy daily push per person, in each person's language; personal price targets |
 | 🌏 | 繁體中文 / English / 한국어，深色／淺色，離線可用 | zh-TW / EN / KO, dark/light, works offline |
 
@@ -29,12 +30,13 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 
 👉 **完整步驟請看 [docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 Sean & Blue）。 Full step-by-step guide.
 
-1. 合併 PR，**Settings → General → Default branch** 改為 `main`
-2. **Settings → Pages → Source: GitHub Actions**（或用 Vercel：Secret `VERCEL_TOKEN` + Variable `DEPLOY_TARGET=vercel`）
-3. Secret `SERPAPI_KEY`（<https://serpapi.com>，免費 250 次/月）— 不設定則顯示示範資料 demo
-4. Secret `NTFY_TOPICS` = `sean=<主題>@zh-TW,blue=<主題>@en`（兩人各自在 ntfy App 訂閱自己的主題）
-5. **Actions → Daily fare scan & deploy → Run workflow**，之後每天台北時間 05:40 自動執行
-6. 打開 `https://seanx888.github.io/Business-Class-Tracker/` → 加入主畫面
+**App：https://business-class-tracker.vercel.app**（Vercel 託管；每日資料直接從本 repo 讀取，不需重新部署）
+
+1. ✅ PR 已合併、預設分支 `main`；✅ Vercel 專案已建立
+2. GitHub Secret `SERPAPI_KEY`（<https://serpapi.com>，免費 250 次/月）— 不設定則顯示示範資料 demo
+3. GitHub Secret `NTFY_TOPICS` = `sean=<主題>@zh-TW,blue=<主題>@en`（兩人各自在 ntfy App 訂閱自己的主題）
+4. **Actions → Daily fare scan & deploy → Run workflow**，之後每天台北時間 05:40 自動執行
+5. 手機打開網址 → 加入主畫面
 
 > 💡 SerpApi 免費方案：每天 8 次搜尋，約 3 週輪完 64 條航線（優先級 1 的航線更頻繁）。
 
@@ -119,7 +121,7 @@ web/core/       shared logic used by BOTH the browser and the scanner
 scripts/        scan.mjs (daily job) · providers/{serpapi,duffel,demo}.mjs · notify.mjs (ntfy)
 config/         routes.json · airport-countries.json
 test/           node:test suites + fixtures
-.github/        daily-scan.yml (cron 05:40 Taipei → commit data → Pages / Vercel) · ci.yml
+.github/        daily-scan.yml (cron 05:40 Taipei → scan → commit web/data) · ci.yml
 docs/SETUP.md   step-by-step setup for Sean & Blue
 ```
 

@@ -2,52 +2,59 @@
 
 > 本 App 只追蹤**機票**（商務艙），不含火車。 This app tracks **flight tickets only** (business class) — no trains.
 
-| # | 步驟 Step | 必要？ Required | 費用 Cost | 時間 Time |
+App 網址 App URL：**https://business-class-tracker.vercel.app**
+
+| # | 步驟 Step | 狀態 Status | 費用 Cost | 時間 Time |
 |---|---|---|---|---|
-| 1 | 合併 PR、預設分支改為 `main` · Merge PR, make `main` default | ✅ | Free | 2 min |
-| 2 | 發佈網站：GitHub Pages（或 Vercel）· Publish the app | ✅ | Free | 2 min |
-| 3 | SerpApi 金鑰（真實票價）· SerpApi key (real fares) | ✅ | Free 250 searches/mo | 5 min |
-| 4 | ntfy 推播（Sean & Blue 各一個主題）· ntfy push for both | 建議 Recommended | Free | 5 min |
+| 1 | 合併 PR、預設分支 `main` · Merge PR, `main` as default | ✅ 已完成 Done | Free | — |
+| 2 | 網站架在 Vercel · App hosted on Vercel | ✅ Claude 已完成 Done by Claude | Free (Hobby) | — |
+| 3 | SerpApi 金鑰（真實票價）· SerpApi key (real fares) | ✋ 需手動 Manual | Free 250 searches/mo | 5 min |
+| 4 | ntfy 推播（Sean & Blue 各一個主題）· ntfy push for both | ✋ 需手動 Manual（建議） | Free | 5 min |
 | 5 | 個人目標價、固定行程 · Personal price targets & trips | 選用 Optional | Free | 3 min |
-| 6 | 兩支手機安裝 App · Install on both phones | ✅ | — | 1 min |
-| 7 | 第一次執行與檢查 · First run & check | ✅ | — | 5 min |
+| 6 | 兩支手機安裝 App · Install on both phones | ✋ 需手動 Manual | — | 1 min |
+| 7 | 第一次執行與檢查 · First run & check | ✋ 需手動 Manual | — | 3 min |
+
+> 為什麼 SerpApi / ntfy 還是要設定在 GitHub？每天的票價掃描是在 **GitHub Actions** 執行（Vercel 只負責放網頁），
+> 所以掃描需要的兩個金鑰要放在 GitHub Secrets。Vercel 端**不需要**任何 token。
+> Why GitHub? The daily scan runs on GitHub Actions; Vercel only hosts the page. No Vercel token is needed.
 
 所有 GitHub 設定都在 repo 的 **Settings** 分頁。Secrets / Variables 位置：
 **Settings → Secrets and variables → Actions** → 分頁 **Secrets**（機密，設定後看不到內容）或 **Variables**（一般設定，可再編輯）。
 
 ---
 
-## 1. 合併 PR、設定預設分支 · Merge the PR and make `main` the default branch
+## 1. 合併 PR、設定預設分支 · Merge the PR and make `main` the default — ✅ 已完成 Done
 
-1. 打開 Pull Request → **Merge pull request** → **Confirm merge**。
-2. **Settings → General → Default branch** → 按 ⇄ 圖示 → 選 **`main`** → **Update** → *I understand*。
-3. （可選）刪除 `claude/…` 分支。
-
-> 為什麼：GitHub 的排程（每天 05:40 自動掃描）只會在**預設分支**上執行。
-> Why: scheduled workflows only run on the default branch.
+PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 自動掃描）只會在預設分支上執行。
 
 ---
 
-## 2. 發佈網站 · Publish the app
+## 2. 網站：Vercel · The app on Vercel — ✅ Claude 已完成 Done by Claude
 
-### 2A. GitHub Pages（預設，最簡單 · default, simplest）
+- 網址 URL：**https://business-class-tracker.vercel.app**（公開，Blue 不需要 Vercel 帳號）
+- Claude 已在 Sean 的 Vercel 帳號建立專案 `business-class-tracker`，並關閉 Vercel 登入保護。
+- **資料怎麼每天更新**：GitHub Actions 每天把票價寫進 repo 的 `web/data/`，App 直接從 GitHub 讀取最新資料
+  （約 5 分鐘快取）→ **不需要**重新部署、**不需要** Vercel token。
+  The app reads fare data straight from GitHub, so the Vercel site never needs a redeploy for new fares.
+- **程式碼更新**（新功能）才需要重新部署：請 Claude「重新部署 Vercel」即可。
+  Code changes need a redeploy — just ask Claude.
 
-1. **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。
-2. 完成。網址 URL：**https://seanx888.github.io/Business-Class-Tracker/**
+<details>
+<summary>選用：讓 Vercel 在每次 push 時自動部署程式碼 · Optional: auto-deploy code on every push</summary>
 
-### 2B. Vercel（選用，可取代或同時使用 · optional, instead of or in addition to Pages）
+目前 Vercel 帳號登入所連接的 GitHub 帳號不是 `seanx888`，所以 Vercel 沒有這個 repo 的寫入權限，無法自動連結。
+若想要全自動：
+1. GitHub → repo **Settings → Collaborators → Add people** → 加入 Vercel 所連接的 GitHub 帳號（Role：**Write**）→ 用該帳號接受邀請。
+2. 確認 Vercel GitHub App 有這個 repo 的權限：<https://github.com/apps/vercel/installations/new>（用 `seanx888` 登入 → 選 *Only select repositories* → 勾選 `Business-Class-Tracker`）。
+3. 告訴 Claude，Claude 會把專案連上 Git（之後每次 push 自動部署）。
+</details>
 
-1. <https://vercel.com> 登入 → 右上頭像 → **Account Settings → Tokens** → **Create Token**
-   - Name：`bct-github-actions` · Scope：你的個人 (Hobby) team · Expiration：1 year（到期前記得更新）
-2. GitHub **Secrets** → New secret：`VERCEL_TOKEN` = 剛才的 token
-3. GitHub **Variables** → New variable：`DEPLOY_TARGET` = `vercel`（只用 Vercel）或 `pages,vercel`（兩個都發佈）
-4. 第一次執行後，網址通常是 **https://business-class-tracker.vercel.app**（名稱被占用時 Vercel 會加後綴，請看 Actions 執行摘要或 Vercel 後台）。
-   把網址設成 Variable `SITE_URL`，推播裡的連結就會開 Vercel 版本。
-5. 選用 Variables：`VERCEL_PROJECT`（專案名稱，預設 `business-class-tracker`）、`VERCEL_SCOPE`（team slug，若不是個人 team）。
+<details>
+<summary>替代方案：GitHub Pages · Alternative: GitHub Pages</summary>
 
-> ⚠️ **不要**在 Vercel 用「Import Git Repository」連接這個 repo：Hobby 方案會擋下 GitHub Actions 機器人的每日資料 commit。
-> 本專案的 workflow 會直接上傳 `web/` 資料夾，不需要 Git 連接。
-> Don't use Vercel's Git import — the Hobby plan blocks bot commits. The workflow uploads `web/` directly.
+**Settings → Pages → Source: GitHub Actions**（下方 *Visibility — start free for 30 days* 是企業版「私人網站」功能，**不需要**，忽略即可），
+再新增 Variable `DEPLOY_TARGET` = `pages`。網址：`https://seanx888.github.io/Business-Class-Tracker/`
+</details>
 
 ---
 
@@ -123,7 +130,7 @@ ntfy 免費、免註冊。每人一個**不易猜到的主題名稱**（ntfy.sh 
 
 ## 6. 兩支手機安裝 App · Install on both phones
 
-打開第 2 步的網址 → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
+打開 **https://business-class-tracker.vercel.app** → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
 
 每支手機的設定是**各自獨立**的：語言（Sean 繁中／한국어、Blue English）、幣別、天合加權、外站定位成本、App 內目標價。
 Each phone keeps its own language, currency, SkyTeam preference, positioning costs and in-app targets.
@@ -134,7 +141,7 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 
 1. **Actions → Daily fare scan & deploy → Run workflow**（provider 留空）→ **Run workflow**。
 2. 約 2–5 分鐘後應為綠色 ✓。
-3. 打開 App：黃色「示範資料」橫幅消失；**設定 → 資料狀態** 顯示 `serpapi`。
+3. 打開 https://business-class-tracker.vercel.app ：黃色「示範資料」橫幅消失；**設定 → 資料狀態** 顯示 `serpapi`。
 4. 之後每天 **台北時間 05:40** 自動執行，不用再手動。
 
 ---
@@ -154,11 +161,11 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 |---|---|---|
 | `SERPAPI_KEY` | Secret | SerpApi 金鑰（Google Flights）|
 | `NTFY_TOPICS` | Secret | `sean=主題@zh-TW,blue=主題@en` |
-| `VERCEL_TOKEN` | Secret | 只有用 Vercel 時需要 |
+| `VERCEL_TOKEN` | Secret | 不需要（只有 `DEPLOY_TARGET=vercel` 的進階用法才需要）|
 | `DUFFEL_ACCESS_TOKEN` | Secret | 選用 |
 | `NTFY_TOKEN` | Secret | 選用：受保護主題 |
-| `DEPLOY_TARGET` | Variable | `pages`（預設）· `vercel` · `pages,vercel` · `none` |
-| `SITE_URL` | Variable | 推播連結網址（用 Vercel 時設定）|
+| `DEPLOY_TARGET` | Variable | `none`（預設，Vercel 讀 GitHub 資料）· `pages` · `vercel` · `pages,vercel` |
+| `SITE_URL` | Variable | 推播連結網址（預設 `config/routes.json` 的 `siteUrl` = Vercel 網址）|
 | `PRICE_ALERTS` | Variable | 個人目標價 JSON |
 | `WATCH_TRIPS` | Variable | 固定行程 JSON |
 | `SEARCHES_PER_RUN` | Variable | 每天搜尋次數（SerpApi 預設 8）|
@@ -171,8 +178,8 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 
 | 症狀 Symptom | 解法 Fix |
 |---|---|
-| `configure-pages` 失敗 / *Get Pages site failed* | 第 2A 步沒開 Pages；或設 `DEPLOY_TARGET=vercel` |
+| `configure-pages` 失敗 / *Get Pages site failed* | 只有 `DEPLOY_TARGET=pages` 才會用到 Pages；刪掉該 Variable 即可 |
 | *Every search failed* | `SERPAPI_KEY` 錯誤或本月額度用完（看 SerpApi dashboard）|
 | 沒收到推播 | 主題名稱是否一致？`NTFY_TOPICS` 格式？今天沒有 ≥ 72 分的新好價？示範資料不推播 |
 | 每天沒有自動執行 | 預設分支必須是 `main`（第 1 步）|
-| Vercel 部署失敗 | `VERCEL_TOKEN` 是否過期、scope 是否正確 |
+| App 資料沒更新 | 看 Actions 當天是否綠色 ✓；App 右上 ↻ 重新整理（GitHub 快取約 5 分鐘）|

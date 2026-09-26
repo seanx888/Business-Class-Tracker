@@ -1,5 +1,5 @@
 // Service worker: offline app shell + network-first fare data.
-const VERSION = 'bct-v1';
+const VERSION = 'bct-v2';
 const SHELL = [
   './',
   'index.html',
@@ -34,9 +34,10 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // airline logos etc. go straight to network
+  const remoteData = url.hostname === 'raw.githubusercontent.com' && url.pathname.includes('/web/data/');
+  if (url.origin !== self.location.origin && !remoteData) return; // airline logos etc. go straight to network
 
-  if (url.pathname.includes('/data/')) {
+  if (remoteData || url.pathname.includes('/data/')) {
     // Network-first so the daily scan shows up immediately; cache (keyed without query) for offline.
     const key = url.origin + url.pathname;
     e.respondWith(
@@ -48,7 +49,7 @@ self.addEventListener('fetch', (e) => {
           }
           return res;
         })
-        .catch(() => caches.match(key).then((r) => r || new Response('{"deals":[]}', { headers: { 'Content-Type': 'application/json' } }))),
+        .catch(() => caches.match(key).then((r) => r || new Response('offline', { status: 503 }))),
     );
     return;
   }
