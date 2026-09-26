@@ -20,30 +20,23 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 | 🛏 | 平躺座椅、直飛、混艙、過夜轉機、廉航商務、疑似錯誤票價 標記 | Lie-flat, nonstop, mixed-cabin, overnight layover, budget-biz and error-fare flags |
 | 📈 | 航線價格歷史、30 天／歷史最低、目標價提醒 | Per-route price history, 30-day/all-time lows, target-price alerts |
 | 🔗 | 一鍵開啟 Google Flights / Skyscanner / KAYAK / 航空公司官網（商務艙預設）| One-tap deep links, business cabin pre-selected |
-| 🔔 | 每日推播：Telegram 或 ntfy（手機 App 未開也能收到）| Daily push via Telegram or ntfy |
+| 🔔 | ntfy 每日推播：Sean、Blue 各自的語言；個人目標價只推給本人 | ntfy daily push per person, in each person's language; personal price targets |
 | 🌏 | 繁體中文 / English / 한국어，深色／淺色，離線可用 | zh-TW / EN / KO, dark/light, works offline |
 
 ---
 
-## 快速開始 Quick start（約 10 分鐘）
+## 快速開始 Quick start
 
-1. **開啟 GitHub Pages** — Repo → *Settings → Pages → Build and deployment → Source: **GitHub Actions***
-2. **取得票價 API 金鑰（擇一）/ Pick a fare source**
-   - **SerpApi (Google Flights)** — 建議。免費方案每月 250 次搜尋，含 Google「常見價格區間」可判斷是否便宜。
-     註冊 <https://serpapi.com> → 複製 API key → Repo *Settings → Secrets and variables → Actions → New secret*：`SERPAPI_KEY`
-   - **Duffel** — 航空公司直連報價，來回程完整驗證。建立 live access token → secret `DUFFEL_ACCESS_TOKEN`
-   - 都不設定 → 使用**示範資料 (demo)**，App 會清楚標示「非真實票價」。
-3. **（選用）每日推播 / Optional daily push**
-   - Telegram：建立 bot（@BotFather）→ secrets `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`
-   - ntfy：在手機安裝 ntfy App，訂閱一個不易猜到的主題 → secret `NTFY_TOPIC`
-4. **合併到 `main` 分支**，然後 *Actions → Daily fare scan & deploy → Run workflow* 手動跑第一次。
-   之後每天 **台北時間 05:40** 自動掃描、更新資料並發佈。
-5. **安裝到手機** — 打開 `https://<帳號>.github.io/Business-Class-Tracker/`
-   - iPhone：Safari → 分享 → 加入主畫面
-   - Android：Chrome → 選單 → 安裝應用程式
+👉 **完整步驟請看 [docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 Sean & Blue）。 Full step-by-step guide.
 
-> 💡 SerpApi 免費方案：每天 8 次搜尋，約 3 週輪完全部 64 條航線（優先級 1 的航線更頻繁）。
-> 付費方案可把 Repository variable `SEARCHES_PER_RUN` 調高（例如 150）。
+1. 合併 PR，**Settings → General → Default branch** 改為 `main`
+2. **Settings → Pages → Source: GitHub Actions**（或用 Vercel：Secret `VERCEL_TOKEN` + Variable `DEPLOY_TARGET=vercel`）
+3. Secret `SERPAPI_KEY`（<https://serpapi.com>，免費 250 次/月）— 不設定則顯示示範資料 demo
+4. Secret `NTFY_TOPICS` = `sean=<主題>@zh-TW,blue=<主題>@en`（兩人各自在 ntfy App 訂閱自己的主題）
+5. **Actions → Daily fare scan & deploy → Run workflow**，之後每天台北時間 05:40 自動執行
+6. 打開 `https://seanx888.github.io/Business-Class-Tracker/` → 加入主畫面
+
+> 💡 SerpApi 免費方案：每天 8 次搜尋，約 3 週輪完 64 條航線（優先級 1 的航線更頻繁）。
 
 ---
 
@@ -56,25 +49,14 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
   { "o": "TPE", "d": "CDG", "p": 1, "bm": "EU", "stay": 12 }
   ```
   App 的「航線追蹤 → 加入每日掃描」會幫你產生這一行。
-- `watchTrips` — 固定日期的行程，每次掃描都會優先搜尋 / fixed-date trips searched every run:
-  ```json
-  "watchTrips": [{ "o": "TPE", "d": "CDG", "depart": "2026-12-20", "return": "2027-01-05", "label": "巴黎跨年" }]
-  ```
+- 固定行程與個人目標價請放在 Repository **Variables** `WATCH_TRIPS`、`PRICE_ALERTS`（repo 是公開的）— 見 [docs/SETUP.md](docs/SETUP.md)。
 - `origins` — 外站與預設定位成本（來回經濟艙 TWD，可在 App 設定頁覆寫）。
 - `benchmarks` — 各地區商務艙來回「常見價 / 好價」(TWD)，在沒有 Google 價格區間與足夠歷史資料時作為參考。
 
 ### Repository variables / secrets
 
-| Name | Type | 說明 |
-|---|---|---|
-| `SERPAPI_KEY` | secret | SerpApi key (Google Flights) |
-| `DUFFEL_ACCESS_TOKEN` | secret | Duffel live token |
-| `FARE_PROVIDER` | variable | 強制 `serpapi` / `duffel` / `demo`（預設自動） |
-| `SEARCHES_PER_RUN` | variable | 每天搜尋次數（serpapi 預設 8、duffel 30） |
-| `SERPAPI_VERIFY_RETURN` | variable | 每條航線額外驗證幾個最便宜選項的**回程**（每個多花 1 次搜尋，建議付費方案設 `1`） |
-| `NOTIFY_MIN_SCORE` | variable | 推播門檻分數（預設 72） |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `NTFY_TOPIC` | secret | 推播 |
-| `SITE_URL` | variable | 推播中的連結（預設 GitHub Pages 網址） |
+完整清單見 [docs/SETUP.md](docs/SETUP.md)。主要項目：
+`SERPAPI_KEY` · `NTFY_TOPICS` · `DEPLOY_TARGET` · `VERCEL_TOKEN` · `PRICE_ALERTS` · `WATCH_TRIPS` · `SEARCHES_PER_RUN` · `NOTIFY_MIN_SCORE`
 
 ---
 
@@ -120,7 +102,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 ## 本機開發 Local development
 
 ```bash
-npm test            # 47 unit tests (filter, scoring, providers, end-to-end scan)
+npm test            # unit tests (filter, scoring, providers, notifications, end-to-end scan)
 npm run scan:demo   # regenerate demo data into web/data/
 npm run serve       # http://localhost:8080
 SERPAPI_KEY=... SEARCHES_PER_RUN=2 npm run scan   # real scan
@@ -134,15 +116,16 @@ No build step, no dependencies — vanilla ES modules. Node ≥ 20.
 web/            PWA (index.html, app.js, i18n.js, sw.js, styles.css, data/*.json)
 web/core/       shared logic used by BOTH the browser and the scanner
                 airlines.js · airports.js · exclusion.js · scoring.js · links.js
-scripts/        scan.mjs (daily job) · providers/{serpapi,duffel,demo}.mjs · notify.mjs
+scripts/        scan.mjs (daily job) · providers/{serpapi,duffel,demo}.mjs · notify.mjs (ntfy)
 config/         routes.json · airport-countries.json
 test/           node:test suites + fixtures
-.github/        daily-scan.yml (cron 05:40 Taipei → commit data → GitHub Pages) · ci.yml
+.github/        daily-scan.yml (cron 05:40 Taipei → commit data → Pages / Vercel) · ci.yml
+docs/SETUP.md   step-by-step setup for Sean & Blue
 ```
 
 ## 限制 Limitations
 
 - 票價為搜尋當下的參考價；訂票前請在航空公司或 OTA 再確認。Fares are indicative snapshots.
 - Amadeus Self-Service API 已於 2026-07-17 停止服務，因此不支援。
-- 未包含里程兌換座位（award seats）。
+- 只追蹤機票（商務艙），不含火車；未包含里程兌換座位（award seats）。 Flights only — no trains, no award seats.
 - 聯盟成員資料更新至 2026-09：ITA 已轉星空聯盟；韓亞 (OZ) 將於 2026-12-17 併入大韓航空（天合）。

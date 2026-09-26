@@ -1,5 +1,7 @@
 name: Daily fare scan & deploy
 
+# Deploy target — repository variable DEPLOY_TARGET:
+#   pages (default) · vercel · pages,vercel · none
 on:
   schedule:
     - cron: '40 21 * * *' # 05:40 Taipei time (UTC+8) every day
@@ -20,6 +22,9 @@ permissions:
 concurrency:
   group: scan-and-deploy
   cancel-in-progress: false
+
+env:
+  DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET || 'pages' }}
 
 jobs:
   build:
@@ -43,10 +48,12 @@ jobs:
           SERPAPI_DEEP_SEARCH: ${{ vars.SERPAPI_DEEP_SEARCH }}
           DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
           SEARCHES_PER_RUN: ${{ vars.SEARCHES_PER_RUN }}
+          WATCH_TRIPS: ${{ vars.WATCH_TRIPS }}
+          PRICE_ALERTS: ${{ vars.PRICE_ALERTS }}
           NOTIFY_MIN_SCORE: ${{ vars.NOTIFY_MIN_SCORE }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPICS: ${{ secrets.NTFY_TOPICS }}
+          NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          NTFY_SERVER: ${{ vars.NTFY_SERVER }}
           SITE_URL: ${{ vars.SITE_URL }}
         run: node scripts/scan.mjs
 
@@ -61,14 +68,35 @@ jobs:
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v5
+      # ── GitHub Pages ──
+      - if: contains(env.DEPLOY_TARGET, 'pages')
+        uses: actions/configure-pages@v5
+      - if: contains(env.DEPLOY_TARGET, 'pages')
+        uses: actions/upload-pages-artifact@v5
         with:
           path: web
 
-  deploy:
+      # ── Vercel (direct upload of web/, no Git integration needed) ──
+      - name: Deploy to Vercel
+        if: contains(env.DEPLOY_TARGET, 'vercel')
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT || 'business-class-tracker' }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_SCOPE }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then echo "::error::DEPLOY_TARGET includes vercel but secret VERCEL_TOKEN is missing"; exit 1; fi
+          SITE="$RUNNER_TEMP/$VERCEL_PROJECT"
+          rm -rf "$SITE" && mkdir -p "$SITE" && cp -r web/. "$SITE/"
+          cd "$SITE"
+          SCOPE_ARGS=()
+          if [ -n "$VERCEL_SCOPE" ]; then SCOPE_ARGS=(--scope "$VERCEL_SCOPE"); fi
+          npx --yes vercel@latest link --yes --project "$VERCEL_PROJECT" --token "$VERCEL_TOKEN" "${SCOPE_ARGS[@]}"
+          URL=$(npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" "${SCOPE_ARGS[@]}")
+          echo "Deployed: $URL" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-pages:
     needs: build
+    if: contains(vars.DEPLOY_TARGET || 'pages', 'pages')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

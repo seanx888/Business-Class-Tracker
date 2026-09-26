@@ -7,7 +7,8 @@
 //   5. write web/data/deals.json + history.json, optionally push a digest
 //
 // Env: FARE_PROVIDER (serpapi|duffel|demo), SERPAPI_KEY, SERPAPI_VERIFY_RETURN, SERPAPI_DEEP_SEARCH,
-//      DUFFEL_ACCESS_TOKEN, SEARCHES_PER_RUN, SCAN_DATE, TELEGRAM_*, NTFY_TOPIC, SITE_URL
+//      DUFFEL_ACCESS_TOKEN, SEARCHES_PER_RUN, SCAN_DATE, SITE_URL,
+//      NTFY_TOPICS / NTFY_TOKEN / NTFY_SERVER (push), WATCH_TRIPS / PRICE_ALERTS (JSON, kept out of the public repo)
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -100,6 +101,18 @@ function slimLegs(legs) {
   }));
 }
 
+// JSON arrays passed as repository variables (so personal trips/targets stay out of the public repo).
+function parseJsonList(value, name, log) {
+  if (!value || !String(value).trim()) return [];
+  try {
+    const v = JSON.parse(value);
+    return Array.isArray(v) ? v : [v];
+  } catch {
+    log(`⚠ ${name} is not valid JSON — ignored`);
+    return [];
+  }
+}
+
 const comboKey = (d) => `${d.origin}-${d.destination}|${d.departDate}|${d.returnDate || ''}`;
 const daysBetween = (a, b) => dayIndex(b) - dayIndex(a);
 
@@ -112,6 +125,8 @@ export async function runScan({
   today = env.SCAN_DATE || taipeiToday(),
 } = {}) {
   const config = JSON.parse(await readFile(path.join(root, 'config', 'routes.json'), 'utf8'));
+  config.watchTrips = [...(config.watchTrips || []), ...parseJsonList(env.WATCH_TRIPS, 'WATCH_TRIPS', log)];
+  const priceAlerts = [...(config.priceAlerts || []), ...parseJsonList(env.PRICE_ALERTS, 'PRICE_ALERTS', log)];
   const baseCountries = await readJson(path.join(root, 'config', 'airport-countries.json'), {});
   const provider = pickProvider(env, fetchImpl);
   const maxSearches = Number(env.SEARCHES_PER_RUN) || config.searchesPerRun?.[provider.name] || 8;
@@ -252,6 +267,7 @@ export async function runScan({
 
   const deals = [...fresh, ...carried].sort((a, b) => b.score - a.score).slice(0, 400).map(compact);
   pruneHistory(history, today);
+  const alertHits = evaluatePriceAlerts(priceAlerts, deals, history, today);
 
   const rates = {};
   for (const c of fx.display || Object.keys(fx.rates)) if (fx.rates[c]) rates[c] = fx.rates[c];
@@ -276,21 +292,52 @@ export async function runScan({
   await writeFile(path.join(outDir, 'history.json'), JSON.stringify(history) + '\n');
   log(`■ ${deals.length} deals published · ${stats.offersSeen} offers seen · excluded ${stats.excluded.china} China/HK/MO + ${stats.excluded.unverified} unverified · ${stats.errors.length} errors`);
 
-  // Push only genuinely new, strong deals (and never for demo data unless asked).
+  // Push only genuinely new, strong deals + personal target hits (never for demo data unless asked).
   const minScore = Number(env.NOTIFY_MIN_SCORE) || config.notifyMinScore || 72;
   const newGood = deals.filter((d) => d.firstSeen === today && d.score >= minScore).slice(0, 8);
-  if (newGood.length && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
+  let sent = [];
+  if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
     const [owner, repo] = (env.GITHUB_REPOSITORY || '').split('/');
     const siteUrl = env.SITE_URL || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
     try {
-      const sent = await sendNotifications(newGood, { env, siteUrl, fetchImpl });
+      sent = await sendNotifications(newGood, alertHits, { env, siteUrl, fetchImpl });
       if (sent.length) log(`🔔 notified: ${sent.join(', ')}`);
     } catch (e) {
       log(`notify failed: ${e.message}`);
     }
   }
 
-  return { out, history, allFailed: plan.length > 0 && searched.size === 0 };
+  return { out, history, alertHits, sent, allFailed: plan.length > 0 && searched.size === 0 };
+}
+
+/**
+ * Personal price targets: [{ who: 'blue' | ['sean','blue'] | 'all', route: 'TPE-CDG', maxTWD: 110000 }].
+ * Fires when today's scan found the route at/below the target; repeats only if it gets cheaper
+ * or after 7 days. State lives in history.alerts.
+ * @returns {Map<string, {deal, maxTWD}[]>} hits keyed by person
+ */
+export function evaluatePriceAlerts(alerts, deals, history, today) {
+  const hits = new Map();
+  const state = (history.alerts ||= {});
+  for (const a of alerts) {
+    const route = String(a?.route || '').toUpperCase().replace(/\s+/g, '');
+    const max = Number(a?.maxTWD);
+    if (!/^[A-Z]{3}-[A-Z]{3}$/.test(route) || !(max > 0)) continue;
+    const best = deals
+      .filter((d) => d.routeKey === route && d.lastSeen === today && d.priceTWD <= max)
+      .sort((x, y) => x.priceTWD - y.priceTWD)[0];
+    if (!best) continue;
+    for (const who of [].concat(a.who || 'all').map((w) => String(w).trim().toLowerCase())) {
+      const k = `${who}|${route}|${max}`;
+      const last = state[k];
+      if (last && daysBetween(last.date, today) < 7 && best.priceTWD >= last.price) continue;
+      state[k] = { price: best.priceTWD, date: today, id: best.id };
+      if (!hits.has(who)) hits.set(who, []);
+      hits.get(who).push({ deal: best, maxTWD: max });
+    }
+  }
+  for (const [k, v] of Object.entries(state)) if (daysBetween(v.date, today) > 60) delete state[k];
+  return hits;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {

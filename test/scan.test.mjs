@@ -84,6 +84,42 @@ test('switching from demo to a real provider drops demo deals and demo price his
   assert.ok(Object.values(history.routes).flat().every((e) => e[0] === '2026-09-27'));
 });
 
+test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pushes', async () => {
+  const root = await sandbox({ watchTrips: [] });
+  const outDir = path.join(root, 'out');
+  const serp = readFileSync(new URL('./fixtures/serpapi-tpe-cdg.json', import.meta.url), 'utf8');
+  const pushed = [];
+  const fetchImpl = async (url, init) => {
+    const u = new URL(url);
+    if (u.hostname === 'serpapi.com') return new Response(serp);
+    if (u.hostname === 'ntfy.sh') {
+      pushed.push({ topic: u.pathname.slice(1), body: init.body });
+      return new Response('ok');
+    }
+    throw new Error('offline');
+  };
+  const env = {
+    SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '1', SCAN_DELAY_MS: '0',
+    WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24', label: 'Paris' }]),
+    PRICE_ALERTS: JSON.stringify([{ who: 'blue', route: 'TPE-CDG', maxTWD: 130000 }]),
+    NTFY_TOPICS: 'sean=t-sean@zh-TW,blue=t-blue@en',
+  };
+  const { out, alertHits } = await runScan({ root, outDir, env, fetchImpl, today: '2026-09-26', log: quiet });
+  assert.ok(out.deals.every((d) => d.routeKey === 'TPE-CDG' && d.label === 'Paris'));
+  assert.equal(alertHits.get('blue')[0].deal.primaryCarrier, 'KE', 'cheapest China-free option (KE 112,000) — never CX/AF');
+  assert.ok(pushed.some((p) => p.topic === 't-blue' && /target NT\$130,000/.test(p.body)));
+  assert.ok(!pushed.some((p) => p.topic === 't-sean' && /target/.test(p.body)), 'Sean does not get Blue\'s personal alert');
+  assert.equal(JSON.stringify(out).includes('t-blue'), false, 'topics never published');
+});
+
+test('invalid JSON in variables is ignored, not fatal', async () => {
+  const root = await sandbox();
+  const logs = [];
+  const { out } = await runScan({ root, outDir: path.join(root, 'out'), env: { FARE_PROVIDER: 'demo', OFFLINE: '1', SEARCHES_PER_RUN: '2', WATCH_TRIPS: '{oops', PRICE_ALERTS: 'nope' }, today: '2026-09-26', log: (m) => logs.push(m) });
+  assert.ok(out.deals.length > 0);
+  assert.ok(logs.some((l) => /WATCH_TRIPS is not valid JSON/.test(l)));
+});
+
 test('notification digest is compact and readable', () => {
   const txt = formatDigest([{ origin: 'TPE', destination: 'CDG', priceTWD: 98500, discountPct: 30, tier: 'hot', primaryCarrier: 'CI', stops: 0, departDate: '2026-11-10', returnDate: '2026-11-24' }], 'https://x.github.io/y/');
   assert.match(txt, /TPE→CDG/);

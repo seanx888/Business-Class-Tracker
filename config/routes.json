@@ -1,5 +1,5 @@
 {
-  "$comment": "Edit this file to change what the daily scanner watches. Prices are ROUND-TRIP business class in TWD. 'typical' = normal fare, 'deal' = what a seasoned flyer would call a good buy. priority: 1 = scanned most often, 3 = least.",
+  "$comment": "Edit this file to change what the daily scanner watches. Personal trips / price targets are better kept in the WATCH_TRIPS / PRICE_ALERTS repository variables (see docs/SETUP.md) because this repo is public. Prices are ROUND-TRIP business class in TWD. 'typical' = normal fare, 'deal' = what a seasoned flyer would call a good buy. priority: 1 = scanned most often, 3 = least.",
   "currency": "TWD",
   "homeAirports": ["TPE", "TSA", "KHH"],
   "searchesPerRun": { "serpapi": 8, "duffel": 30, "demo": 999 },
@@ -101,5 +101,6 @@
     { "o": "MNL", "d": "NRT", "p": 3, "bm": "JP", "stay": 6 },
     { "o": "NRT", "d": "LAX", "p": 3, "bm": "NA_WEST", "stay": 12 }
   ],
-  "watchTrips": []
+  "watchTrips": [],
+  "priceAlerts": []
 }

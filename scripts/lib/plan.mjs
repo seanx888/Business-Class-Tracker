@@ -48,7 +48,7 @@ export function buildPlan(config, { today, maxSearches }) {
       departDate: t.depart,
       returnDate: t.return || null,
       label: t.label || null,
-      route: { o: t.o, d: t.d, bm: t.bm, p: 1 },
+      route: { o: t.o, d: t.d, bm: t.bm || config.routes?.find((r) => r.o === t.o && r.d === t.d)?.bm, p: 1 },
     });
   }
 
