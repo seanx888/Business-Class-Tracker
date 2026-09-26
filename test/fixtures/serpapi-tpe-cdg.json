@@ -1,0 +1,70 @@
+{
+  "search_metadata": { "status": "Success" },
+  "best_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "Taiwan Taoyuan International Airport", "id": "TPE", "time": "2026-11-10 23:30" },
+          "arrival_airport": { "name": "Paris Charles de Gaulle Airport", "id": "CDG", "time": "2026-11-11 07:05" },
+          "duration": 875, "airplane": "Boeing 777", "airline": "EVA Air",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/BR.png",
+          "travel_class": "Business", "flight_number": "BR 87",
+          "extensions": ["Lie flat seat", "Wi-Fi for a fee", "In-seat power & USB outlets"]
+        }
+      ],
+      "total_duration": 875, "price": 128500, "type": "Round trip", "departure_token": "tok-br"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "Taiwan Taoyuan International Airport", "id": "TPE", "time": "2026-11-10 08:10" },
+          "arrival_airport": { "name": "Hong Kong International Airport", "id": "HKG", "time": "2026-11-10 10:05" },
+          "duration": 115, "airplane": "Airbus A350", "airline": "Cathay Pacific", "travel_class": "Business", "flight_number": "CX 465", "extensions": ["Lie flat seat"]
+        },
+        {
+          "departure_airport": { "name": "Hong Kong International Airport", "id": "HKG", "time": "2026-11-10 23:40" },
+          "arrival_airport": { "name": "Paris Charles de Gaulle Airport", "id": "CDG", "time": "2026-11-11 06:30" },
+          "duration": 830, "airplane": "Boeing 777", "airline": "Cathay Pacific", "travel_class": "Business", "flight_number": "CX 261", "extensions": ["Lie flat seat"]
+        }
+      ],
+      "layovers": [{ "duration": 815, "name": "Hong Kong International Airport", "id": "HKG", "overnight": false }],
+      "total_duration": 1760, "price": 88000, "type": "Round trip", "departure_token": "tok-cx"
+    }
+  ],
+  "other_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "Taiwan Taoyuan International Airport", "id": "TPE", "time": "2026-11-10 07:00" },
+          "arrival_airport": { "name": "Incheon International Airport", "id": "ICN", "time": "2026-11-10 10:30" },
+          "duration": 150, "airplane": "Boeing 787", "airline": "Korean Air", "travel_class": "Business", "flight_number": "KE 692", "extensions": ["Lie flat seat"]
+        },
+        {
+          "departure_airport": { "name": "Incheon International Airport", "id": "ICN", "time": "2026-11-10 13:00" },
+          "arrival_airport": { "name": "Paris Charles de Gaulle Airport", "id": "CDG", "time": "2026-11-10 19:00" },
+          "duration": 840, "airplane": "Boeing 777", "airline": "Korean Air", "travel_class": "Business", "flight_number": "KE 901", "extensions": ["Lie flat seat"]
+        }
+      ],
+      "layovers": [{ "duration": 150, "name": "Incheon International Airport", "id": "ICN" }],
+      "total_duration": 1140, "price": 112000, "type": "Round trip", "departure_token": "tok-ke"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "Taiwan Taoyuan International Airport", "id": "TPE", "time": "2026-11-10 09:00" },
+          "arrival_airport": { "name": "Shanghai Pudong International Airport", "id": "PVG", "time": "2026-11-10 11:00" },
+          "duration": 120, "airplane": "Airbus A330", "airline": "Air France", "travel_class": "Business", "flight_number": "AF 5130",
+          "plane_and_crew_by": "China Eastern Airlines", "extensions": []
+        },
+        {
+          "departure_airport": { "name": "Shanghai Pudong International Airport", "id": "PVG", "time": "2026-11-10 23:00" },
+          "arrival_airport": { "name": "Paris Charles de Gaulle Airport", "id": "CDG", "time": "2026-11-11 05:30" },
+          "duration": 810, "airplane": "Boeing 777", "airline": "Air France", "travel_class": "Business", "flight_number": "AF 111", "extensions": ["Lie flat seat"]
+        }
+      ],
+      "layovers": [{ "duration": 720, "name": "Shanghai Pudong International Airport", "id": "PVG" }],
+      "total_duration": 1650, "price": 79000, "type": "Round trip", "departure_token": "tok-af"
+    }
+  ],
+  "price_insights": { "lowest_price": 79000, "price_level": "low", "typical_price_range": [120000, 170000], "price_history": [[1790000000, 150000]] }
+}

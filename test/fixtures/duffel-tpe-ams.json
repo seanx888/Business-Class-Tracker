@@ -1,0 +1,63 @@
+{
+  "data": {
+    "id": "orq_1",
+    "offers": [
+      {
+        "id": "off_ci", "total_amount": "3890.00", "total_currency": "USD", "owner": { "iata_code": "CI", "name": "China Airlines" },
+        "slices": [
+          { "duration": "PT14H10M", "segments": [
+            { "origin": { "iata_code": "TPE", "iata_country_code": "TW", "name": "Taoyuan International Airport" },
+              "destination": { "iata_code": "AMS", "iata_country_code": "NL", "name": "Schiphol" },
+              "departing_at": "2026-11-10T23:40:00", "arriving_at": "2026-11-11T07:50:00", "duration": "PT14H10M",
+              "marketing_carrier": { "iata_code": "CI", "name": "China Airlines" }, "operating_carrier": { "iata_code": "CI", "name": "China Airlines" },
+              "marketing_carrier_flight_number": "65", "aircraft": { "name": "Airbus A350-900" }, "stops": [],
+              "passengers": [{ "cabin_class": "business", "cabin_class_marketing_name": "Premium Business" }] } ] },
+          { "duration": "PT12H55M", "segments": [
+            { "origin": { "iata_code": "AMS", "iata_country_code": "NL" }, "destination": { "iata_code": "TPE", "iata_country_code": "TW" },
+              "departing_at": "2026-11-24T11:10:00", "arriving_at": "2026-11-25T06:05:00", "duration": "PT12H55M",
+              "marketing_carrier": { "iata_code": "CI", "name": "China Airlines" }, "operating_carrier": { "iata_code": "CI", "name": "China Airlines" },
+              "marketing_carrier_flight_number": "66", "aircraft": { "name": "Airbus A350-900" }, "stops": [],
+              "passengers": [{ "cabin_class": "business" }] } ] }
+        ]
+      },
+      {
+        "id": "off_kl", "total_amount": "2410.00", "total_currency": "USD", "owner": { "iata_code": "KL", "name": "KLM" },
+        "slices": [
+          { "duration": "P1DT2H", "segments": [
+            { "origin": { "iata_code": "TPE", "iata_country_code": "TW" }, "destination": { "iata_code": "PVG", "iata_country_code": "CN" },
+              "departing_at": "2026-11-10T08:00:00", "arriving_at": "2026-11-10T10:00:00", "duration": "PT2H",
+              "marketing_carrier": { "iata_code": "KL", "name": "KLM" }, "operating_carrier": { "iata_code": "MU", "name": "China Eastern Airlines" },
+              "marketing_carrier_flight_number": "4301", "stops": [], "passengers": [{ "cabin_class": "business" }] },
+            { "origin": { "iata_code": "PVG", "iata_country_code": "CN" }, "destination": { "iata_code": "AMS", "iata_country_code": "NL" },
+              "departing_at": "2026-11-10T13:00:00", "arriving_at": "2026-11-10T19:00:00", "duration": "PT13H",
+              "marketing_carrier": { "iata_code": "KL", "name": "KLM" }, "operating_carrier": { "iata_code": "KL", "name": "KLM" },
+              "marketing_carrier_flight_number": "896", "stops": [], "passengers": [{ "cabin_class": "business" }] } ] }
+        ]
+      },
+      {
+        "id": "off_tk", "total_amount": "3100.00", "total_currency": "USD", "owner": { "iata_code": "TK", "name": "Turkish Airlines" },
+        "slices": [
+          { "duration": "PT20H", "segments": [
+            { "origin": { "iata_code": "TPE", "iata_country_code": "TW" }, "destination": { "iata_code": "IST", "iata_country_code": "TR" },
+              "departing_at": "2026-11-10T22:00:00", "arriving_at": "2026-11-11T05:30:00", "duration": "PT12H30M",
+              "marketing_carrier": { "iata_code": "TK", "name": "Turkish Airlines" }, "operating_carrier": { "iata_code": "TK", "name": "Turkish Airlines" },
+              "marketing_carrier_flight_number": "25", "stops": [], "passengers": [{ "cabin_class": "business" }] },
+            { "origin": { "iata_code": "IST", "iata_country_code": "TR" }, "destination": { "iata_code": "AMS", "iata_country_code": "NL" },
+              "departing_at": "2026-11-11T08:00:00", "arriving_at": "2026-11-11T10:40:00", "duration": "PT3H40M",
+              "marketing_carrier": { "iata_code": "TK", "name": "Turkish Airlines" }, "operating_carrier": { "iata_code": "TK", "name": "Turkish Airlines" },
+              "marketing_carrier_flight_number": "1951", "stops": [], "passengers": [{ "cabin_class": "business" }] } ] },
+          { "duration": "PT19H", "segments": [
+            { "origin": { "iata_code": "AMS", "iata_country_code": "NL" }, "destination": { "iata_code": "IST", "iata_country_code": "TR" },
+              "departing_at": "2026-11-24T11:00:00", "arriving_at": "2026-11-24T15:30:00", "duration": "PT3H30M",
+              "marketing_carrier": { "iata_code": "TK", "name": "Turkish Airlines" }, "operating_carrier": { "iata_code": "TK", "name": "Turkish Airlines" },
+              "marketing_carrier_flight_number": "1952", "stops": [], "passengers": [{ "cabin_class": "business" }] },
+            { "origin": { "iata_code": "IST", "iata_country_code": "TR" }, "destination": { "iata_code": "TPE", "iata_country_code": "TW" },
+              "departing_at": "2026-11-25T01:45:00", "arriving_at": "2026-11-25T17:30:00", "duration": "PT10H45M",
+              "marketing_carrier": { "iata_code": "TK", "name": "Turkish Airlines" }, "operating_carrier": { "iata_code": "TK", "name": "Turkish Airlines" },
+              "marketing_carrier_flight_number": "24", "stops": [{ "airport": { "iata_code": "BKK", "iata_country_code": "TH" } }],
+              "passengers": [{ "cabin_class": "business" }] } ] }
+        ]
+      }
+    ]
+  }
+}
