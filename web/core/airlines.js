@@ -109,8 +109,20 @@ export const AIRLINES = {
   YP: A('Air Premia', '南韓 Air Premia', 'NONE', 'KR', 'https://www.airpremia.com'),
 };
 
-// "Business" on low-cost carriers: flat seat, but lounge / meals / miles are often extra or absent.
-export const BUDGET_PREMIUM = new Set(['ZG', 'D7', 'VJ', 'TW', 'TR', 'JQ', '6E', 'YP']);
+// Low-cost carriers (LCC). Their "business" is often just a flat seat — lounge, meals and miles
+// are extra or absent — so the app shows them separately and hides them by default.
+export const LCC_CARRIERS = new Set([
+  'ZG', 'D7', 'VJ', 'TW', 'TR', 'JQ', '6E', 'YP', // LCCs that sell a flat-bed / "business" product
+  'IT', '7C', 'MM', 'GK', '5J', 'Z2', 'AK', 'FD', 'QZ', 'XJ', 'VZ', 'DD', 'SL',
+  'LJ', 'BX', 'RS', 'ZE', 'RF', '3K', 'IU',
+]);
+// Kept for backwards compatibility with older imports.
+export const BUDGET_PREMIUM = LCC_CARRIERS;
+
+/** An itinerary counts as LCC if ANY marketing carrier on it is a low-cost carrier. */
+export function isLccItinerary(carriers = []) {
+  return carriers.some((c) => LCC_CARRIERS.has(c));
+}
 
 // ── Carriers based in mainland China, Hong Kong or Macau — ALWAYS excluded ──
 // Marketing OR operating carrier match => itinerary rejected.

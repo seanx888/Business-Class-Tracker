@@ -73,6 +73,10 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
 
 ## 4. ntfy 推播 — Sean & Blue 各自接收 · ntfy push for both of you
 
+> ⏸ **目前暫停中 Currently paused**（`config/routes.json` → `"notifications": "paused"`）。
+> 金鑰可以先設好；要開始推播時，在 GitHub **Variables** 新增 `NOTIFICATIONS` = `on`（刪除或設 `paused` 即再暫停）。
+> Set up the topics now if you like; add the variable `NOTIFICATIONS=on` when you want pushes to start.
+
 ntfy 免費、免註冊。每人一個**不易猜到的主題名稱**（ntfy.sh 上的主題是公開的，知道名稱的人就能看到訊息，所以名稱要像密碼一樣隨機）。
 
 1. **兩人各自安裝 ntfy App** — iPhone：App Store 搜尋「ntfy」；Android：Google Play 或 F-Droid「ntfy」。允許通知。
@@ -132,6 +136,9 @@ ntfy 免費、免註冊。每人一個**不易猜到的主題名稱**（ntfy.sh 
 
 打開 **https://business-class-tracker.vercel.app** → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
 
+App 一律以**繁體中文**開啟（可在設定改語言，只影響那支手機）。票價預設只顯示**傳統航空**，LCC 廉航分開顯示，點「💺 LCC 廉航／全部航空」即可切換。
+The app always opens in Traditional Chinese; full-service airlines are shown by default, LCC fares are one tap away.
+
 每支手機的設定是**各自獨立**的：語言（Sean 繁中／한국어、Blue English）、幣別、天合加權、外站定位成本、App 內目標價。
 Each phone keeps its own language, currency, SkyTeam preference, positioning costs and in-app targets.
 
@@ -169,6 +176,7 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 | `PRICE_ALERTS` | Variable | 個人目標價 JSON |
 | `WATCH_TRIPS` | Variable | 固定行程 JSON |
 | `SEARCHES_PER_RUN` | Variable | 每天搜尋次數（SerpApi 預設 8）|
+| `NOTIFICATIONS` | Variable | `on` = 開始推播；未設定 = 依 config（目前 `paused`）|
 | `NOTIFY_MIN_SCORE` | Variable | 推播門檻分數（預設 72）|
 | `SERPAPI_VERIFY_RETURN` | Variable | `1` = 驗證回程（每條多 1 次搜尋）|
 | `FARE_PROVIDER` | Variable | 強制 `serpapi` / `duffel` / `demo` |

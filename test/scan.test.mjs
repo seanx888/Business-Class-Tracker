@@ -103,14 +103,63 @@ test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pu
     WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24', label: 'Paris' }]),
     PRICE_ALERTS: JSON.stringify([{ who: 'blue', route: 'TPE-CDG', maxTWD: 130000 }]),
     NTFY_TOPICS: 'sean=t-sean@zh-TW,blue=t-blue@en',
+    NOTIFICATIONS: 'on', // repository variable overrides the paused default in config
   };
   const { out, alertHits } = await runScan({ root, outDir, env, fetchImpl, today: '2026-09-26', log: quiet });
+  assert.equal(out.notifications, 'on');
   assert.ok(out.deals.every((d) => d.routeKey === 'TPE-CDG' && d.label === 'Paris'));
   assert.equal(alertHits.get('blue')[0].deal.primaryCarrier, 'KE', 'cheapest China-free option (KE 112,000) — never CX/AF');
   assert.ok(pushed.some((p) => p.topic === 't-blue' && /target NT\$130,000/.test(p.body)));
   assert.ok(!pushed.some((p) => p.topic === 't-sean' && /target/.test(p.body)), 'Sean does not get Blue\'s personal alert');
   assert.equal(JSON.stringify(out).includes('t-blue'), false, 'topics never published');
   assert.ok(pushed.every((p) => p.click === 'https://business-class-tracker.vercel.app/'), 'push links open the Vercel app');
+});
+
+test('notifications paused (config default): nothing is pushed even with NTFY_TOPICS set', async () => {
+  const root = await sandbox({ watchTrips: [] });
+  const serp = readFileSync(new URL('./fixtures/serpapi-tpe-cdg.json', import.meta.url), 'utf8');
+  const pushed = [];
+  const fetchImpl = async (url) => {
+    const u = new URL(url);
+    if (u.hostname === 'serpapi.com') return new Response(serp);
+    if (u.hostname === 'ntfy.sh') pushed.push(url);
+    return Promise.reject(new Error('offline'));
+  };
+  const env = {
+    SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '1', SCAN_DELAY_MS: '0', NTFY_TOPICS: 'sean=t-sean@zh-TW',
+    WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24' }]),
+    PRICE_ALERTS: JSON.stringify([{ who: 'sean', route: 'TPE-CDG', maxTWD: 999999 }]),
+  };
+  const logs = [];
+  const { out, alertHits, sent } = await runScan({ root, outDir: path.join(root, 'out'), env, fetchImpl, today: '2026-09-26', log: (m) => logs.push(m) });
+  assert.equal(out.notifications, 'paused');
+  assert.equal(alertHits.size, 0);
+  assert.deepEqual(sent, []);
+  assert.deepEqual(pushed, []);
+  assert.ok(logs.some((l) => /notifications paused/.test(l)));
+});
+
+test('LCC fares are kept separately and never crowd out full-service options', async () => {
+  const root = await sandbox({ watchTrips: [] });
+  const serp = JSON.parse(readFileSync(new URL('./fixtures/serpapi-tpe-cdg.json', import.meta.url), 'utf8'));
+  const br = serp.best_flights[0];
+  const lcc = (code, name, price) => ({
+    ...br,
+    price,
+    flights: br.flights.map((f) => ({ ...f, airline: name, flight_number: `${code} 1`, airline_logo: `x/${code}.png` })),
+  });
+  // Four LCC offers, all cheaper than every full-service offer.
+  serp.other_flights.push(lcc('VJ', 'Vietjet', 52000), lcc('TW', "T'way Air", 55000), lcc('ZG', 'ZIPAIR', 58000), lcc('D7', 'AirAsia X', 60000));
+  const body = JSON.stringify(serp);
+  const fetchImpl = async (url) => (new URL(url).hostname === 'serpapi.com' ? new Response(body) : Promise.reject(new Error('offline')));
+  const env = { SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '1', SCAN_DELAY_MS: '0', WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24' }]) };
+  const { out, history } = await runScan({ root, outDir: path.join(root, 'out'), env, fetchImpl, today: '2026-09-26', log: quiet });
+  const fsc = out.deals.filter((d) => !d.budget).map((d) => d.primaryCarrier).sort();
+  const lccKept = out.deals.filter((d) => d.budget).map((d) => d.primaryCarrier);
+  assert.deepEqual(fsc, ['BR', 'KE'], 'every China-free full-service option is still published');
+  assert.deepEqual(lccKept, ['VJ', 'TW'], 'only the two cheapest LCC options are kept');
+  assert.equal(history.routes['TPE-CDG'][0][1], 112000, 'full-service history ignores LCC prices');
+  assert.equal(history.lcc['TPE-CDG'][0][1], 52000);
 });
 
 test('invalid JSON in variables is ignored, not fatal', async () => {

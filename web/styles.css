@@ -273,3 +273,5 @@ pre.snippet { background: var(--surface-2); border: 1px solid var(--line); borde
 .skeleton { height: 150px; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: sk 1.2s infinite; border: 1px solid var(--line); }
 @keyframes sk { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton, .icon-btn.spin svg { animation: none; } }
+.lcc-note { margin: 2px 0 8px; }
+.linkish { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }

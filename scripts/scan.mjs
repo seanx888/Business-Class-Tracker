@@ -225,21 +225,31 @@ export async function runScan({
     }
 
     clean.sort((a, b) => a.priceTWD - b.priceTWD);
-    if (clean.length) recordLow(history, q.key, { date: today, priceTWD: clean[0].priceTWD, carrier: clean[0].primaryCarrier, departDate: q.departDate, returnDate: q.returnDate });
+    // Full-service and LCC fares are tracked separately so cheap LCCs never crowd out full-service options.
+    const fsc = clean.filter((d) => !d.budget);
+    const lcc = clean.filter((d) => d.budget);
+    const low = (d) => ({ date: today, priceTWD: d.priceTWD, carrier: d.primaryCarrier, departDate: q.departDate, returnDate: q.returnDate });
+    if (fsc.length) recordLow(history, q.key, low(fsc[0]));
+    if (lcc.length) recordLow(history, q.key, low(lcc[0]), 'lcc');
 
-    // Keep the cheapest few (distinct carriers) + best SkyTeam + best nonstop — what a frequent flyer wants to see.
+    // Keep the cheapest few full-service fares (distinct carriers) + best SkyTeam + best nonstop,
+    // plus the cheapest LCC options — what a frequent flyer wants to see.
     const keep = [];
-    const seenCarrier = new Set();
-    for (const d of clean) {
-      if (keep.length >= keepPerSearch) break;
-      if (seenCarrier.has(d.primaryCarrier)) continue;
-      seenCarrier.add(d.primaryCarrier);
-      keep.push(d);
-    }
+    const pickDistinct = (list, n) => {
+      const seen = new Set();
+      for (const d of list) {
+        if (seen.size >= n) break;
+        if (seen.has(d.primaryCarrier)) continue;
+        seen.add(d.primaryCarrier);
+        keep.push(d);
+      }
+    };
+    pickDistinct(fsc, keepPerSearch);
     for (const pickFn of [(d) => d.alliance === 'SKYTEAM', (d) => d.stops === 0]) {
-      const best = clean.find(pickFn);
+      const best = fsc.find(pickFn);
       if (best && !keep.includes(best)) keep.push(best);
     }
+    pickDistinct(lcc, config.keepLccPerSearch ?? 2);
     fresh.push(...keep);
     stats.kept += keep.length;
     log(`  ✓ ${q.key} ${q.departDate}${q.returnDate ? '→' + q.returnDate : ''}: ${res.offers.length} offers, ${clean.length} China-free, kept ${keep.length}`);
@@ -267,7 +277,10 @@ export async function runScan({
 
   const deals = [...fresh, ...carried].sort((a, b) => b.score - a.score).slice(0, 400).map(compact);
   pruneHistory(history, today);
-  const alertHits = evaluatePriceAlerts(priceAlerts, deals, history, today);
+  // Notifications can be paused in config/routes.json ("notifications": "paused") or with the
+  // NOTIFICATIONS repository variable (on | paused), which wins over the config.
+  const notificationsOn = String(env.NOTIFICATIONS || config.notifications || 'on').trim().toLowerCase() !== 'paused';
+  const alertHits = notificationsOn ? evaluatePriceAlerts(priceAlerts, deals, history, today) : new Map();
 
   const rates = {};
   for (const c of fx.display || Object.keys(fx.rates)) if (fx.rates[c]) rates[c] = fx.rates[c];
@@ -278,6 +291,7 @@ export async function runScan({
     scanDate: today,
     provider: provider.name,
     isDemo: provider.name === 'demo',
+    notifications: notificationsOn ? 'on' : 'paused',
     currency: 'TWD',
     fx: { date: fx.date, source: fx.source, rates },
     stats,
@@ -296,7 +310,8 @@ export async function runScan({
   const minScore = Number(env.NOTIFY_MIN_SCORE) || config.notifyMinScore || 72;
   const newGood = deals.filter((d) => d.firstSeen === today && d.score >= minScore).slice(0, 8);
   let sent = [];
-  if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
+  if (!notificationsOn) log('🔕 notifications paused — nothing sent');
+  else if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
     const [owner, repo] = (env.GITHUB_REPOSITORY || '').split('/');
     const siteUrl = env.SITE_URL || config.siteUrl || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
     try {

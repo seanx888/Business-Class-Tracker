@@ -15,14 +15,15 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 |---|---|---|
 | 🔥 | 今日好價：依「綜合評分」排序，標示 超值／很划算／不錯 | Daily deal feed ranked by a frequent-flyer score |
 | 🛡 | 中/港/澳 零容忍過濾（航空公司＋機場＋技術停留＋代碼共享實際營運者）| Zero-tolerance China/HK/Macau filter (carrier, operator, airport, tech stop) |
+| 💺 | 傳統航空與 LCC 廉航分開顯示，預設只看傳統航空（一鍵切換 LCC／全部）| Full-service vs LCC kept apart; full-service by default |
 | 🟦 | 天合聯盟優先（價格仍為主，價格相近時天合排前面；可調強弱）| SkyTeam first — nudges ranking without overriding price |
 | 🔁 | 外站票比價：外站票 + 定位機票 vs 台北出發，標示「經台北可停留」四段票 | Ex-station calculator incl. positioning cost & Taipei-stopover (4-coupon) candidates |
 | 🛏 | 平躺座椅、直飛、混艙、過夜轉機、廉航商務、疑似錯誤票價 標記 | Lie-flat, nonstop, mixed-cabin, overnight layover, budget-biz and error-fare flags |
 | 📈 | 航線價格歷史、30 天／歷史最低、目標價提醒 | Per-route price history, 30-day/all-time lows, target-price alerts |
 | 🔗 | 一鍵開啟 Google Flights / Skyscanner / KAYAK / 航空公司官網（商務艙預設）| One-tap deep links, business cabin pre-selected |
 | ☁️ | Vercel 託管，資料每天由 GitHub Actions 更新、App 直接讀取 | Hosted on Vercel; data refreshed daily from the repo |
-| 🔔 | ntfy 每日推播：Sean、Blue 各自的語言；個人目標價只推給本人 | ntfy daily push per person, in each person's language; personal price targets |
-| 🌏 | 繁體中文 / English / 한국어，深色／淺色，離線可用 | zh-TW / EN / KO, dark/light, works offline |
+| 🔔 | （目前暫停）ntfy 每日推播：Sean、Blue 各自的語言；個人目標價只推給本人 | ntfy daily push per person, in each person's language; personal price targets |
+| 🌏 | 預設繁體中文（可切換 English / 한국어），深色／淺色，離線可用 | Defaults to zh-TW (EN / KO selectable), dark/light, offline |
 
 ---
 

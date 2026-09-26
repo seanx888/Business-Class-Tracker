@@ -8,20 +8,17 @@ import { searchLinks, airlineUrl } from './core/links.js';
 
 // ───────────────────────── prefs (per-device) ─────────────────────────
 const PREF_KEY = 'bct.prefs.v1';
-const DEFAULT_FILTERS = { origin: 'all', region: 'all', alliance: 'all', nonstop: false, flat: false, hideBudget: false, minTier: 'all', sort: 'score' };
-
-function guessLang() {
-  const l = (navigator.language || 'zh-TW').toLowerCase();
-  if (l.startsWith('ko')) return 'ko';
-  if (l.startsWith('en')) return 'en';
-  return 'zh-TW';
-}
+// carrierType: 'fsc' (full-service, default) · 'lcc' (low-cost carriers) · 'all'
+const DEFAULT_FILTERS = { carrierType: 'fsc', origin: 'all', region: 'all', alliance: 'all', nonstop: false, flat: false, minTier: 'all', sort: 'score' };
 
 function loadPrefs() {
-  const base = { lang: guessLang(), currency: 'TWD', theme: 'auto', skyteamBoost: 'standard', positioning: {}, targets: {}, notified: {}, lastScan: null, filters: { ...DEFAULT_FILTERS } };
+  const base = { lang: 'zh-TW', langChosen: false, currency: 'TWD', theme: 'auto', skyteamBoost: 'standard', positioning: {}, targets: {}, notified: {}, lastScan: null, filters: { ...DEFAULT_FILTERS } };
   try {
     const saved = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
-    return { ...base, ...saved, filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) } };
+    const p = { ...base, ...saved, filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) } };
+    // Always open in Traditional Chinese unless someone explicitly picked another language in Settings.
+    if (!p.langChosen) p.lang = 'zh-TW';
+    return p;
   } catch {
     return base;
   }
@@ -151,16 +148,43 @@ async function loadHistory() {
   if (state.tab === 'routes') renderRoutes();
 }
 
+// LCC fares are kept apart: full-service is the default view, LCC / all are one tap away.
+const isLcc = (d) => !!d.budget;
+function matchesCarrierType(d, type = prefs.filters.carrierType) {
+  if (type === 'all') return true;
+  return type === 'lcc' ? isLcc(d) : !isLcc(d);
+}
+function visibleDeals() {
+  return state.deals.filter((d) => matchesCarrierType(d));
+}
+function carrierChips() {
+  const c = prefs.filters.carrierType;
+  return `${chip('f-carrier', 'fsc', t('carrierFsc'), c === 'fsc')}${chip('f-carrier', 'lcc', t('carrierLcc'), c === 'lcc')}${chip('f-carrier', 'all', t('carrierAll'), c === 'all')}`;
+}
+function historyFor(key) {
+  const h = state.history || {};
+  const fsc = h.routes?.[key] || [];
+  const lcc = h.lcc?.[key] || [];
+  const type = prefs.filters.carrierType;
+  if (type === 'fsc') return fsc;
+  if (type === 'lcc') return lcc;
+  const byDate = new Map();
+  for (const e of [...fsc, ...lcc]) {
+    const x = byDate.get(e[0]);
+    if (!x || e[1] < x[1]) byDate.set(e[0], e);
+  }
+  return [...byDate.values()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
 function filteredDeals() {
   const f = prefs.filters;
-  let list = state.deals.filter((d) => {
+  let list = visibleDeals().filter((d) => {
     if (f.origin === 'home' && d.originType !== 'home') return false;
     if (f.origin === 'ex' && d.originType !== 'exstation') return false;
     if (f.region !== 'all' && d.region !== f.region) return false;
     if (f.alliance !== 'all' && d.alliance !== f.alliance) return false;
     if (f.nonstop && d.stops !== 0) return false;
     if (f.flat && d.lieFlat !== true) return false;
-    if (f.hideBudget && d.budget) return false;
     return true;
   });
   list = rankDeals(list, f.sort, { skyteamBoost: prefs.skyteamBoost });
@@ -218,7 +242,7 @@ function dealBadges(d) {
   if (d.lieFlat === true) b.push(`<span class="badge ok">🛏 ${t('lieFlat')}</span>`);
   if (d.lieFlat === false) b.push(`<span class="badge warn">${t('recliner')}</span>`);
   if (d.viaHome && d.originType === 'exstation') b.push(`<span class="badge gold">★ ${t('viaHome')}</span>`);
-  if (d.budget) b.push(`<span class="badge">${t('budget')}</span>`);
+  if (d.budget) b.push(`<span class="badge warn">💺 ${t('budget')}</span>`);
   if (d.mixedCabin) b.push(`<span class="badge warn">${t('mixedCabin')}</span>`);
   if (d.overnightLayover) b.push(`<span class="badge warn">🌙 ${t('overnight')}</span>`);
   else if (d.longestLayoverMin > 480) b.push(`<span class="badge warn">${t('longLayover')}</span>`);
@@ -318,10 +342,11 @@ function renderDeals() {
   }
   const d = state.data;
   const f = prefs.filters;
-  const ranked = rankDeals(state.deals, 'score', { skyteamBoost: prefs.skyteamBoost });
+  const ranked = rankDeals(visibleDeals(), 'score', { skyteamBoost: prefs.skyteamBoost });
+  const hiddenLcc = f.carrierType === 'fsc' ? state.deals.filter(isLcc).length : 0;
   const top = ranked[0];
   const greatCount = ranked.filter((x) => x._tier === 'hot' || x._tier === 'great').length;
-  const regions = ['JP', 'KR', 'SEA', 'SAS', 'OC', 'EU', 'NA', 'ME', 'LATAM', 'AF', 'CAS', 'TW', 'OTHER'].filter((r) => state.deals.some((x) => x.region === r));
+  const regions = ['JP', 'KR', 'SEA', 'SAS', 'OC', 'EU', 'NA', 'ME', 'LATAM', 'AF', 'CAS', 'TW', 'OTHER'].filter((r) => visibleDeals().some((x) => x.region === r));
   const list = filteredDeals();
   const updated = new Date(d.generatedAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -335,15 +360,16 @@ function renderDeals() {
     <div class="updated">${t('updated', { t: esc(updated) })} · ${t('provider')}: ${esc(d.provider)}</div>
     <div class="filters">
       <div class="chips">
+        ${carrierChips()}
+        <span class="chip-sep"></span>
         ${chip('f-origin', 'all', t('filterAll'), f.origin === 'all')}
         ${chip('f-origin', 'home', '🏠 ' + t('filterHome'), f.origin === 'home')}
         ${chip('f-origin', 'ex', '🔁 ' + t('filterEx'), f.origin === 'ex')}
-        <span class="chip-sep"></span>
-        ${chip('f-toggle', 'nonstop', t('nonstopOnly'), f.nonstop)}
-        ${chip('f-toggle', 'flat', '🛏 ' + t('flatOnly'), f.flat)}
-        ${chip('f-toggle', 'hideBudget', t('hideBudget'), f.hideBudget)}
       </div>
       <div class="chips" style="margin-top:6px">
+        ${chip('f-toggle', 'nonstop', t('nonstopOnly'), f.nonstop)}
+        ${chip('f-toggle', 'flat', '🛏 ' + t('flatOnly'), f.flat)}
+        <span class="chip-sep"></span>
         ${ALLIANCE_ORDER.map((a) => chip('f-alliance', a, esc(ALLIANCES[a].name), f.alliance === a, `al-${a}`)).join('')}
         ${chip('f-alliance', 'all', t('allAlliances'), f.alliance === 'all')}
       </div>
@@ -361,6 +387,7 @@ function renderDeals() {
         </select>
       </div>
     </div>
+    ${hiddenLcc ? `<div class="lcc-note small muted">${t('lccHidden', { n: hiddenLcc })} · <button class="linkish" data-act="f-carrier" data-v="lcc">${t('showLcc')}</button></div>` : ''}
     <div class="list">
       ${list.length ? list.slice(0, state.limit).map(dealCard).join('') : `<div class="empty">${t('noDeals')}</div>`}
     </div>
@@ -381,7 +408,7 @@ function renderEx() {
     el.innerHTML = `<div class="skeleton" style="margin-top:16px"></div>`;
     return;
   }
-  const deals = rankDeals(state.deals, 'price', { skyteamBoost: prefs.skyteamBoost });
+  const deals = rankDeals(visibleDeals(), 'price', { skyteamBoost: prefs.skyteamBoost });
   const byDest = new Map();
   for (const d of deals) {
     if (!byDest.has(d.destination)) byDest.set(d.destination, []);
@@ -408,6 +435,7 @@ function renderEx() {
 
   el.innerHTML = `
     <h2>${t('exTitle')}</h2>
+    <div class="chips" style="margin-bottom:4px">${carrierChips()}</div>
     <div class="panel"><p>${t('exIntro')}</p><p class="small muted">${t('exRules')} ${t('exEdit')}</p></div>
     ${blocks.length ? blocks.map((b) => `
       <div class="panel ex-dest">
@@ -478,13 +506,12 @@ function renderRoutes() {
     return;
   }
   if (!state.history) loadHistory();
-  const hist = state.history?.routes || {};
   const today = state.data.scanDate;
   const cutoff = new Date(Date.parse(today) - 30 * 86400000).toISOString().slice(0, 10);
   const routes = [...(state.data.routes || [])].sort((a, b) => (a.o === b.o ? 0 : a.o === 'TPE' ? -1 : b.o === 'TPE' ? 1 : a.o.localeCompare(b.o)) || a.p - b.p);
   const rows = routes.map((r) => {
-    const latest = state.deals.filter((d) => d.routeKey === r.key).reduce((m, d) => (m && m.priceTWD <= d.priceTWD ? m : d), null);
-    const h = hist[r.key] || [];
+    const latest = visibleDeals().filter((d) => d.routeKey === r.key).reduce((m, d) => (m && m.priceTWD <= d.priceTWD ? m : d), null);
+    const h = historyFor(r.key);
     const low30 = h.filter((e) => e[0] >= cutoff).reduce((m, e) => Math.min(m, e[1]), Infinity);
     const lowAll = h.reduce((m, e) => Math.min(m, e[1]), Infinity);
     const target = prefs.targets[r.key];
@@ -511,6 +538,7 @@ function renderRoutes() {
   el.innerHTML = `
     ${quickSearchHtml()}
     <h2>📈 ${t('routesTitle')}</h2>
+    <div class="chips">${carrierChips()}</div>
     <div class="panel">${rows}</div>
     <div class="panel">
       <h3>➕ ${t('addRoute')}</h3>
@@ -546,8 +574,10 @@ function renderSettings() {
 
     <div class="panel">
       <h3>🔔 ${t('notifications')}</h3>
-      <button class="btn" data-act="notif" ${typeof Notification === 'undefined' ? 'disabled' : ''}>${typeof Notification !== 'undefined' && Notification.permission === 'granted' ? '✓ ' + t('notifOn') : t('enableNotif')}</button>
-      <p class="small muted" style="margin-top:8px">${t('notifHelp')}</p>
+      ${notificationsPaused()
+        ? `<p class="small"><b>⏸ ${t('notifPausedTitle')}</b></p><p class="small muted">${t('notifPaused')}</p>`
+        : `<button class="btn" data-act="notif" ${typeof Notification === 'undefined' ? 'disabled' : ''}>${typeof Notification !== 'undefined' && Notification.permission === 'granted' ? '✓ ' + t('notifOn') : t('enableNotif')}</button>
+      <p class="small muted" style="margin-top:8px">${t('notifHelp')}</p>`}
       <p class="small muted">📲 ${t('install')}: ${t('installHelp')}</p>
     </div>
 
@@ -584,7 +614,10 @@ function renderSettings() {
 }
 
 // ───────────────────────── alerts ─────────────────────────
+const notificationsPaused = () => state.data?.notifications === 'paused';
+
 async function notify(title, body) {
+  if (notificationsPaused()) return;
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   try {
     const reg = await navigator.serviceWorker?.ready;
@@ -600,7 +633,7 @@ function checkAlerts() {
   const hits = [];
   for (const [rk, target] of Object.entries(prefs.targets)) {
     if (!target) continue;
-    const best = state.deals.filter((d) => d.routeKey === rk).sort((a, b) => a.priceTWD - b.priceTWD)[0];
+    const best = visibleDeals().filter((d) => d.routeKey === rk).sort((a, b) => a.priceTWD - b.priceTWD)[0];
     if (best && best.priceTWD <= target && prefs.notified[rk] !== best.id) {
       hits.push(best);
       prefs.notified[rk] = best.id;
@@ -608,7 +641,7 @@ function checkAlerts() {
   }
   let newHot = 0;
   if (prefs.lastScan !== state.data.scanDate) {
-    newHot = state.deals.filter((d) => d.firstSeen === state.data.scanDate && d.tier === 'hot').length;
+    newHot = visibleDeals().filter((d) => d.firstSeen === state.data.scanDate && d.tier === 'hot').length;
     prefs.lastScan = state.data.scanDate;
   }
   savePrefs();
@@ -656,9 +689,10 @@ document.addEventListener('click', async (e) => {
       return;
     case 'f-origin': f.origin = v; break;
     case 'f-alliance': f.alliance = f.alliance === v ? 'all' : v; break;
+    case 'f-carrier': f.carrierType = v; break;
     case 'f-toggle': f[v] = !f[v]; break;
     case 'more': state.limit += 60; break;
-    case 'set-lang': prefs.lang = v; break;
+    case 'set-lang': prefs.lang = v; prefs.langChosen = true; break;
     case 'set-theme': prefs.theme = v; applyTheme(); break;
     case 'set-boost': prefs.skyteamBoost = v; break;
     case 'q-ow': state.quick.ow = !state.quick.ow; break;

@@ -1,14 +1,16 @@
 // Per-route daily low price history: routes[key] = [[scanDate, priceTWD, carrier, departDate, returnDate], …]
+// Full-service lows live in `routes` (used for reference prices); LCC lows are kept apart in `lcc`.
 import { median } from '../../web/core/scoring.js';
 
 const MAX_DAYS = 400;
 
 export function emptyHistory() {
-  return { version: 1, provider: null, routes: {} };
+  return { version: 1, provider: null, routes: {}, lcc: {} };
 }
 
-export function recordLow(history, key, { date, priceTWD, carrier, departDate, returnDate }) {
-  const list = (history.routes[key] ||= []);
+export function recordLow(history, key, { date, priceTWD, carrier, departDate, returnDate }, bucket = 'routes') {
+  const store = (history[bucket] ||= {});
+  const list = (store[key] ||= []);
   const existing = list.find((e) => e[0] === date);
   if (existing) {
     if (priceTWD < existing[1]) {
@@ -25,9 +27,12 @@ export function recordLow(history, key, { date, priceTWD, carrier, departDate, r
 
 export function pruneHistory(history, today) {
   const cutoff = new Date(Date.parse(`${today}T00:00:00Z`) - MAX_DAYS * 86400000).toISOString().slice(0, 10);
-  for (const k of Object.keys(history.routes)) {
-    history.routes[k] = history.routes[k].filter((e) => e[0] >= cutoff);
-    if (!history.routes[k].length) delete history.routes[k];
+  for (const bucket of ['routes', 'lcc']) {
+    const store = history[bucket] || {};
+    for (const k of Object.keys(store)) {
+      store[k] = store[k].filter((e) => e[0] >= cutoff);
+      if (!store[k].length) delete store[k];
+    }
   }
 }
 

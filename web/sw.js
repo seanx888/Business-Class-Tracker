@@ -1,5 +1,5 @@
 // Service worker: offline app shell + network-first fare data.
-const VERSION = 'bct-v2';
+const VERSION = 'bct-v3';
 const SHELL = [
   './',
   'index.html',
