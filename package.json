@@ -1,0 +1,17 @@
+{
+  "name": "business-class-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA that tracks cheap business-class fares daily from Taipei (TPE) and nearby ex-stations, excluding China/HK/Macau carriers and connections. SkyTeam first.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "scan": "node scripts/scan.mjs",
+    "scan:demo": "FARE_PROVIDER=demo node scripts/scan.mjs",
+    "serve": "npx --yes http-server web -p 8080 -c-1",
+    "test": "node --test test/*.test.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "airports": "node scripts/update-airports.mjs"
+  },
+  "license": "MIT"
+}

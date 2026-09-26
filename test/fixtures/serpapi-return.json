@@ -1,0 +1,30 @@
+{
+  "best_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "Paris Charles de Gaulle Airport", "id": "CDG", "time": "2026-11-24 11:00" },
+          "arrival_airport": { "name": "Hong Kong International Airport", "id": "HKG", "time": "2026-11-25 06:00" },
+          "duration": 780, "airline": "EVA Air", "travel_class": "Business", "flight_number": "BR 5301", "plane_and_crew_by": "Cathay Pacific"
+        },
+        {
+          "departure_airport": { "name": "Hong Kong International Airport", "id": "HKG", "time": "2026-11-25 08:00" },
+          "arrival_airport": { "name": "Taiwan Taoyuan International Airport", "id": "TPE", "time": "2026-11-25 09:50" },
+          "duration": 110, "airline": "EVA Air", "travel_class": "Business", "flight_number": "BR 870"
+        }
+      ],
+      "layovers": [{ "duration": 120, "name": "Hong Kong International Airport", "id": "HKG" }],
+      "total_duration": 1010, "price": 121000
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "Paris Charles de Gaulle Airport", "id": "CDG", "time": "2026-11-24 11:20" },
+          "arrival_airport": { "name": "Taiwan Taoyuan International Airport", "id": "TPE", "time": "2026-11-25 06:45" },
+          "duration": 805, "airline": "EVA Air", "travel_class": "Business", "flight_number": "BR 88", "extensions": ["Lie flat seat"]
+        }
+      ],
+      "total_duration": 805, "price": 128500
+    }
+  ]
+}
