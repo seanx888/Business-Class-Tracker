@@ -211,3 +211,24 @@ export function demoSearch(q) {
     : null;
   return { offers, insights, searches: 1 };
 }
+
+// Markets where cheaper point-of-sale fares are more often reported (demo bias only).
+const POS_BIAS = { VN: -0.04, ID: -0.04, IN: -0.03, TH: -0.02, PH: -0.02 };
+
+/**
+ * Demo point-of-sale check: the same itinerary priced in another market's currency.
+ * Deterministic per deal + market; some markets come out cheaper, some pricier.
+ */
+export function demoPos(q, market, { fx, deal }) {
+  const country = market.country.toUpperCase();
+  const r = rng(hash(`${deal.id}|${country}`));
+  const factor = 0.84 + r() * 0.24 + (POS_BIAS[country] ?? 0);
+  const rate = fx?.rates?.[market.currency];
+  if (!rate) return { offers: [], insights: null, searches: 1 };
+  const price = Math.round(deal.priceTWD * factor * rate);
+  return {
+    offers: [{ price, currency: market.currency, legs: deal.legs, inboundVerified: deal.inboundVerified }],
+    insights: null,
+    searches: 1,
+  };
+}

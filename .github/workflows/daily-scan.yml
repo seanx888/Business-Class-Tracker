@@ -40,11 +40,35 @@ jobs:
       - name: Unit tests (China-exclusion filter, scoring, providers)
         run: npm test
 
+      # Catches the usual setup slips: key saved as a Variable, wrong tab, or not saved at all.
+      # Only true/false is printed — never the values.
+      - name: Check secrets
+        if: github.event_name != 'push'
+        env:
+          HAS_SERPAPI_SECRET: ${{ secrets.SERPAPI_KEY != '' || secrets.SERPAPI_API_KEY != '' }}
+          HAS_NTFY_SECRET: ${{ secrets.NTFY_TOPICS != '' || secrets.NTFY_TOPIC != '' }}
+          SERPAPI_SAVED_AS_VARIABLE: ${{ vars.SERPAPI_KEY != '' || vars.SERPAPI_API_KEY != '' }}
+          NTFY_SAVED_AS_VARIABLE: ${{ vars.NTFY_TOPICS != '' || vars.NTFY_TOPIC != '' }}
+        run: |
+          if [ "$SERPAPI_SAVED_AS_VARIABLE" = "true" ]; then
+            echo "::error title=SERPAPI_KEY is saved as a Variable::Variables are not secret and are not used. Delete it under Variables and add it under Settings → Secrets and variables → Actions → Secrets → New repository secret."
+          fi
+          if [ "$HAS_SERPAPI_SECRET" != "true" ]; then
+            echo "::warning title=No SERPAPI_KEY secret::This run uses DEMO data. Add Settings → Secrets and variables → Actions → Secrets → New repository secret, Name: SERPAPI_KEY."
+          fi
+          if [ "$NTFY_SAVED_AS_VARIABLE" = "true" ]; then
+            echo "::error title=NTFY_TOPICS is saved as a Variable::Anyone who knows an ntfy topic can read it — store it as a Secret instead."
+          fi
+          if [ "$HAS_NTFY_SECRET" != "true" ]; then
+            echo "::notice title=No NTFY_TOPICS secret::Push notifications stay off until NTFY_TOPICS is set as a secret."
+          fi
+
       - name: Scan business-class fares
         if: github.event_name != 'push'
         env:
           FARE_PROVIDER: ${{ inputs.provider || vars.FARE_PROVIDER }}
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY || secrets.SERPAPI_API_KEY }}
+          SERPAPI_KEY_2: ${{ secrets.SERPAPI_KEY_2 }}
           SERPAPI_VERIFY_RETURN: ${{ vars.SERPAPI_VERIFY_RETURN }}
           SERPAPI_DEEP_SEARCH: ${{ vars.SERPAPI_DEEP_SEARCH }}
           DUFFEL_ACCESS_TOKEN: ${{ secrets.DUFFEL_ACCESS_TOKEN }}
@@ -53,7 +77,7 @@ jobs:
           PRICE_ALERTS: ${{ vars.PRICE_ALERTS }}
           NOTIFY_MIN_SCORE: ${{ vars.NOTIFY_MIN_SCORE }}
           NOTIFICATIONS: ${{ vars.NOTIFICATIONS }}
-          NTFY_TOPICS: ${{ secrets.NTFY_TOPICS }}
+          NTFY_TOPICS: ${{ secrets.NTFY_TOPICS || secrets.NTFY_TOPIC }}
           NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
           NTFY_SERVER: ${{ vars.NTFY_SERVER }}
           SITE_URL: ${{ vars.SITE_URL }}

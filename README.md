@@ -18,6 +18,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 | 💺 | 傳統航空與 LCC 廉航分開顯示，預設只看傳統航空（一鍵切換 LCC／全部）| Full-service vs LCC kept apart; full-service by default |
 | 🟦 | 天合聯盟優先（價格仍為主，價格相近時天合排前面；可調強弱）| SkyTeam first — nudges ranking without overriding price |
 | 🔁 | 外站票比價：外站票 + 定位機票 vs 台北出發，標示「經台北可停留」四段票 | Ex-station calculator incl. positioning cost & Taipei-stopover (4-coupon) candidates |
+| 🌏 | 外國站結帳：把當日最佳票價拿到其他國家網站（當地幣別）比價，換算台幣標出更便宜的國家 | Foreign-site checkout: best fares re-priced in other countries' markets, converted to TWD |
 | 🛏 | 平躺座椅、直飛、混艙、過夜轉機、廉航商務、疑似錯誤票價 標記 | Lie-flat, nonstop, mixed-cabin, overnight layover, budget-biz and error-fare flags |
 | 📈 | 航線價格歷史、30 天／歷史最低、目標價提醒 | Per-route price history, 30-day/all-time lows, target-price alerts |
 | 🔗 | 一鍵開啟 Google Flights / Skyscanner / KAYAK / 航空公司官網（商務艙預設）| One-tap deep links, business cabin pre-selected |
@@ -31,11 +32,11 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 
 👉 **完整步驟請看 [docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 Sean & Blue）。 Full step-by-step guide.
 
-**App：https://business-class-tracker.vercel.app**（Vercel 託管；每日資料直接從本 repo 讀取，不需重新部署）
+**App：https://business-class-tracker-lime.vercel.app**（Vercel 託管；每日資料直接從本 repo 讀取，不需重新部署）
 
 1. ✅ PR 已合併、預設分支 `main`；✅ Vercel 專案已建立
 2. GitHub Secret `SERPAPI_KEY`（<https://serpapi.com>，免費 250 次/月）— 不設定則顯示示範資料 demo
-3. GitHub Secret `NTFY_TOPICS` = `sean=<主題>@zh-TW,blue=<主題>@en`（兩人各自在 ntfy App 訂閱自己的主題）
+3. GitHub Secret `NTFY_TOPICS` = `family=<共用主題>@zh-TW`（兩人在 ntfy App 訂閱同一個主題；目前暫停，Variable `NOTIFICATIONS=on` 開啟）
 4. **Actions → Daily fare scan & deploy → Run workflow**，之後每天台北時間 05:40 自動執行
 5. 手機打開網址 → 加入主畫面
 
@@ -59,7 +60,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 ### Repository variables / secrets
 
 完整清單見 [docs/SETUP.md](docs/SETUP.md)。主要項目：
-`SERPAPI_KEY` · `NTFY_TOPICS` · `DEPLOY_TARGET` · `VERCEL_TOKEN` · `PRICE_ALERTS` · `WATCH_TRIPS` · `SEARCHES_PER_RUN` · `NOTIFY_MIN_SCORE`
+`SERPAPI_KEY` · `SERPAPI_KEY_2` · `NTFY_TOPICS` · `NOTIFICATIONS` · `DEPLOY_TARGET` · `VERCEL_TOKEN` · `PRICE_ALERTS` · `WATCH_TRIPS` · `SEARCHES_PER_RUN` · `NOTIFY_MIN_SCORE`
 
 ---
 
@@ -90,7 +91,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 | 天合聯盟 +6（標準）/ +12（強烈）· 星空、寰宇一家 +2 | 次要 |
 | Google 判定「價格偏低」+4 · 廉航商務 −8 · 長轉機/過夜 −2~−6 · 外站經台北 +3 | |
 
-等級：🔥 超值 ≥ 88 · ⭐ 很划算 ≥ 75 · 👍 不錯 ≥ 62。低於常見價 50% 標示「疑似錯誤票價」。
+等級：超值 ≥ 88 · 很划算 ≥ 75 · 不錯 ≥ 62。低於常見價 50% 標示「疑似錯誤票價」。
 
 ---
 
@@ -116,14 +117,15 @@ npm run icons       # re-render PNG icons (needs Playwright)
 No build step, no dependencies — vanilla ES modules. Node ≥ 20.
 
 ```
-web/            PWA (index.html, app.js, i18n.js, sw.js, styles.css, data/*.json)
+web/            PWA (index.html, app.js, i18n.js, icons.js, sw.js, styles.css, data/*.json)
 web/core/       shared logic used by BOTH the browser and the scanner
                 airlines.js · airports.js · exclusion.js · scoring.js · links.js
-scripts/        scan.mjs (daily job) · providers/{serpapi,duffel,demo}.mjs · notify.mjs (ntfy)
+scripts/        scan.mjs (daily job) · providers/{serpapi,duffel,demo}.mjs · lib/pos.mjs (foreign-site checks) · notify.mjs (ntfy)
 config/         routes.json · airport-countries.json
 test/           node:test suites + fixtures
 .github/        daily-scan.yml (cron 05:40 Taipei → scan → commit web/data) · ci.yml
 docs/SETUP.md   step-by-step setup for Sean & Blue
+design-system/  UI rules (Minimal Swiss, tokens, a11y) from the ui-ux-pro-max skill in .claude/skills/
 ```
 
 ## 限制 Limitations

@@ -112,7 +112,7 @@ test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pu
   assert.ok(pushed.some((p) => p.topic === 't-blue' && /target NT\$130,000/.test(p.body)));
   assert.ok(!pushed.some((p) => p.topic === 't-sean' && /target/.test(p.body)), 'Sean does not get Blue\'s personal alert');
   assert.equal(JSON.stringify(out).includes('t-blue'), false, 'topics never published');
-  assert.ok(pushed.every((p) => p.click === 'https://business-class-tracker.vercel.app/'), 'push links open the Vercel app');
+  assert.ok(pushed.every((p) => p.click === 'https://business-class-tracker-lime.vercel.app/'), 'push links open the Vercel app');
 });
 
 test('notifications paused (config default): nothing is pushed even with NTFY_TOPICS set', async () => {
@@ -160,6 +160,64 @@ test('LCC fares are kept separately and never crowd out full-service options', a
   assert.deepEqual(lccKept, ['VJ', 'TW'], 'only the two cheapest LCC options are kept');
   assert.equal(history.routes['TPE-CDG'][0][1], 112000, 'full-service history ignores LCC prices');
   assert.equal(history.lcc['TPE-CDG'][0][1], 52000);
+});
+
+test('SerpApi: quota pacing, second-key failover, foreign-site (VN) check, keys never leaked', async () => {
+  const root = await sandbox({ watchTrips: [], pos: { enabled: true, checksPerRun: 2, marketsPerDeal: 1, minSavingsPct: 3, markets: [{ country: 'VN', currency: 'VND' }] } });
+  const outDir = path.join(root, 'out');
+  const serp = JSON.parse(readFileSync(new URL('./fixtures/serpapi-tpe-cdg.json', import.meta.url), 'utf8'));
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const u = new URL(url);
+    if (u.hostname !== 'serpapi.com') throw new Error('offline');
+    const key = u.searchParams.get('api_key');
+    if (u.pathname === '/account.json') {
+      return new Response(JSON.stringify({ total_searches_left: key === 'KEY-ONE-secret' ? 0 : 30, searches_per_month: 250 }));
+    }
+    calls.push({ key, gl: u.searchParams.get('gl'), currency: u.searchParams.get('currency') });
+    if (key === 'KEY-ONE-secret') return new Response(JSON.stringify({ error: 'Your account has run out of searches.' }), { status: 429 });
+    if (u.searchParams.get('gl') === 'vn') {
+      // Same flights, priced in VND on the Vietnam market: 2,720,000 VND ≈ NT$3,400 cheaper on BR 87.
+      const vn = JSON.parse(JSON.stringify(serp));
+      for (const g of [...vn.best_flights, ...vn.other_flights]) g.price = Math.round(g.price * 0.9 * 800);
+      return new Response(JSON.stringify(vn));
+    }
+    return new Response(JSON.stringify(serp));
+  };
+  const env = {
+    SERPAPI_KEY: 'KEY-ONE-secret', SERPAPI_KEY_2: 'KEY-TWO-secret', SCAN_DELAY_MS: '0',
+    WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24' }]),
+  };
+  const fxFetch = async (url, init) => (String(url).includes('er-api') ? new Response(JSON.stringify({ result: 'success', time_last_update_unix: 1790380952, rates: { TWD: 1, VND: 800, THB: 1, IDR: 500, PHP: 1.8, MYR: 0.13, SGD: 0.04, KRW: 43, JPY: 4.6, INR: 2.6, USD: 0.031 } })) : fetchImpl(url, init));
+  const summary = path.join(root, 'summary.md');
+  const { out } = await runScan({ root, outDir, env: { ...env, GITHUB_STEP_SUMMARY: summary }, fetchImpl: fxFetch, today: '2026-09-27', log: quiet });
+
+  // 30 searches left on key 2, 4 days left in September → at most 7 searches today.
+  assert.deepEqual(out.stats.quota, { left: 30, perMonth: 500, dailyCap: 7, keys: 2 });
+  assert.ok(out.stats.searches <= 7);
+  assert.ok(calls.every((c) => c.key === 'KEY-TWO-secret'), 'exhausted key 1 is skipped');
+  assert.ok(calls.some((c) => c.gl === 'vn' && c.currency === 'VND'), 'Vietnam market checked');
+  assert.ok(calls.filter((c) => c.gl === 'vn').length <= 2, 'foreign-site checks stay within their reserved budget');
+  const withPos = out.deals.filter((d) => d.pos?.best);
+  assert.ok(withPos.length >= 1);
+  assert.equal(withPos[0].pos.best.country, 'VN');
+  assert.equal(withPos[0].pos.best.match, 'exact');
+  assert.ok(withPos[0].pos.best.savingsPct > 9 && withPos[0].pos.best.savingsPct < 11);
+  const raw = await readFile(path.join(outDir, 'deals.json'), 'utf8');
+  assert.ok(!raw.includes('KEY-ONE') && !raw.includes('KEY-TWO'), 'API keys never published');
+  const md = await readFile(summary, 'utf8');
+  assert.match(md, /serpapi ✅/);
+  assert.match(md, /SerpApi quota left \| 30 \(2 keys\) → up to 7\/day/);
+  assert.ok(!md.includes('secret'));
+});
+
+test('demo scan simulates foreign-site checks and flags missing keys in the summary', async () => {
+  const root = await sandbox();
+  const summary = path.join(root, 'summary.md');
+  const { out } = await runScan({ root, outDir: path.join(root, 'out'), env: { OFFLINE: '1', GITHUB_STEP_SUMMARY: summary }, today: '2026-09-27', log: quiet });
+  assert.ok(out.stats.pos.checked > 0);
+  assert.ok(out.deals.some((d) => d.pos?.markets?.length), 'some demo deals carry foreign-site prices');
+  assert.match(await readFile(summary, 'utf8'), /demo ⚠️ SERPAPI_KEY \/ DUFFEL_ACCESS_TOKEN not set/);
 });
 
 test('invalid JSON in variables is ignored, not fatal', async () => {

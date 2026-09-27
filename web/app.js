@@ -1,10 +1,12 @@
 // Business Class Radar — PWA front-end (vanilla ES modules, no build step).
-import { t, setLang, getLang, LANGS, regionName } from './i18n.js';
+// Layout follows design-system/business-class-tracker/pages/app.md (Minimal Swiss, SVG icons, hash routes).
+import { t, setLang, getLang, LANGS, regionName, countryName } from './i18n.js';
 import { ALLIANCES, ALLIANCE_ORDER, BLOCKED_CARRIERS, AIRLINES, airlineName } from './core/airlines.js';
 import { AIRPORTS, airportCity } from './core/airports.js';
 import { rankDeals } from './core/scoring.js';
 import { isChinaFree } from './core/exclusion.js';
-import { searchLinks, airlineUrl } from './core/links.js';
+import { searchLinks, airlineUrl, googleFlightsUrl } from './core/links.js';
+import { icon } from './icons.js';
 
 // ───────────────────────── prefs (per-device) ─────────────────────────
 const PREF_KEY = 'bct.prefs.v1';
@@ -33,14 +35,17 @@ function savePrefs() {
 }
 
 // ───────────────────────── state ─────────────────────────
-const state = { data: null, deals: [], history: null, tab: 'deals', error: null, dropped: 0, limit: 60, installEvt: null, exOpen: new Set() };
+const TABS = ['deals', 'special', 'routes', 'settings'];
+const state = { data: null, deals: [], history: null, tab: 'deals', special: 'ex', error: null, dropped: 0, limit: 40, installEvt: null, exOpen: new Set(), filtersOpen: false };
 
 // ───────────────────────── helpers ─────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const locale = () => ({ 'zh-TW': 'zh-TW', en: 'en-US', ko: 'ko-KR' })[getLang()] || 'zh-TW';
-const SYM = { TWD: 'NT$', USD: 'US$', KRW: '₩', JPY: '¥', EUR: '€', THB: '฿', VND: '₫', SGD: 'S$', PHP: '₱', MYR: 'RM', GBP: '£', AUD: 'A$' };
+const SYM = { TWD: 'NT$', USD: 'US$', KRW: '₩', JPY: '¥', EUR: '€', THB: '฿', VND: '₫', SGD: 'S$', PHP: '₱', MYR: 'RM', GBP: '£', AUD: 'A$', IDR: 'Rp', INR: '₹' };
 const TIER_ORDER = ['hot', 'great', 'good', 'fair'];
+const TIER_ICON = { hot: 'fire', great: 'thumbs-up', good: 'check' };
+const ext = () => icon('arrow-square-out', { size: 16 });
 
 function rate(cur) {
   if (cur === 'TWD') return 1;
@@ -56,7 +61,7 @@ function money(twd, cur = prefs.currency) {
   }
   return (SYM[c] || `${c} `) + Math.round(twd * r).toLocaleString(locale());
 }
-function moneyPerKm(twdPerKm) {
+function moneyPerKm(twdPerKm, bare = false) {
   if (twdPerKm == null) return '';
   let c = prefs.currency;
   let r = rate(c);
@@ -66,8 +71,10 @@ function moneyPerKm(twdPerKm) {
   }
   const v = twdPerKm * r;
   const digits = v < 1 ? 3 : v < 10 ? 2 : v < 100 ? 1 : 0;
-  return t('perKm', { v: (SYM[c] || c) + v.toFixed(digits) });
+  const out = (SYM[c] || c) + v.toFixed(digits);
+  return bare ? out : t('perKm', { v: out });
 }
+const localMoney = (amount, cur) => `${cur} ${Math.round(amount).toLocaleString(locale())}`;
 function fmtDay(iso) {
   if (!iso) return '';
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
@@ -79,10 +86,12 @@ function fmtDur(min) {
   const m = min % 60;
   return `${h}h${m ? String(m).padStart(2, '0') + 'm' : ''}`;
 }
+const fmtWhen = (iso) => (iso ? new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const hhmm = (s) => (s ? String(s).slice(11, 16) : '');
 const dayDiff = (a, b) => Math.round((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / 86400000);
 const city = (code) => airportCity(code, getLang());
 const carrierLabel = (code) => airlineName(code, getLang());
+const cap = (k) => k[0].toUpperCase() + k.slice(1);
 
 function toast(msg, ms = 3500) {
   const el = $('#toast');
@@ -97,9 +106,25 @@ function applyTheme() {
   else document.documentElement.dataset.theme = prefs.theme;
 }
 
+// ───────────────────────── routing (hash, so Back works and tabs are linkable) ─────────────────────────
+function readHash() {
+  const [tab, sub] = location.hash.replace(/^#\/?/, '').split('/');
+  state.tab = TABS.includes(tab) ? tab : 'deals';
+  if (state.tab === 'special') state.special = sub === 'pos' ? 'pos' : 'ex';
+}
+function go(hash) {
+  if (location.hash === hash) return render();
+  location.hash = hash; // → hashchange → render
+}
+window.addEventListener('hashchange', () => {
+  readHash();
+  render();
+  window.scrollTo({ top: 0 });
+});
+
 // ───────────────────────── data ─────────────────────────
 // Fare data is committed daily to GitHub by the scanner. Reading it straight from the public repo
-// means the hosted app (Vercel / Pages) shows new fares without being redeployed.
+// means the hosted app (Vercel) shows new fares without being redeployed.
 // Falls back to the copy bundled with the deployment (and to local files during development).
 const LOCAL_DEV = ['localhost', '127.0.0.1', ''].includes(location.hostname);
 const REMOTE_DATA = LOCAL_DEV ? null : document.querySelector('meta[name="bct-data-url"]')?.content || null;
@@ -157,10 +182,6 @@ function matchesCarrierType(d, type = prefs.filters.carrierType) {
 function visibleDeals() {
   return state.deals.filter((d) => matchesCarrierType(d));
 }
-function carrierChips() {
-  const c = prefs.filters.carrierType;
-  return `${chip('f-carrier', 'fsc', t('carrierFsc'), c === 'fsc')}${chip('f-carrier', 'lcc', t('carrierLcc'), c === 'lcc')}${chip('f-carrier', 'all', t('carrierAll'), c === 'all')}`;
-}
 function historyFor(key) {
   const h = state.history || {};
   const fsc = h.routes?.[key] || [];
@@ -194,6 +215,10 @@ function filteredDeals() {
   }
   return list;
 }
+function activeFilterCount() {
+  const f = prefs.filters;
+  return [f.region !== 'all', f.alliance !== 'all', f.nonstop, f.flat, f.minTier !== 'all'].filter(Boolean).length;
+}
 
 // ───────────────────────── rendering: shared ─────────────────────────
 function render() {
@@ -201,29 +226,29 @@ function render() {
   document.title = `${t('appName')} · ${t('appSub')}`;
   $('#app-name').textContent = t('appName');
   $('#app-sub').textContent = t('appSub');
+  $('#refresh-btn').setAttribute('aria-label', t('refresh'));
+  $('#install-btn').setAttribute('aria-label', t('install'));
   document.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
   document.querySelectorAll('.tabbar button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === state.tab ? 'page' : 'false'));
   document.querySelectorAll('.view').forEach((v) => (v.hidden = v.id !== `view-${state.tab}`));
   renderBanner();
-  ({ deals: renderDeals, ex: renderEx, routes: renderRoutes, settings: renderSettings })[state.tab]();
+  ({ deals: renderDeals, special: renderSpecial, routes: renderRoutes, settings: renderSettings })[state.tab]();
+}
+
+function notice(text, warn = false) {
+  return `<div class="notice${warn ? ' warn' : ''}">${icon(warn ? 'warning' : 'info')}<span>${esc(text)}</span></div>`;
 }
 
 function renderBanner() {
-  const b = $('#banner');
   const msgs = [];
-  let warn = false;
-  if (state.data?.isDemo) msgs.push(t('demoBanner'));
-  if (!navigator.onLine) {
-    msgs.push(t('offline'));
-    warn = true;
-  }
-  if (state.dropped) {
-    msgs.push(`⚠ ${state.dropped} deal(s) hidden by in-app China/HK/Macau re-check.`);
-    warn = true;
-  }
-  b.hidden = !msgs.length;
-  b.className = `banner${warn ? ' warn' : ''}`;
-  b.textContent = msgs.join(' · ');
+  if (state.data?.isDemo) msgs.push(notice(t('demoBanner')));
+  if (!navigator.onLine) msgs.push(notice(t('offline'), true));
+  if (state.dropped) msgs.push(notice(t('dropped', { n: state.dropped }), true));
+  $('#banner').innerHTML = msgs.join('');
+}
+
+function skeleton() {
+  return `<div class="skeleton"></div><div class="skeleton"></div>`;
 }
 
 function logo(code) {
@@ -231,24 +256,22 @@ function logo(code) {
   return `<span class="logo-wrap"><span class="logo-code">${esc(code)}</span><img class="logo" src="https://www.gstatic.com/flights/airline_logos/70px/${esc(code)}.png" alt="" loading="lazy"></span>`;
 }
 
-function allianceBadge(a) {
-  return `<span class="al al-${esc(a)}">${esc(ALLIANCES[a]?.name || a)}</span>`;
+const allianceName = (a) => (a === 'NONE' ? t('noAlliance') : ALLIANCES[a]?.name || a);
+function allianceMark(a) {
+  return `<span class="al al-${esc(a)}">${esc(allianceName(a))}</span>`;
 }
 
-function dealBadges(d) {
-  const b = [];
-  if (d._errorFare) b.push(`<span class="badge hot">⚡ ${t('errorFare')}</span>`);
-  if (d.label) b.push(`<span class="badge gold">🎯 ${esc(d.label)}</span>`);
-  if (d.lieFlat === true) b.push(`<span class="badge ok">🛏 ${t('lieFlat')}</span>`);
-  if (d.lieFlat === false) b.push(`<span class="badge warn">${t('recliner')}</span>`);
-  if (d.viaHome && d.originType === 'exstation') b.push(`<span class="badge gold">★ ${t('viaHome')}</span>`);
-  if (d.budget) b.push(`<span class="badge warn">💺 ${t('budget')}</span>`);
-  if (d.mixedCabin) b.push(`<span class="badge warn">${t('mixedCabin')}</span>`);
-  if (d.overnightLayover) b.push(`<span class="badge warn">🌙 ${t('overnight')}</span>`);
-  else if (d.longestLayoverMin > 480) b.push(`<span class="badge warn">${t('longLayover')}</span>`);
-  b.push(`<span class="badge ok">${d.inboundVerified ? t('chinaFree') : t('chinaFreeOut')}</span>`);
-  if (d.ageDays > 0) b.push(`<span class="badge">${t('seen', { n: d.ageDays })}</span>`);
-  return b.join('');
+function segmented(act, options, current, label) {
+  return `<div class="segmented" role="group" aria-label="${esc(label)}">${options
+    .map(([v, text]) => `<button data-act="${act}" data-v="${esc(v)}" aria-pressed="${current === v}">${esc(text)}</button>`)
+    .join('')}</div>`;
+}
+function chip(act, value, label, pressed, extraClass = '') {
+  return `<button class="chip ${extraClass}" data-act="${act}" data-v="${esc(value)}" aria-pressed="${pressed}">${label}</button>`;
+}
+function carrierChips() {
+  const c = prefs.filters.carrierType;
+  return `<div class="chips" role="group" aria-label="${esc(t('carrierAll'))}">${chip('f-carrier', 'fsc', esc(t('carrierFsc')), c === 'fsc')}${chip('f-carrier', 'lcc', esc(t('carrierLcc')), c === 'lcc')}${chip('f-carrier', 'all', esc(t('carrierAll')), c === 'all')}</div>`;
 }
 
 function stopsText(d) {
@@ -258,33 +281,56 @@ function stopsText(d) {
   const via = (d.via || []).join(', ');
   return `${t('stops', { n: d.stops })}${via ? ' · ' + t('via', { v: via }) : ''}`;
 }
+function tripText(d) {
+  if (!d.returnDate) return `${fmtDay(d.departDate)} · ${t('ow')}`;
+  return `${fmtDay(d.departDate)} – ${fmtDay(d.returnDate)} · ${t('days', { n: dayDiff(d.departDate, d.returnDate) })}`;
+}
+
+function tag(text, cls = '', ic = '') {
+  return `<span class="tag ${cls}">${ic ? icon(ic, { size: 14 }) : ''}${esc(text)}</span>`;
+}
+function dealTags(d) {
+  const b = [];
+  if (d._errorFare) b.push(tag(t('errorFare'), 'hot', 'lightning'));
+  if (d.pos?.best) b.push(tag(t('posBadge', { c: countryName(d.pos.best.country), p: Math.round(d.pos.best.savingsPct) }), 'pos', 'globe-hemisphere-east'));
+  if (d.label) b.push(tag(d.label, 'pos', 'target'));
+  if (d.viaHome && d.originType === 'exstation') b.push(tag(t('viaHome'), 'good', 'star'));
+  if (d.lieFlat === true) b.push(tag(t('lieFlat'), '', 'bed'));
+  if (d.lieFlat === false) b.push(tag(t('recliner'), 'warn'));
+  if (d.budget) b.push(tag(t('budget'), '', 'seat'));
+  if (d.mixedCabin) b.push(tag(t('mixedCabin'), 'warn'));
+  if (d.overnightLayover) b.push(tag(t('overnight'), 'warn', 'moon'));
+  else if (d.longestLayoverMin > 480) b.push(tag(t('longLayover'), 'warn', 'clock'));
+  if (d.ageDays > 0) b.push(tag(t('seen', { n: d.ageDays })));
+  return b.length ? `<div class="tags">${b.join('')}</div>` : '';
+}
+
+function scorePill(d) {
+  const ic = TIER_ICON[d._tier];
+  return `<span class="score t-${d._tier}" title="${esc(t('score'))} ${d._score}">${ic ? icon(ic, { size: 14 }) : ''}${esc(t('tier_' + d._tier))} ${d._score}</span>`;
+}
 
 function dealCard(d) {
-  const days = d.returnDate ? dayDiff(d.departDate, d.returnDate) : null;
   const disc = d._discount;
-  const discHtml = disc == null ? '' : disc > 0
-    ? `<span class="disc">▼${disc}% ${t('vsTypical', { p: '' }).trim()}</span>`
-    : `<span class="disc up">▲${Math.abs(disc)}%</span>`;
+  const delta = disc == null ? '' : disc > 0
+    ? `<div class="delta">${esc(t('vsTypical', { p: disc }))}</div>`
+    : `<div class="delta up">${esc(t('aboveTypical', { p: Math.abs(disc) }))}</div>`;
   return `
-  <article class="deal tier-${d._tier}" data-id="${esc(d.id)}">
+  <article class="deal${d._tier === 'hot' || d._errorFare ? ' is-hot' : ''}" id="deal-${esc(d.id)}">
     <button class="deal-main" data-act="toggle" data-id="${esc(d.id)}" aria-expanded="false">
-      <div class="deal-top">
-        ${allianceBadge(d.alliance)}
-        <span class="carrier">${logo(d.primaryCarrier)}<span>${esc(carrierLabel(d.primaryCarrier))}</span></span>
-        <span class="tier">${t('tier_' + d._tier)}<b>${d._score}</b></span>
+      <div class="deal-head">
+        <span class="carrier">${logo(d.primaryCarrier)}<b>${esc(carrierLabel(d.primaryCarrier))}</b></span>
+        ${allianceMark(d.alliance)}
+        ${scorePill(d)}
       </div>
-      <div class="deal-route">
-        <div class="ap"><b>${esc(d.origin)}</b><small>${esc(city(d.origin))}</small></div>
-        <div class="line"><span>${esc(stopsText(d))}</span></div>
-        <div class="ap r"><b>${esc(d.destination)}</b><small>${esc(city(d.destination))}</small></div>
+      <div class="deal-body">
+        <div class="route">${esc(d.origin)}${icon('arrow-right', { size: 16 })}${esc(d.destination)}</div>
+        <div class="price">${money(d.priceTWD)}</div>
+        <div class="cities">${esc(city(d.origin))} – ${esc(city(d.destination))}</div>
+        ${delta}
       </div>
-      <div class="deal-dates">${fmtDay(d.departDate)}${d.returnDate ? ` → ${fmtDay(d.returnDate)} · ${t('rt')} · ${days}d` : ` · ${t('ow')}`}</div>
-      <div class="deal-price">
-        <span class="price">${money(d.priceTWD)}</span>
-        ${discHtml}
-        <span class="cpk">${moneyPerKm(d._cpk)}</span>
-      </div>
-      <div class="badges">${dealBadges(d)}</div>
+      <div class="meta">${esc(tripText(d))} · ${esc(stopsText(d))}</div>
+      ${dealTags(d)}
     </button>
     <div class="deal-detail" hidden></div>
   </article>`;
@@ -295,49 +341,86 @@ function legHtml(leg, title, date) {
   leg.segments.forEach((s, i) => {
     const plus = s.dep && s.arr ? dayDiff(s.dep, s.arr) : 0;
     const op = s.operatingName && !String(s.operatingName).toLowerCase().includes(String(s.carrierName || carrierLabel(s.carrier)).toLowerCase())
-      ? ` · operated by ${esc(s.operatingName)}` : '';
-    const flat = s.lieFlat === true ? ` · 🛏 ${t('lieFlat')}` : s.lieFlat === false ? ` · ${t('recliner')}` : '';
+      ? ` · ${esc(t('operatedBy', { v: s.operatingName }))}` : '';
+    const flat = s.lieFlat === true ? ` · ${t('lieFlat')}` : s.lieFlat === false ? ` · ${t('recliner')}` : '';
     parts.push(`<li class="seg">
-      <div class="t">${esc(hhmm(s.dep))} ${esc(s.from)} → ${esc(hhmm(s.arr))}${plus > 0 ? `<sup>+${plus}</sup>` : ''} ${esc(s.to)} <span class="muted small">${esc(city(s.to))}</span></div>
-      <div class="m">${esc(s.flightNumber || s.carrier)} · ${esc(carrierLabel(s.carrier))}${s.aircraft ? ' · ' + esc(s.aircraft) : ''}${s.cabin ? ' · ' + esc(s.cabin) : ''}${flat} · ${fmtDur(s.durationMin)}${op}</div>
+      <div class="t">${esc(hhmm(s.dep))} ${esc(s.from)} – ${esc(hhmm(s.arr))}${plus > 0 ? `<sup>+${plus}</sup>` : ''} ${esc(s.to)} <span class="muted small">${esc(city(s.to))}</span></div>
+      <div class="m">${esc(s.flightNumber || s.carrier)} · ${esc(carrierLabel(s.carrier))}${s.aircraft ? ' · ' + esc(s.aircraft) : ''}${flat} · ${fmtDur(s.durationMin)}${op}</div>
     </li>`);
     const l = leg.layovers?.[i];
     if (l && i < leg.segments.length - 1) {
       const long = l.durationMin > 480 || l.overnight;
-      parts.push(`<li class="lay${long ? ' warn' : ''}">${t('layover', { a: esc(l.airport) + ' ' + esc(city(l.airport)), d: fmtDur(l.durationMin) })}${l.overnight ? ' · 🌙' : ''}</li>`);
+      parts.push(`<li class="lay${long ? ' warn' : ''}">${icon(l.overnight ? 'moon' : 'clock', { size: 14 })}${esc(t('layover', { a: `${l.airport} ${city(l.airport)}`, d: fmtDur(l.durationMin) }))}</li>`);
     }
   });
-  return `<div class="leg"><h4>${title} · ${fmtDay(date)}</h4><ol class="segs">${parts.join('')}</ol></div>`;
+  return `<div class="sec"><h4>${esc(title)} · ${fmtDay(date)}</h4><ol class="timeline">${parts.join('')}</ol></div>`;
+}
+
+function posMarketUrl(d, m) {
+  return googleFlightsUrl({ origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate, currency: m.currency, lang: getLang(), gl: m.country });
+}
+
+function posRows(d) {
+  const home = { country: 'TW', currency: d.currency || 'TWD', price: d.price ?? d.priceTWD, priceTWD: d.priceTWD, savingsTWD: 0, savingsPct: 0, home: true };
+  const rows = [home, ...(d.pos?.markets || [])].sort((a, b) => a.priceTWD - b.priceTWD);
+  return `<div class="pos-list">${rows.map((m) => {
+    const val = m.home ? '' : m.savingsPct >= 1
+      ? `<small class="save">${esc(t('posSave', { v: money(m.savingsTWD) }))}</small>`
+      : m.savingsPct <= -1 ? `<small class="more">${esc(t('posMore', { p: Math.round(-m.savingsPct) }))}</small>` : `<small class="more">${esc(t('posSame'))}</small>`;
+    const sub = `${localMoney(m.price, m.currency)}${m.match === 'carrier' ? ` · ${t('posViaCarrier')}` : ''}`;
+    return `<a class="pos-row" href="${esc(posMarketUrl(d, m))}" target="_blank" rel="noopener">
+      <span class="cc">${esc(m.country)}</span>
+      <span class="who">${esc(m.home ? t('posHome') : t('posMarket', { c: countryName(m.country) }))}<small>${esc(sub)}</small></span>
+      <span class="val">${money(m.priceTWD)}${val}</span>
+    </a>`;
+  }).join('')}</div>`;
+}
+
+function caveats(open = false) {
+  return `<details class="caveats"${open ? ' open' : ''}><summary>${icon('info', { size: 16 })}${esc(t('posCaveatsTitle'))}</summary><ul>${t('posCaveats').map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>`;
 }
 
 function dealDetail(d) {
-  const legs = [legHtml(d.legs[0], t('outbound'), d.departDate)];
-  if (d.legs[1]) legs.push(legHtml(d.legs[1], t('inbound'), d.returnDate));
-  else if (d.returnDate) legs.push(`<p class="small muted">↩ ${t('inboundUnknown')}</p>`);
+  const secs = [legHtml(d.legs[0], t('outbound'), d.departDate)];
+  if (d.legs[1]) secs.push(legHtml(d.legs[1], t('inbound'), d.returnDate));
+  else if (d.returnDate) secs.push(`<p class="small muted">${esc(t('inboundUnknown'))}</p>`);
+  secs.push(`<div class="verify">${icon('shield-check', { size: 16 })}${esc(d.inboundVerified ? t('verifiedFull') : t('verifiedOut'))}</div>`);
+
   const r = d.reference;
-  const ref = r
-    ? `${t('ref_' + r.source)}: ${money(r.value)}${r.low && r.high ? ` (${money(r.low)} – ${money(r.high)})` : ''}${d.priceLevel ? ` · Google: ${esc(d.priceLevel)}` : ''}`
-    : '';
-  const links = searchLinks({ origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate, currency: prefs.currency, lang: getLang() });
+  const kv = [];
+  if (r) kv.push([t('ref_' + r.source), `${money(r.value)}${r.low && r.high ? ` (${money(r.low)}–${money(r.high)})` : ''}`]);
+  if (d.priceLevel) {
+    const lvl = t('lvl_' + d.priceLevel);
+    kv.push([t('googleLevel'), esc(lvl.startsWith('lvl_') ? d.priceLevel : lvl)]);
+  }
+  kv.push([t('score'), `${d._score} · ${esc(t('tier_' + d._tier))}`]);
+  if (d._cpk != null) kv.push([t('perKmLbl'), esc(moneyPerKm(d._cpk, true))]);
+  if (d.price && d.currency && d.currency !== 'TWD') kv.push([d.currency, localMoney(d.price, d.currency)]);
+  secs.push(`<div class="sec"><h4>${esc(t('priceRef'))}</h4><div class="kv">${kv.map(([k, v]) => `<span>${esc(k)}</span><span>${v}</span>`).join('')}</div></div>`);
+
+  if (d.pos?.markets?.length) {
+    secs.push(`<div class="sec"><h4>${esc(t('posSection'))}${state.data?.isDemo ? ` · ${esc(t('posDemo'))}` : ''}</h4>${posRows(d)}${caveats()}</div>`);
+  }
+
+  const links = searchLinks({ origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate, currency: 'TWD', lang: getLang() });
   const site = airlineUrl(d.primaryCarrier);
-  return `${legs.join('')}
-    <div class="ref">${ref}${d.price && d.currency !== 'TWD' ? ` · ${esc(d.currency)} ${Math.round(d.price).toLocaleString()}` : ''}</div>
-    <div class="links">
-      ${links.map((l, i) => `<a class="btn${i === 0 ? ' primary' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}
-      ${site ? `<a class="btn ghost" href="${esc(site)}" target="_blank" rel="noopener">${t('airlineSite')} ↗</a>` : ''}
-      <button class="btn ghost" data-act="target" data-route="${esc(d.routeKey)}">🎯 ${t('setAlert')}</button>
-    </div>`;
+  const [google, ...others] = links;
+  secs.push(`<div class="actions">
+      <a class="btn primary block" href="${esc(google.url)}" target="_blank" rel="noopener">${esc(t('openGoogle'))}${ext()}</a>
+      <div class="row">
+        ${others.map((l) => `<a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}
+        ${site ? `<a class="btn" href="${esc(site)}" target="_blank" rel="noopener">${esc(t('airlineSite'))}</a>` : ''}
+      </div>
+      <button class="btn quiet" data-act="target" data-route="${esc(d.routeKey)}">${icon('target', { size: 16 })}${esc(t('setAlert'))}</button>
+    </div>`);
+  return secs.join('');
 }
 
 // ───────────────────────── Deals tab ─────────────────────────
-function chip(act, value, label, pressed, extraClass = '') {
-  return `<button class="chip ${extraClass}" data-act="${act}" data-v="${esc(value)}" aria-pressed="${pressed}">${label}</button>`;
-}
-
 function renderDeals() {
   const el = $('#view-deals');
   if (!state.data) {
-    el.innerHTML = state.error ? `<div class="empty">${t('loadFail')} (${esc(state.error)})</div>` : `<div class="skeleton" style="margin-top:16px"></div>`;
+    el.innerHTML = state.error ? `<div class="empty">${esc(t('loadFail'))} (${esc(state.error)})</div>` : skeleton();
     return;
   }
   const d = state.data;
@@ -348,66 +431,75 @@ function renderDeals() {
   const greatCount = ranked.filter((x) => x._tier === 'hot' || x._tier === 'great').length;
   const regions = ['JP', 'KR', 'SEA', 'SAS', 'OC', 'EU', 'NA', 'ME', 'LATAM', 'AF', 'CAS', 'TW', 'OTHER'].filter((r) => visibleDeals().some((x) => x.region === r));
   const list = filteredDeals();
-  const updated = new Date(d.generatedAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
+  const nFilters = activeFilterCount();
 
   el.innerHTML = `
-    <div class="stats">
-      <div class="stat"><b>${top ? money(top.priceTWD) : '—'}</b><span>${t('statBest')}${top ? ` · ${esc(top.origin)}→${esc(top.destination)}` : ''}</span></div>
-      <div class="stat"><b>${greatCount}</b><span>${t('statHot')}</span></div>
-      <div class="stat shield"><b>🛡 ${d.stats?.excluded?.china ?? 0}</b><span>${t('statExcluded')}</span></div>
-      <div class="stat"><b>${d.routes?.length ?? 0}</b><span>${t('statRoutes')}</span></div>
+    <div class="status">${icon('shield-check', { size: 16 })}<span>${esc(t('status', { n: d.stats?.excluded?.china ?? 0, t: fmtWhen(d.generatedAt) }))}</span></div>
+    <button class="hero" data-act="jump" data-id="${esc(top?.id || '')}" ${top ? '' : 'disabled'}>
+      <span class="label">${esc(t('bestToday'))}</span>
+      <span>
+        <span class="big num">${top ? money(top.priceTWD) : '—'}</span>
+        <span class="sub">${top ? `${esc(top.origin)} – ${esc(top.destination)} · ${esc(city(top.destination))} · ${esc(carrierLabel(top.primaryCarrier))}` : ''}</span>
+      </span>
+      <span class="kpis"><b class="num">${greatCount}</b> ${esc(t('kpiGreat'))}<br><b class="num">${d.routes?.length ?? 0}</b> ${esc(t('kpiRoutes'))}</span>
+    </button>
+    ${segmented('f-carrier', [['fsc', t('carrierFsc')], ['lcc', t('carrierLcc')], ['all', t('carrierAll')]], f.carrierType, t('carrierAll'))}
+    <div class="toolbar">
+      <select data-f="origin" aria-label="${esc(t('originAll'))}">
+        ${[['all', t('originAll')], ['home', t('originHome')], ['ex', t('originEx')]].map(([v, l]) => `<option value="${v}" ${f.origin === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+      </select>
+      <select data-f="sort" aria-label="${esc(t('sort'))}">
+        ${['score', 'price', 'discount', 'alliance', 'cpk', 'date'].map((k) => `<option value="${k}" ${f.sort === k ? 'selected' : ''}>${esc(t('sort' + cap(k)))}</option>`).join('')}
+      </select>
+      <button class="btn" data-act="filters" aria-expanded="${state.filtersOpen}" aria-controls="filter-panel">${icon('sliders-horizontal')}<span>${esc(t('filterBtn'))}</span>${nFilters ? `<span class="count">${nFilters}</span>` : ''}</button>
     </div>
-    <div class="updated">${t('updated', { t: esc(updated) })} · ${t('provider')}: ${esc(d.provider)}</div>
-    <div class="filters">
-      <div class="chips">
-        ${carrierChips()}
-        <span class="chip-sep"></span>
-        ${chip('f-origin', 'all', t('filterAll'), f.origin === 'all')}
-        ${chip('f-origin', 'home', '🏠 ' + t('filterHome'), f.origin === 'home')}
-        ${chip('f-origin', 'ex', '🔁 ' + t('filterEx'), f.origin === 'ex')}
+    <div class="filter-panel" id="filter-panel" ${state.filtersOpen ? '' : 'hidden'}>
+      <div class="row2">
+        <label><span class="field-label">${esc(t('region'))}</span>
+          <select data-f="region"><option value="all">${esc(t('allRegions'))}</option>
+          ${regions.map((r) => `<option value="${r}" ${f.region === r ? 'selected' : ''}>${esc(regionName(r))}</option>`).join('')}</select></label>
+        <label><span class="field-label">${esc(t('minTier'))}</span>
+          <select data-f="minTier"><option value="all">${esc(t('allTiers'))}</option>
+          ${TIER_ORDER.slice(0, 3).map((k) => `<option value="${k}" ${f.minTier === k ? 'selected' : ''}>${esc(t('tier_' + k))}+</option>`).join('')}</select></label>
       </div>
-      <div class="chips" style="margin-top:6px">
-        ${chip('f-toggle', 'nonstop', t('nonstopOnly'), f.nonstop)}
-        ${chip('f-toggle', 'flat', '🛏 ' + t('flatOnly'), f.flat)}
-        <span class="chip-sep"></span>
-        ${ALLIANCE_ORDER.map((a) => chip('f-alliance', a, esc(ALLIANCES[a].name), f.alliance === a, `al-${a}`)).join('')}
-        ${chip('f-alliance', 'all', t('allAlliances'), f.alliance === 'all')}
-      </div>
-      <div class="row">
-        <select data-f="region" aria-label="${t('region')}">
-          <option value="all">${t('allRegions')}</option>
-          ${regions.map((r) => `<option value="${r}" ${f.region === r ? 'selected' : ''}>${esc(regionName(r))}</option>`).join('')}
-        </select>
-        <select data-f="minTier" aria-label="${t('minTier')}">
-          <option value="all">${t('allTiers')}</option>
-          ${TIER_ORDER.slice(0, 3).map((k) => `<option value="${k}" ${f.minTier === k ? 'selected' : ''}>${t('tier_' + k)}+</option>`).join('')}
-        </select>
-        <select data-f="sort" aria-label="${t('sort')}">
-          ${['score', 'price', 'discount', 'alliance', 'cpk', 'date'].map((k) => `<option value="${k}" ${f.sort === k ? 'selected' : ''}>${t('sort' + k[0].toUpperCase() + k.slice(1))}</option>`).join('')}
-        </select>
+      <div><span class="field-label">${esc(t('allianceLbl'))}</span>
+        <div class="chips">${chip('f-alliance', 'all', esc(t('allAlliances')), f.alliance === 'all')}${ALLIANCE_ORDER.map((a) => chip('f-alliance', a, allianceMark(a), f.alliance === a)).join('')}</div></div>
+      <div><span class="field-label">${esc(t('options'))}</span>
+        <div class="chips">${chip('f-toggle', 'nonstop', esc(t('nonstopOnly')), f.nonstop)}${chip('f-toggle', 'flat', icon('bed', { size: 16 }) + esc(t('flatOnly')), f.flat)}</div></div>
+      <div class="panel-actions">
+        ${nFilters ? `<button class="btn quiet" data-act="clear-filters">${esc(t('clearFilters'))}</button>` : ''}
+        <button class="btn" data-act="filters">${esc(t('done'))}</button>
       </div>
     </div>
-    ${hiddenLcc ? `<div class="lcc-note small muted">${t('lccHidden', { n: hiddenLcc })} · <button class="linkish" data-act="f-carrier" data-v="lcc">${t('showLcc')}</button></div>` : ''}
+    <div class="resultline">
+      <span>${esc(t('resultCount', { n: list.length }))}</span>
+      ${hiddenLcc ? `<span>${esc(t('lccHidden', { n: hiddenLcc }))} · <button class="linkish" data-act="f-carrier" data-v="lcc">${esc(t('showLcc'))}</button></span>` : ''}
+    </div>
     <div class="list">
-      ${list.length ? list.slice(0, state.limit).map(dealCard).join('') : `<div class="empty">${t('noDeals')}</div>`}
+      ${list.length ? list.slice(0, state.limit).map(dealCard).join('') : `<div class="empty">${esc(t('noDeals'))}</div>`}
     </div>
-    ${list.length > state.limit ? `<div style="text-align:center;margin:14px 0"><button class="btn" data-act="more">+ ${list.length - state.limit}</button></div>` : ''}
+    ${list.length > state.limit ? `<div style="text-align:center;margin:16px 0"><button class="btn" data-act="more">+ ${list.length - state.limit}</button></div>` : ''}
   `;
 }
 
-// ───────────────────────── Ex-station tab ─────────────────────────
+// ───────────────────────── Special fares tab: ex-station + foreign-site checkout ─────────────────────────
 function positioningCost(o) {
   const v = prefs.positioning[o];
   if (Number.isFinite(v) && v >= 0) return v;
   return state.data?.origins?.[o]?.positioningTWD ?? 0;
 }
 
-function renderEx() {
-  const el = $('#view-ex');
+function renderSpecial() {
+  const el = $('#view-special');
+  const seg = segmented('special', [['ex', t('specialEx')], ['pos', t('specialPos')]], state.special, t('tabEx'));
   if (!state.data) {
-    el.innerHTML = `<div class="skeleton" style="margin-top:16px"></div>`;
+    el.innerHTML = seg + skeleton();
     return;
   }
+  el.innerHTML = seg + (state.special === 'pos' ? posHtml() : exHtml());
+}
+
+function exHtml() {
   const deals = rankDeals(visibleDeals(), 'price', { skyteamBoost: prefs.skyteamBoost });
   const byDest = new Map();
   for (const d of deals) {
@@ -433,45 +525,64 @@ function renderEx() {
   }
   blocks.sort((a, b) => b.maxSave - a.maxSave);
 
-  el.innerHTML = `
-    <h2>${t('exTitle')}</h2>
-    <div class="chips" style="margin-bottom:4px">${carrierChips()}</div>
-    <div class="panel"><p>${t('exIntro')}</p><p class="small muted">${t('exRules')} ${t('exEdit')}</p></div>
+  return `
+    <p class="intro">${esc(t('exIntro'))}</p>
+    <p class="small muted">${esc(t('exRules'))}</p>
+    ${carrierChips()}
     ${blocks.length ? blocks.map((b) => `
-      <div class="panel ex-dest">
+      <section class="panel ex-dest">
         <div class="ex-head">
-          <div><b>✈ ${esc(b.dest)} ${esc(city(b.dest))}</b></div>
-          <div class="small muted">${b.tpeBest ? `${t('exTpeBest')}: <b>${money(b.tpeBest.priceTWD)}</b>` : b.baseline ? `${t('exNone')}: ${money(b.baseline)}` : ''}</div>
+          <b>${esc(b.dest)} ${esc(city(b.dest))}</b>
+          <span class="small muted num">${b.tpeBest ? esc(t('exTpeBest', { v: money(b.tpeBest.priceTWD) })) : b.baseline ? esc(t('exNone', { v: money(b.baseline) })) : ''}</span>
         </div>
-        <div class="ex-rows">
-          ${b.rows.map(({ d, pos, total, save }) => `
-            <div class="ex-row" data-act="ex-open" data-id="${esc(d.id)}" role="button" tabindex="0" aria-expanded="${state.exOpen.has(d.id)}">
-              <div class="ex-main">
-                <div><b>${esc(d.origin)}</b> <span class="muted">${esc(city(d.origin))}</span> ${allianceBadge(d.alliance)} <span class="small">${esc(carrierLabel(d.primaryCarrier))}</span>${d.viaHome ? ' <span class="small" style="color:var(--gold)">★ ' + t('via', { v: 'TPE' }) + '</span>' : ''}</div>
-                <div class="small muted">${fmtDay(d.departDate)}${d.returnDate ? ' → ' + fmtDay(d.returnDate) : ''} · ${esc(stopsText(d))}</div>
-                <div class="small">${money(d.priceTWD)} <span class="muted">+ ${t('exPositioning')} ${money(pos)} =</span> <b>${money(total)}</b></div>
-              </div>
-              <div class="ex-save">${save == null ? '' : save >= 0 ? `<span class="save">${t('exSave', { v: money(save) })}</span>` : `<span class="more">${t('exMore', { v: money(-save) })}</span>`}</div>
-            </div>
-            ${state.exOpen.has(d.id) ? `<div class="deal-detail ex-detail">${dealDetail(d)}</div>` : ''}`).join('')}
+        ${b.rows.map(({ d, pos, total, save }) => `
+          <button class="ex-row" data-act="ex-open" data-id="${esc(d.id)}" aria-expanded="${state.exOpen.has(d.id)}">
+            <span class="ex-main">
+              <span><b>${esc(d.origin)}</b> ${esc(city(d.origin))} · ${allianceMark(d.alliance)} ${esc(carrierLabel(d.primaryCarrier))}</span>
+              <span class="small">${esc(tripText(d))} · ${esc(stopsText(d))}${d.viaHome ? ` · ${esc(t('viaHome'))}` : ''}</span>
+              <span class="small num">${money(d.priceTWD)} + ${esc(t('exPositioning'))} ${money(pos)} = <b>${money(total)}</b></span>
+            </span>
+            <span class="ex-save">${save == null ? '' : save >= 0 ? `<span class="save">${esc(t('exSave', { v: money(save) }))}</span>` : `<span class="more">${esc(t('exMore', { v: money(-save) }))}</span>`}</span>
+          </button>
+          ${state.exOpen.has(d.id) ? `<div class="deal-detail ex-detail">${dealDetail(d)}</div>` : ''}`).join('')}
+      </section>`).join('') : `<div class="empty">${esc(t('exEmpty'))}</div>`}
+  `;
+}
+
+function posHtml() {
+  const checked = visibleDeals().filter((d) => d.pos?.markets?.length);
+  checked.sort((a, b) => (b.pos.best?.savingsPct ?? -99) - (a.pos.best?.savingsPct ?? -99) || a.priceTWD - b.priceTWD);
+  const st = state.data.stats?.pos;
+  return `
+    <p class="intro">${esc(t('posIntro'))}</p>
+    ${caveats(!checked.length)}
+    ${state.data.isDemo && checked.length ? `<p class="small muted">${esc(t('posDemo'))}</p>` : ''}
+    ${checked.length ? checked.map((d) => `
+      <section class="panel ex-dest">
+        <div class="ex-head">
+          <b>${esc(d.origin)} – ${esc(d.destination)} ${esc(city(d.destination))}</b>
+          <span class="small muted">${esc(t('posChecked', { n: d.pos.markets.length }))}</span>
         </div>
-      </div>`).join('') : `<div class="empty">${t('exEmpty')}</div>`}
+        <p class="small muted" style="margin:4px 0 10px">${esc(carrierLabel(d.primaryCarrier))} · ${allianceMark(d.alliance)} · ${esc(tripText(d))} · ${esc(stopsText(d))}</p>
+        ${posRows(d)}
+      </section>`).join('') : `<div class="empty">${esc(t('posEmpty'))}</div>`}
+    ${st?.checked ? `<p class="small muted" style="text-align:center;margin-top:16px">${esc(t('posStat'))}: ${st.cheaper} / ${st.checked}</p>` : ''}
   `;
 }
 
 // ───────────────────────── Routes tab ─────────────────────────
 function sparkline(entries) {
-  if (!entries || entries.length < 2) return `<span class="small muted">${t('noHistory')}</span>`;
+  if (!entries || entries.length < 2) return `<span class="small muted">${esc(t('noHistory'))}</span>`;
   const pts = entries.slice(-60);
   const prices = pts.map((e) => e[1]);
   const min = Math.min(...prices);
   const max = Math.max(...prices);
-  const W = 120;
-  const H = 34;
+  const W = 96;
+  const H = 28;
   const x = (i) => (i / (pts.length - 1)) * (W - 4) + 2;
   const y = (p) => (max === min ? H / 2 : H - 3 - ((p - min) / (max - min)) * (H - 6));
   const minI = prices.indexOf(min);
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="price trend"><polyline points="${pts.map((e, i) => `${x(i).toFixed(1)},${y(e[1]).toFixed(1)}`).join(' ')}"/><circle cx="${x(minI).toFixed(1)}" cy="${y(min).toFixed(1)}" r="2.6"/></svg>`;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('lowAll'))} ${money(min)}"><polyline points="${pts.map((e, i) => `${x(i).toFixed(1)},${y(e[1]).toFixed(1)}`).join(' ')}"/><circle cx="${x(minI).toFixed(1)}" cy="${y(min).toFixed(1)}" r="2.6"/></svg>`;
 }
 
 function quickSearchHtml() {
@@ -484,25 +595,25 @@ function quickSearchHtml() {
     : [];
   const origins = Object.keys(state.data?.origins || { TPE: 1 });
   return `
-    <div class="panel">
-      <h3>🔎 ${t('quickSearch')}</h3>
+    <section class="panel">
+      <h3>${esc(t('quickSearch'))}</h3>
       <datalist id="ap-list">${Object.entries(AIRPORTS).map(([c, a]) => `<option value="${c}">${esc(city(c))} · ${esc(a.en)}</option>`).join('')}</datalist>
       <div class="grid2">
-        <div class="field"><label for="q-from">${t('from')}</label><input id="q-from" type="text" data-q="from" list="ap-list" value="${esc(q.from)}" maxlength="3" autocapitalize="characters"></div>
-        <div class="field"><label for="q-to">${t('to')}</label><input id="q-to" type="text" data-q="to" list="ap-list" value="${esc(q.to)}" maxlength="3" autocapitalize="characters"></div>
-        <div class="field"><label for="q-dep">${t('depart')}</label><input id="q-dep" type="date" data-q="dep" value="${esc(q.dep)}"></div>
-        <div class="field"><label for="q-ret">${t('ret')}</label><input id="q-ret" type="date" data-q="ret" value="${esc(q.ret)}" ${q.ow ? 'disabled' : ''}></div>
+        <div class="field"><label for="q-from">${esc(t('from'))}</label><input id="q-from" type="text" data-q="from" list="ap-list" value="${esc(q.from)}" maxlength="3" autocapitalize="characters"></div>
+        <div class="field"><label for="q-to">${esc(t('to'))}</label><input id="q-to" type="text" data-q="to" list="ap-list" value="${esc(q.to)}" maxlength="3" autocapitalize="characters"></div>
+        <div class="field"><label for="q-dep">${esc(t('depart'))}</label><input id="q-dep" type="date" data-q="dep" value="${esc(q.dep)}"></div>
+        <div class="field"><label for="q-ret">${esc(t('ret'))}</label><input id="q-ret" type="date" data-q="ret" value="${esc(q.ret)}" ${q.ow ? 'disabled' : ''}></div>
       </div>
-      <div class="chips" style="margin-bottom:10px">${chip('q-ow', '1', t('oneWay'), q.ow)} ${origins.map((o) => chip('q-from', o, o, q.from === o)).join('')}</div>
-      <div class="links" id="quick-links">${links.map((l) => `<a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</div>
-      <p class="small muted" style="margin-top:8px">${t('quickNote')}</p>
-    </div>`;
+      <div class="chips" style="margin:12px 0">${chip('q-ow', '1', esc(t('oneWay')), q.ow)}${origins.map((o) => chip('q-from', o, esc(o), q.from === o)).join('')}</div>
+      <div class="links">${links.map((l, i) => `<a class="btn${i === 0 ? ' primary' : ''}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}${ext()}</a>`).join('')}</div>
+      <p class="small muted" style="margin-top:10px">${esc(t('quickNote'))}</p>
+    </section>`;
 }
 
 function renderRoutes() {
   const el = $('#view-routes');
   if (!state.data) {
-    el.innerHTML = `<div class="skeleton" style="margin-top:16px"></div>`;
+    el.innerHTML = skeleton();
     return;
   }
   if (!state.history) loadHistory();
@@ -518,15 +629,12 @@ function renderRoutes() {
     const hit = target && latest && latest.priceTWD <= target;
     return `
       <div class="route-row${hit ? ' hit' : ''}" id="route-${esc(r.key)}">
-        <div>
-          <div class="rk">${esc(r.o)} → ${esc(r.d)}<small>${esc(city(r.d))} · ${esc(regionName(r.region))}</small></div>
-          <div class="nums">${t('latest')}: <b>${latest ? money(latest.priceTWD) : '—'}</b> · ${t('low30')}: ${Number.isFinite(low30) ? money(low30) : '—'} · ${t('lowAll')}: ${Number.isFinite(lowAll) ? money(lowAll) : '—'}${hit ? ` · <b style="color:var(--good)">✓ ${t('alertHit')}</b>` : ''}</div>
-        </div>
+        <div class="rk">${esc(r.o)} – ${esc(r.d)}<small>${esc(city(r.d))} · ${esc(regionName(r.region))}</small></div>
+        <div class="now">${latest ? money(latest.priceTWD) : '—'}</div>
+        <div class="nums">${esc(t('low30'))} ${Number.isFinite(low30) ? money(low30) : '—'} · ${esc(t('lowAll'))} ${Number.isFinite(lowAll) ? money(lowAll) : '—'}${hit ? ` · <b class="save">${esc(t('alertHit'))}</b>` : ''}</div>
         <div>${state.history ? sparkline(h) : ''}</div>
-        <div class="tgt" style="grid-column:1/-1">
-          <span class="small muted">🎯 ${t('target')} (TWD)</span>
-          <input type="number" inputmode="numeric" min="0" step="1000" data-target="${esc(r.key)}" value="${target || ''}" placeholder="${r.bm?.deal || ''}">
-        </div>
+        <label class="tgt">${icon('target', { size: 16 })}<span>${esc(t('target'))} (TWD)</span>
+          <input type="number" inputmode="numeric" min="0" step="1000" data-target="${esc(r.key)}" value="${target || ''}" placeholder="${r.bm?.deal || ''}"></label>
       </div>`;
   }).join('');
 
@@ -537,79 +645,81 @@ function renderRoutes() {
 
   el.innerHTML = `
     ${quickSearchHtml()}
-    <h2>📈 ${t('routesTitle')}</h2>
-    <div class="chips">${carrierChips()}</div>
-    <div class="panel">${rows}</div>
-    <div class="panel">
-      <h3>➕ ${t('addRoute')}</h3>
+    <h2>${esc(t('routesTitle'))}</h2>
+    ${carrierChips()}
+    <section class="panel">${rows}</section>
+    <section class="panel">
+      <h3>${esc(t('addRoute'))}</h3>
       <div class="grid2">
-        <div class="field"><label for="add-o">${t('from')}</label><input id="add-o" type="text" data-add="o" list="ap-list" value="${esc(add.o)}" maxlength="3"></div>
-        <div class="field"><label for="add-d">${t('to')}</label><input id="add-d" type="text" data-add="d" list="ap-list" value="${esc(add.d)}" maxlength="3"></div>
+        <div class="field"><label for="add-o">${esc(t('from'))}</label><input id="add-o" type="text" data-add="o" list="ap-list" value="${esc(add.o)}" maxlength="3"></div>
+        <div class="field"><label for="add-d">${esc(t('to'))}</label><input id="add-d" type="text" data-add="d" list="ap-list" value="${esc(add.d)}" maxlength="3"></div>
       </div>
-      ${snippet ? `<p class="small muted">${t('addRouteHelp')}</p><pre class="snippet">${esc(snippet)}</pre><button class="btn" data-act="copy" data-text="${esc(snippet)}">${t('copy')}</button>` : ''}
-    </div>`;
+      ${snippet ? `<p class="small muted" style="margin-top:10px">${esc(t('addRouteHelp'))}</p><pre class="snippet">${esc(snippet)}</pre><button class="btn" data-act="copy" data-text="${esc(snippet)}">${icon('copy')}${esc(t('copy'))}</button>` : ''}
+    </section>`;
 }
 
 // ───────────────────────── Settings tab ─────────────────────────
+function setting(label, body, help = '') {
+  return `<div class="setting"><span class="lbl">${esc(label)}</span>${body}${help ? `<span class="help">${esc(help)}</span>` : ''}</div>`;
+}
+
 function renderSettings() {
   const el = $('#view-settings');
   const d = state.data;
   const st = d?.stats || {};
   const currencies = d?.fx?.rates ? Object.keys(d.fx.rates) : ['TWD'];
   const origins = Object.entries(d?.origins || {}).filter(([, o]) => o.type === 'exstation');
+  const canNotify = typeof Notification !== 'undefined';
+  const kv = [
+    [t('provider'), `${esc(d?.provider || '—')}${d?.isDemo ? ' (demo)' : ''}`],
+    [t('updatedAt'), esc(fmtWhen(d?.generatedAt))],
+    [t('searches'), `${st.searches ?? '—'} / ${st.planned ?? '—'}`],
+    ...(st.quota ? [[t('quotaLeft'), esc(t('quotaValue', { n: st.quota.left, c: st.quota.dailyCap }))]] : []),
+    [t('offersSeen'), st.offersSeen ?? '—'],
+    [t('excluded'), st.excluded ? `${st.excluded.china} + ${st.excluded.unverified}` : '—'],
+    [t('kept'), state.deals.length],
+    ...(st.pos?.checked ? [[t('posStat'), `${st.pos.cheaper} / ${st.pos.checked}`]] : []),
+    [t('errors'), st.errors?.length ?? 0],
+    ['FX', `${esc(d?.fx?.date || '—')}`],
+  ];
+
   el.innerHTML = `
-    <h2>${t('settingsTitle')}</h2>
-    <div class="panel">
-      <div class="field"><label>${t('language')}</label><div class="seg-ctl">${Object.entries(LANGS).map(([k, v]) => chip('set-lang', k, v, prefs.lang === k)).join('')}</div></div>
-      <div class="field"><label>${t('currency')}</label>
-        <select data-set="currency">${currencies.map((c) => `<option value="${c}" ${prefs.currency === c ? 'selected' : ''}>${SYM[c] || ''} ${c}</option>`).join('')}</select></div>
-      <div class="field"><label>${t('theme')}</label><div class="seg-ctl">${['auto', 'dark', 'light'].map((k) => chip('set-theme', k, t('theme' + k[0].toUpperCase() + k.slice(1)), prefs.theme === k)).join('')}</div></div>
-      <div class="field"><label>${t('skyteamBoost')}</label><div class="seg-ctl">${['off', 'standard', 'strong'].map((k) => chip('set-boost', k, t('boost' + k[0].toUpperCase() + k.slice(1)), prefs.skyteamBoost === k, k !== 'off' ? 'al-SKYTEAM' : '')).join('')}</div>
-        <span class="small muted">${t('skyteamHelp')}</span></div>
-    </div>
+    <div class="group-title">${esc(t('grpDisplay'))}</div>
+    <section class="panel">
+      ${setting(t('language'), `<div class="chips">${Object.entries(LANGS).map(([k, v]) => chip('set-lang', k, esc(v), prefs.lang === k)).join('')}</div>`)}
+      ${setting(t('currency'), `<select data-set="currency" aria-label="${esc(t('currency'))}">${currencies.map((c) => `<option value="${c}" ${prefs.currency === c ? 'selected' : ''}>${SYM[c] || ''} ${c}</option>`).join('')}</select>`)}
+      ${setting(t('theme'), `<div class="chips">${['auto', 'light', 'dark'].map((k) => chip('set-theme', k, esc(t('theme' + cap(k))), prefs.theme === k)).join('')}</div>`)}
+    </section>
 
-    ${origins.length ? `<div class="panel"><h3>🔁 ${t('positioning')}</h3><div class="pos-grid">
-      ${origins.map(([code, o]) => `<label>${esc(code)} ${esc(city(code))}<input type="number" inputmode="numeric" min="0" step="500" data-pos="${esc(code)}" value="${positioningCost(code)}" placeholder="${o.positioningTWD ?? ''}"></label>`).join('')}
-    </div></div>` : ''}
+    <div class="group-title">${esc(t('grpPrefs'))}</div>
+    <section class="panel">
+      ${setting(t('skyteamBoost'), `<div class="chips">${['off', 'standard', 'strong'].map((k) => chip('set-boost', k, esc(t('boost' + cap(k))), prefs.skyteamBoost === k)).join('')}</div>`, t('skyteamHelp'))}
+      ${origins.length ? setting(t('positioning'), `<div class="pos-grid">${origins.map(([code, o]) => `<label>${esc(code)} ${esc(city(code))}<input type="number" inputmode="numeric" min="0" step="500" data-pos="${esc(code)}" value="${positioningCost(code)}" placeholder="${o.positioningTWD ?? ''}"></label>`).join('')}</div>`) : ''}
+    </section>
 
-    <div class="panel">
-      <h3>🔔 ${t('notifications')}</h3>
+    <div class="group-title">${esc(t('notifications'))}</div>
+    <section class="panel">
       ${notificationsPaused()
-        ? `<p class="small"><b>⏸ ${t('notifPausedTitle')}</b></p><p class="small muted">${t('notifPaused')}</p>`
-        : `<button class="btn" data-act="notif" ${typeof Notification === 'undefined' ? 'disabled' : ''}>${typeof Notification !== 'undefined' && Notification.permission === 'granted' ? '✓ ' + t('notifOn') : t('enableNotif')}</button>
-      <p class="small muted" style="margin-top:8px">${t('notifHelp')}</p>`}
-      <p class="small muted">📲 ${t('install')}: ${t('installHelp')}</p>
-    </div>
+        ? setting(t('notifPausedTitle'), `<span class="help">${esc(t('notifPaused'))}</span>`)
+        : setting(t('notifications'), `<div><button class="btn" data-act="notif" ${canNotify ? '' : 'disabled'}>${icon('bell')}${esc(canNotify && Notification.permission === 'granted' ? t('notifOn') : t('enableNotif'))}</button></div>`, t('notifHelp'))}
+      ${setting(t('install'), '', t('installHelp'))}
+    </section>
 
-    <div class="panel">
-      <h3>🛡 ${t('exclusionTitle')}</h3>
-      <p class="small">${t('exclusionBody')}</p>
-      <div class="field"><label>${t('blockedCarriers')} (${Object.keys(BLOCKED_CARRIERS).length})</label>
-        <div class="codes">${Object.entries(BLOCKED_CARRIERS).map(([c, n]) => `<span class="code" title="${esc(n)}">${esc(c)}</span>`).join('')}</div></div>
-      ${st.samples?.length ? `<div class="field"><label>${t('blockedSamples')}</label>
-        <ul class="tips">${st.samples.slice(0, 8).map((s) => `<li class="small">${esc(s.route)} · ${esc(s.carriers)} — ${esc(s.reason)}</li>`).join('')}</ul></div>` : ''}
-    </div>
+    <div class="group-title">${esc(t('grpData'))}</div>
+    <section class="panel">
+      <div class="kv">${kv.map(([k, v]) => `<span>${esc(k)}</span><span>${v}</span>`).join('')}</div>
+      ${st.notes?.length ? `<p class="small muted" style="margin-top:10px">${esc(t('notesLbl'))}: ${st.notes.map(esc).join(' · ')}</p>` : ''}
+      <div style="margin-top:12px"><button class="btn block" data-act="refresh">${icon('arrow-clockwise')}${esc(t('refresh'))}</button></div>
+    </section>
 
-    <div class="panel">
-      <h3>📊 ${t('dataTitle')}</h3>
-      <div class="kv">
-        <span>${t('provider')}</span><span>${esc(d?.provider || '—')}${d?.isDemo ? ' (demo)' : ''}</span>
-        <span>${t('updated', { t: '' }).trim()}</span><span>${d ? esc(new Date(d.generatedAt).toLocaleString(locale())) : '—'}</span>
-        <span>${t('searches')}</span><span>${st.searches ?? '—'} / ${st.planned ?? '—'}</span>
-        <span>${t('offersSeen')}</span><span>${st.offersSeen ?? '—'}</span>
-        <span>${t('statExcluded')}</span><span>${st.excluded ? `${st.excluded.china} + ${st.excluded.unverified} unverified` : '—'}</span>
-        <span>${t('kept')}</span><span>${state.deals.length}</span>
-        <span>${t('errors')}</span><span>${st.errors?.length ?? 0}</span>
-        <span>FX</span><span>${esc(d?.fx?.date || '—')} · ${esc(d?.fx?.source || '')}</span>
-      </div>
-      <div style="margin-top:10px"><button class="btn" data-act="refresh">↻ ${t('refresh')}</button></div>
-    </div>
-
-    <div class="panel">
-      <h3>🧭 ${t('tipsTitle')}</h3>
-      <ul class="tips">${t('tips').map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-    </div>
-    <p class="small muted" style="text-align:center;margin:18px 0">Airlines: ${Object.keys(AIRLINES).length} · SkyTeam first · ${new Date().getFullYear()}</p>
+    <div class="group-title">${esc(t('grpAbout'))}</div>
+    <section class="panel">
+      ${setting(t('exclusionTitle'), `<span class="help">${esc(t('exclusionBody'))}</span>`)}
+      ${setting(`${t('blockedCarriers')} (${Object.keys(BLOCKED_CARRIERS).length})`, `<div class="codes">${Object.entries(BLOCKED_CARRIERS).map(([c, n]) => `<span class="code" title="${esc(n)}">${esc(c)}</span>`).join('')}</div>`)}
+      ${st.samples?.length ? setting(t('blockedSamples'), `<ul class="plain">${st.samples.slice(0, 6).map((s) => `<li class="small">${esc(s.route)} · ${esc(s.carriers)} — ${esc(s.reason)}</li>`).join('')}</ul>`) : ''}
+      ${setting(t('tipsTitle'), `<ul class="plain">${t('tips').map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`)}
+    </section>
+    <p class="small muted" style="text-align:center;margin:20px 0">${Object.keys(AIRLINES).length} airlines · SkyTeam first</p>
   `;
 }
 
@@ -646,26 +756,33 @@ function checkAlerts() {
   }
   savePrefs();
   if (hits.length) {
-    const msg = hits.map((d) => `${d.origin}→${d.destination} ${money(d.priceTWD)}`).join(' · ');
-    toast(`🎯 ${t('alertHit')} ${msg}`, 6000);
-    notify(`🎯 ${t('alertHit')}`, msg);
+    const msg = hits.map((d) => `${d.origin}–${d.destination} ${money(d.priceTWD)}`).join(' · ');
+    toast(`${t('alertHit')}: ${msg}`, 6000);
+    notify(t('alertHit'), msg);
   } else if (newHot && !state.data.isDemo) {
-    toast(`🔥 ${newHot} × ${t('tier_hot')}`);
-    notify(t('appName'), `🔥 ${newHot} × ${t('tier_hot')}`);
+    toast(`${t('tier_hot')} × ${newHot}`);
+    notify(t('appName'), `${t('tier_hot')} × ${newHot}`);
   }
 }
 
 // ───────────────────────── events ─────────────────────────
 function findDeal(id) {
-  return state.deals.find((d) => d.id === id);
+  const d = state.deals.find((x) => x.id === id);
+  return d && rankDeals([d], 'score', { skyteamBoost: prefs.skyteamBoost })[0]; // adds _score/_tier/_cpk
+}
+
+function openCard(card, open = true) {
+  const btn = card.querySelector('.deal-main');
+  const det = card.querySelector('.deal-detail');
+  if (open && !det.innerHTML) det.innerHTML = dealDetail(findDeal(btn.dataset.id));
+  det.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
 }
 
 document.addEventListener('click', async (e) => {
   const tab = e.target.closest('.tabbar button');
   if (tab) {
-    state.tab = tab.dataset.tab;
-    render();
-    window.scrollTo({ top: 0 });
+    go(tab.dataset.tab === 'special' && state.special === 'pos' ? '#special/pos' : `#${tab.dataset.tab}`);
     return;
   }
   const a = e.target.closest('[data-act]');
@@ -676,22 +793,44 @@ document.addEventListener('click', async (e) => {
   switch (act) {
     case 'toggle': {
       const card = a.closest('.deal');
-      const det = card.querySelector('.deal-detail');
-      if (det.hidden && !det.innerHTML) det.innerHTML = dealDetail(findDeal(a.dataset.id));
-      det.hidden = !det.hidden;
-      a.setAttribute('aria-expanded', String(!det.hidden));
+      openCard(card, card.querySelector('.deal-detail').hidden);
       return;
     }
-    case 'ex-open':
-      if (e.target.closest('a,button')) return;
-      state.exOpen.has(a.dataset.id) ? state.exOpen.delete(a.dataset.id) : state.exOpen.add(a.dataset.id);
-      renderEx();
+    case 'jump': {
+      let card = document.getElementById(`deal-${a.dataset.id}`);
+      if (!card) {
+        // Best deal filtered out or beyond the current page: reset filters so it is visible.
+        Object.assign(f, { ...DEFAULT_FILTERS, carrierType: f.carrierType });
+        state.limit = 40;
+        savePrefs();
+        renderDeals();
+        card = document.getElementById(`deal-${a.dataset.id}`);
+      }
+      if (card) {
+        openCard(card, true);
+        card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      }
       return;
-    case 'f-origin': f.origin = v; break;
-    case 'f-alliance': f.alliance = f.alliance === v ? 'all' : v; break;
-    case 'f-carrier': f.carrierType = v; break;
-    case 'f-toggle': f[v] = !f[v]; break;
-    case 'more': state.limit += 60; break;
+    }
+    case 'filters':
+      state.filtersOpen = !state.filtersOpen;
+      renderDeals();
+      return;
+    case 'clear-filters':
+      Object.assign(f, { ...DEFAULT_FILTERS, carrierType: f.carrierType, sort: f.sort, origin: f.origin });
+      state.limit = 40;
+      break;
+    case 'special':
+      go(v === 'pos' ? '#special/pos' : '#special');
+      return;
+    case 'ex-open':
+      state.exOpen.has(a.dataset.id) ? state.exOpen.delete(a.dataset.id) : state.exOpen.add(a.dataset.id);
+      renderSpecial();
+      return;
+    case 'f-alliance': f.alliance = v; state.limit = 40; break;
+    case 'f-carrier': f.carrierType = v; state.limit = 40; break;
+    case 'f-toggle': f[v] = !f[v]; state.limit = 40; break;
+    case 'more': state.limit += 40; break;
     case 'set-lang': prefs.lang = v; prefs.langChosen = true; break;
     case 'set-theme': prefs.theme = v; applyTheme(); break;
     case 'set-boost': prefs.skyteamBoost = v; break;
@@ -699,11 +838,12 @@ document.addEventListener('click', async (e) => {
     case 'q-from': state.quick.from = v; break;
     case 'refresh': loadData(true); return;
     case 'target': {
-      state.tab = 'routes';
-      render();
-      const input = document.querySelector(`[data-target="${CSS.escape(a.dataset.route)}"]`);
-      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => input?.focus(), 350);
+      go('#routes');
+      requestAnimationFrame(() => {
+        const input = document.querySelector(`[data-target="${CSS.escape(a.dataset.route)}"]`);
+        input?.scrollIntoView({ block: 'center' });
+        input?.focus({ preventScroll: true });
+      });
       return;
     }
     case 'copy':
@@ -723,9 +863,6 @@ document.addEventListener('click', async (e) => {
     default:
       return;
   }
-  if (act.startsWith('f-') || act === 'more') {
-    if (act !== 'more') state.limit = 60;
-  }
   savePrefs();
   render();
 });
@@ -734,7 +871,7 @@ document.addEventListener('change', (e) => {
   const el = e.target;
   if (el.dataset.f) {
     prefs.filters[el.dataset.f] = el.value;
-    state.limit = 60;
+    state.limit = 40;
   } else if (el.dataset.set) prefs[el.dataset.set] = el.value;
   else if (el.dataset.pos) {
     const n = Number(el.value);
@@ -758,14 +895,7 @@ document.addEventListener('change', (e) => {
   render();
 });
 
-document.addEventListener('keydown', (e) => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.ex-row')) {
-    e.preventDefault();
-    e.target.click();
-  }
-});
-
-// Hide airline logos that fail to load.
+// Hide airline logos that fail to load (the carrier code underneath shows instead).
 document.addEventListener('error', (e) => {
   if (e.target?.classList?.contains('logo')) e.target.style.visibility = 'hidden';
 }, true);
@@ -788,8 +918,12 @@ $('#install-btn').addEventListener('click', async () => {
 });
 
 // ───────────────────────── boot ─────────────────────────
+$('#refresh-btn').innerHTML = icon('arrow-clockwise', { size: 22 });
+$('#install-btn').innerHTML = icon('download-simple', { size: 22 });
+document.querySelectorAll('.tabbar button[data-icon]').forEach((b) => b.insertAdjacentHTML('afterbegin', icon(b.dataset.icon, { size: 24 })));
 applyTheme();
 setLang(prefs.lang);
+readHash();
 render();
 loadData();
 if ('serviceWorker' in navigator) {
