@@ -1,0 +1,46 @@
+# ÆtherSky — mobile app (Flutter · iOS + Android)
+
+航班追蹤 App 的第一版骨架（P0/P1）。計畫與路線圖：[docs/aethersky/PLAN.md](../../docs/aethersky/PLAN.md)。
+First scaffold of the flight-tracking app. Plan & roadmap: see the link above.
+
+| 分頁 Tab | 內容 What it does | 資料 Data |
+|---|---|---|
+| 航班 Flights | 新增航班（航班號 + 日期）、狀態、延誤、登機門、行李轉盤、進度、各機場當地時間 | 後端 `flight-lookup`（FlightAware）；未設定時用示範航班 |
+| 票價 Fares | Real Tracker 結果、今日商務艙好價 | 與 PWA 相同的 `web/data/trackers.json`、`deals.json` |
+| 會員卡 Wallet | 常客號碼（遮蔽/顯示/長按複製）、等級、到期 | 手機本機；格式與 PWA 備份相同 |
+| 方案 Plans | Free / Pro / Elite 比較（付費牆預覽） | `lib/domain/plans.dart` |
+
+## 執行 Run
+
+```bash
+cd apps/mobile
+flutter pub get
+flutter run                      # 示範資料 demo flights
+flutter run \
+  --dart-define=AETHER_API_BASE=https://<project>.supabase.co/functions/v1 \
+  --dart-define=AETHER_API_KEY=<supabase anon key>   # 真實航班 real flights
+flutter analyze && flutter test  # CI: .github/workflows/mobile.yml
+```
+
+需要 Flutter 3.47（stable）。No secrets in the app: FlightAware / OAG keys live only in the backend.
+
+## 結構 Structure
+
+```
+lib/
+  main.dart / app.dart         ProviderScope, GoRouter (4-tab StatefulShellRoute), theme
+  core/                        config (--dart-define), format (airport-local times), strings (zh/en/ko), theme
+  domain/                      flight (status from out/off/on/in times), fares, membership, plans — pure Dart, unit-tested
+  data/                        flight_repository (API + demo sources), stores (Riverpod notifiers, shared_preferences)
+  features/                    flights · fares · wallet · plans screens
+test/                          domain_test.dart (logic), app_test.dart (widget flows)
+```
+
+## 下一步 Next (P1)
+
+1. Supabase 登入（Apple / Google / Email magic link）→ 航班與追蹤存雲端（`backend/supabase`）
+2. 推播：`firebase_messaging`（FCM + APNs）；航班事件由 `aeroapi-webhook` 觸發
+3. iOS Live Activity / Dynamic Island（`live_activities` + Swift widget extension）；Android 16 Live Updates
+4. 地圖與航跡（AeroAPI track）、inbound 飛機、延誤預測
+5. RevenueCat（`purchases_flutter`）接上 Plans；首趟 Elite 試用
+6. 在地化改用 ARB（`flutter gen-l10n`）
