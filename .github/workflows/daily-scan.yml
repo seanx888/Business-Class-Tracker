@@ -54,7 +54,7 @@ jobs:
             echo "::error title=SERPAPI_KEY is saved as a Variable::Variables are not secret and are not used. Delete it under Variables and add it under Settings → Secrets and variables → Actions → Secrets → New repository secret."
           fi
           if [ "$HAS_SERPAPI_SECRET" != "true" ]; then
-            echo "::warning title=No SERPAPI_KEY secret::This run uses DEMO data. Add Settings → Secrets and variables → Actions → Secrets → New repository secret, Name: SERPAPI_KEY."
+            echo "::warning title=No SERPAPI_KEY repository secret::This run uses DEMO data. Add it under Settings → Secrets and variables → Actions → Secrets tab → Repository secrets → New repository secret, Name: SERPAPI_KEY. A key saved under Environment secrets, as a Variable, or in Vercel is not visible to this workflow."
           fi
           if [ "$NTFY_SAVED_AS_VARIABLE" = "true" ]; then
             echo "::error title=NTFY_TOPICS is saved as a Variable::Anyone who knows an ntfy topic can read it — store it as a Secret instead."
