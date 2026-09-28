@@ -80,10 +80,12 @@ export function normalizeDuffel(json) {
   return { offers: offers.filter((o) => Number.isFinite(o.price)), insights: null, countries };
 }
 
+const CABIN_CLASS = { economy: 'economy', premium: 'premium_economy', business: 'business', first: 'first' };
+
 export function buildBody(q, maxConnections = 1) {
   const slices = [{ origin: q.origin, destination: q.destination, departure_date: q.departDate }];
   if (q.returnDate) slices.push({ origin: q.destination, destination: q.origin, departure_date: q.returnDate });
-  return { data: { slices, passengers: [{ type: 'adult' }], cabin_class: 'business', max_connections: maxConnections } };
+  return { data: { slices, passengers: [{ type: 'adult' }], cabin_class: CABIN_CLASS[q.cabin] || 'business', max_connections: maxConnections } };
 }
 
 export async function searchDuffel(q, { token, maxConnections = 1, fetchImpl = fetch }) {

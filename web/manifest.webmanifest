@@ -1,7 +1,7 @@
 {
-  "name": "商務艙雷達 · Business Class Tracker",
-  "short_name": "商務艙雷達",
-  "description": "Daily cheap business-class fares from Taipei and nearby ex-stations. No China / Hong Kong / Macau carriers or connections. SkyTeam first.",
+  "name": "ÆtherSky · 商務艙雷達",
+  "short_name": "ÆtherSky",
+  "description": "ÆtherSky — daily cheap business-class fares, real-time price trackers and a frequent-flyer wallet. No China / Hong Kong / Macau carriers or connections. SkyTeam first.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -11,6 +11,10 @@
   "theme_color": "#090e1a",
   "lang": "zh-TW",
   "categories": ["travel"],
+  "shortcuts": [
+    { "name": "即時追蹤 Real Tracker", "url": "./#routes" },
+    { "name": "會員卡 Members", "url": "./#members" }
+  ],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },

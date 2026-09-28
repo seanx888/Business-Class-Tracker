@@ -1,4 +1,8 @@
-# 商務艙雷達 · Business Class Tracker ✈️
+# ÆtherSky · 商務艙雷達 ✈️
+
+> **ÆtherSky** 是這個專案的新名字：票價雷達（本 PWA）＋ Real Tracker 價格追蹤 ＋ 會員卡夾，
+> 並規劃成 iOS + Android 的航班追蹤 App（對標 Flighty）→ 計畫書 **[docs/aethersky/PLAN.md](docs/aethersky/PLAN.md)**。
+> ÆtherSky is the new name: fare radar PWA + real-time price trackers + member wallet, growing into a cross-platform flight-tracking app.
 
 每天自動掃描**台北 (TPE) 與鄰近外站 (ICN / BKK / SGN / HAN / MNL / KUL / SIN / NRT / CGK)** 出發的便宜商務艙，
 **完全排除中國大陸／香港／澳門的航空公司與轉機點**，天合聯盟 (SkyTeam) 優先。可安裝在手機主畫面的 PWA。
@@ -20,6 +24,8 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 | 🔁 | 外站票比價：外站票 + 定位機票 vs 台北出發，標示「經台北可停留」四段票 | Ex-station calculator incl. positioning cost & Taipei-stopover (4-coupon) candidates |
 | 🌏 | 外國站結帳：把當日最佳票價拿到其他國家網站（當地幣別）比價，換算台幣標出更便宜的國家 | Foreign-site checkout: best fares re-priced in other countries' markets, converted to TWD |
 | 🛏 | 平躺座椅、直飛、混艙、過夜轉機、廉航商務、疑似錯誤票價 標記 | Lie-flat, nonstop, mixed-cabin, overnight layover, budget-biz and error-fare flags |
+| 🎯 | **Real Tracker**：自訂航點＋指定日期或彈性日期（±1–7 天）、艙等、轉機；每天查價，降價／更便宜日期／達標價時寄 **Email**＋推播（像 Google Flights）| Real Tracker: exact or ±N-day flexible dates, cabin, stops; daily checks with Google-Flights-style e-mail + push alerts |
+| 💳 | **會員卡夾**：常客號碼、等級、到期、里程；只存本機，可匯出備份；好價詳情顯示「可累積到你的會員」| Member wallet (on-device), with “earn with your memberships” on each deal |
 | 📈 | 航線價格歷史、30 天／歷史最低、目標價提醒 | Per-route price history, 30-day/all-time lows, target-price alerts |
 | 🔗 | 一鍵開啟 Google Flights / Skyscanner / KAYAK / 航空公司官網（商務艙預設）| One-tap deep links, business cabin pre-selected |
 | ☁️ | Vercel 託管，資料每天由 GitHub Actions 更新、App 直接讀取 | Hosted on Vercel; data refreshed daily from the repo |
@@ -61,6 +67,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 
 完整清單見 [docs/SETUP.md](docs/SETUP.md)。主要項目：
 `SERPAPI_KEY` · `SERPAPI_KEY_2` · `NTFY_TOPICS` · `NOTIFICATIONS` · `DEPLOY_TARGET` · `VERCEL_TOKEN` · `PRICE_ALERTS` · `WATCH_TRIPS` · `SEARCHES_PER_RUN` · `NOTIFY_MIN_SCORE`
+· Real Tracker：`TRACKERS` · `ALERT_EMAILS` · `SMTP_URL` / `RESEND_API_KEY` · `TRACKER_NOTIFICATIONS`（Vercel：`APP_PASSCODE` · `TRACKERS_GITHUB_TOKEN`）
 
 ---
 
@@ -118,9 +125,13 @@ No build step, no dependencies — vanilla ES modules. Node ≥ 20.
 
 ```
 web/            PWA (index.html, app.js, i18n.js, icons.js, sw.js, styles.css, data/*.json)
+web/api/        trackers.mjs — Vercel Function: tracker sync → private GitHub variable TRACKERS
 web/core/       shared logic used by BOTH the browser and the scanner
-                airlines.js · airports.js · exclusion.js · scoring.js · links.js
+                airlines.js · airports.js · exclusion.js · scoring.js · links.js · trackers.js · programs.js
 scripts/        scan.mjs (daily job) · providers/{serpapi,duffel,demo}.mjs · lib/pos.mjs (foreign-site checks) · notify.mjs (ntfy)
+                lib/trackers.mjs (Real Tracker plan / results / alerts) · tracker-notify.mjs · lib/mail.mjs (SMTP / Resend)
+apps/mobile/    ÆtherSky Flutter app (iOS + Android) — see apps/mobile/README.md
+backend/        Supabase schema + Edge Functions for the mobile app
 config/         routes.json · airport-countries.json
 test/           node:test suites + fixtures
 .github/        daily-scan.yml (cron 05:40 Taipei → scan → commit web/data) · ci.yml
@@ -132,5 +143,6 @@ design-system/  UI rules (Minimal Swiss, tokens, a11y) from the ui-ux-pro-max sk
 
 - 票價為搜尋當下的參考價；訂票前請在航空公司或 OTA 再確認。Fares are indicative snapshots.
 - Amadeus Self-Service API 已於 2026-07-17 停止服務，因此不支援。
-- 只追蹤機票（商務艙），不含火車；未包含里程兌換座位（award seats）。 Flights only — no trains, no award seats.
+- 只追蹤機票（每日好價為商務艙；Real Tracker 可選其他艙等），不含火車；未包含里程兌換座位（award seats）。 Flights only — no trains, no award seats.
+- 會員卡夾只存在各自手機的瀏覽器；換手機前請匯出備份。 The member wallet lives only in each phone's browser.
 - 聯盟成員資料更新至 2026-09：ITA 已轉星空聯盟；韓亞 (OZ) 將於 2026-12-17 併入大韓航空（天合）。

@@ -6,9 +6,12 @@
 //   4. score deals, merge with recent ones, update price history
 //   5. write web/data/deals.json + history.json, optionally push a digest
 //
+//   6. Real Tracker: search each tracked trip, detect price changes, e-mail / push alerts → trackers.json
+//
 // Env: FARE_PROVIDER (serpapi|duffel|demo), SERPAPI_KEY (+ optional SERPAPI_KEY_2), SERPAPI_VERIFY_RETURN,
 //      SERPAPI_DEEP_SEARCH, DUFFEL_ACCESS_TOKEN, SEARCHES_PER_RUN, SCAN_DATE, SITE_URL,
-//      NTFY_TOPICS / NTFY_TOKEN / NTFY_SERVER (push), WATCH_TRIPS / PRICE_ALERTS (JSON, kept out of the public repo)
+//      NTFY_TOPICS / NTFY_TOKEN / NTFY_SERVER (push), WATCH_TRIPS / PRICE_ALERTS (JSON, kept out of the public repo),
+//      TRACKERS (JSON, Real Tracker), ALERT_EMAILS + SMTP_URL or RESEND_API_KEY (+ MAIL_FROM), TRACKER_NOTIFICATIONS
 
 import { readFile, writeFile, mkdir, appendFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -26,6 +29,9 @@ import { searchDuffel } from './providers/duffel.mjs';
 import { demoSearch, demoPos } from './providers/demo.mjs';
 import { pickMarkets, matchOffer, posResult, summarizePos } from './lib/pos.mjs';
 import { sendNotifications } from './notify.mjs';
+import { parseTrackers } from '../web/core/trackers.js';
+import { emptyTrackerState, planTrackerSearches, recordTrackerSample, updateTrackerState, evaluateTrackerAlerts } from './lib/trackers.mjs';
+import { sendTrackerAlerts } from './tracker-notify.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -154,6 +160,12 @@ function parseJsonList(value, name, log) {
   }
 }
 
+// Benchmark group for a tracker route that is not in config/routes.json.
+const REGION_BM = { JP: 'JP', KR: 'KR', SEA: 'SEA', EU: 'EU', NA: 'NA_WEST', OC: 'OC', ME: 'ME' };
+function benchmarkKeyFor(config, o, d) {
+  return config.routes?.find((r) => r.o === o && r.d === d)?.bm || REGION_BM[airportRegion(d)] || null;
+}
+
 const comboKey = (d) => `${d.origin}-${d.destination}|${d.departDate}|${d.returnDate || ''}`;
 const daysBetween = (a, b) => dayIndex(b) - dayIndex(a);
 
@@ -168,6 +180,7 @@ export async function runScan({
   const config = JSON.parse(await readFile(path.join(root, 'config', 'routes.json'), 'utf8'));
   config.watchTrips = [...(config.watchTrips || []), ...parseJsonList(env.WATCH_TRIPS, 'WATCH_TRIPS', log)];
   const priceAlerts = [...(config.priceAlerts || []), ...parseJsonList(env.PRICE_ALERTS, 'PRICE_ALERTS', log)];
+  const trackers = parseTrackers([config.trackers || [], env.TRACKERS || ''], log);
   const baseCountries = await readJson(path.join(root, 'config', 'airport-countries.json'), {});
   const provider = pickProvider(env, fetchImpl);
   let maxSearches = Number(env.SEARCHES_PER_RUN) || config.searchesPerRun?.[provider.name] || 8;
@@ -194,24 +207,38 @@ export async function runScan({
   const posCfg = config.pos || {};
   const posWanted = posCfg.enabled && provider.pos ? (provider.name === 'demo' ? posCfg.demoChecks ?? 24 : posCfg.checksPerRun ?? 2) : 0;
   const posReserve = provider.name === 'demo' ? 0 : Math.min(posWanted, Math.max(0, maxSearches - 1));
-  const plan = buildPlan(config, { today, maxSearches: maxSearches - posReserve });
   const prev = await readJson(path.join(outDir, 'deals.json'), null);
   let history = await readJson(path.join(outDir, 'history.json'), emptyHistory());
   // Never mix demo prices into real price history (or vice versa).
   if ((history.provider || 'demo') !== provider.name && Object.keys(history.routes || {}).length) history = emptyHistory();
   history.provider = provider.name;
+  let trackerState = await readJson(path.join(outDir, 'trackers.json'), emptyTrackerState());
+  if ((trackerState.provider || provider.name) !== provider.name) trackerState = emptyTrackerState();
+  trackerState.trackers ||= {};
+
+  // Real Tracker searches come first (someone explicitly asked for them) but may use at most ~75 % of
+  // the budget so the route rotation keeps moving; the demo provider has no budget.
+  const searchBudget = Math.max(0, maxSearches - posReserve);
+  const trackerBudget = provider.name === 'demo' ? searchBudget
+    : searchBudget > 0 ? Math.max(1, Math.ceil(searchBudget * (config.trackerShare ?? 0.75))) : 0;
+  const trackerPlan = planTrackerSearches(trackers, trackerState, { today, budget: trackerBudget }).map((q) => ({
+    ...q,
+    scanDate: today,
+    route: { o: q.origin, d: q.destination, bm: benchmarkKeyFor(config, q.origin, q.destination), p: 1 },
+  }));
+  const plan = [...trackerPlan, ...buildPlan(config, { today, maxSearches: searchBudget - trackerPlan.length })];
   const fx = env.OFFLINE === '1' ? { ...FALLBACK_FX } : await fetchFx(fetchImpl);
   const homeAirports = config.homeAirports || ['TPE'];
   const exFactor = config.exStationBenchmarkFactor || 0.85;
   const keepPerSearch = config.keepPerSearch || 3;
 
-  const stats = { planned: plan.length, searches: 0, offersSeen: 0, kept: 0, excluded: { china: 0, unverified: 0 }, errors: [], samples: [], notes, pos: { checked: 0, cheaper: 0 } };
+  const stats = { planned: plan.length, searches: 0, offersSeen: 0, kept: 0, excluded: { china: 0, unverified: 0 }, errors: [], samples: [], notes, pos: { checked: 0, cheaper: 0 }, trackers: { active: trackers.filter((t) => !t.paused).length, searches: 0, alerts: 0 } };
   if (quota) stats.quota = { left: quota.left, perMonth: quota.perMonth, dailyCap: quota.dailyCap, keys: quota.keys };
   const fresh = [];
   const searched = new Set();
   const redact = (msg) => provider.secrets.reduce((m, sec) => m.split(sec).join('***'), String(msg));
 
-  log(`▶ ${today} · provider=${provider.name} · ${plan.length} searches planned (budget ${maxSearches}${posReserve ? `, ${posReserve} for foreign-site checks` : ''})`);
+  log(`▶ ${today} · provider=${provider.name} · ${plan.length} searches planned (budget ${maxSearches}${posReserve ? `, ${posReserve} for foreign-site checks` : ''}${trackerPlan.length ? `, ${trackerPlan.length} for ${trackers.length} tracker${trackers.length > 1 ? 's' : ''}` : ''})`);
   for (const n of notes) log(`  ℹ ${n}`);
   if (quota) log(`  ℹ SerpApi quota: ${quota.left} searches left (${quota.keys} key${quota.keys > 1 ? 's' : ''}) → up to ${quota.dailyCap}/day`);
 
@@ -292,6 +319,16 @@ export async function runScan({
     }
 
     clean.sort((a, b) => a.priceTWD - b.priceTWD);
+    if (q.kind === 'tracker') {
+      const s = recordTrackerSample(trackerState, q, clean, { today, insights });
+      stats.trackers.searches++;
+      log(`  ◎ tracker ${q.trackerId} ${q.key} ${q.departDate}${q.returnDate ? '→' + q.returnDate : ''} ${q.cabin}: ${s ? `NT$${s.p.toLocaleString('en-US')} ${s.c}` : 'no China-free result'}`);
+      // Only business-class tracker results also feed the deal list and price history.
+      if (q.cabin !== 'business') {
+        if (provider.delayMs) await sleep(provider.delayMs);
+        continue;
+      }
+    }
     // Full-service and LCC fares are tracked separately so cheap LCCs never crowd out full-service options.
     const fsc = clean.filter((d) => !d.budget);
     const lcc = clean.filter((d) => d.budget);
@@ -382,6 +419,14 @@ export async function runScan({
   const notificationsOn = String(env.NOTIFICATIONS || config.notifications || 'on').trim().toLowerCase() !== 'paused';
   const alertHits = notificationsOn ? evaluatePriceAlerts(priceAlerts, deals, history, today) : new Map();
 
+  // Real Tracker: refresh results, then decide which price changes are worth an alert. Tracker alerts have
+  // their own switch (TRACKER_NOTIFICATIONS) because people asked for them explicitly.
+  updateTrackerState(trackerState, trackers, today);
+  const trackerAlertsOn = String(env.TRACKER_NOTIFICATIONS || config.trackerNotifications || 'on').trim().toLowerCase() !== 'paused';
+  const trackerAlerts = trackerAlertsOn ? evaluateTrackerAlerts(trackerState, trackers, today) : [];
+  stats.trackers.alerts = trackerAlerts.length;
+  Object.assign(trackerState, { version: 1, provider: provider.name, generatedAt: new Date().toISOString(), scanDate: today, notifications: trackerAlertsOn ? 'on' : 'paused' });
+
   const rates = {};
   for (const c of fx.display || Object.keys(fx.rates)) if (fx.rates[c]) rates[c] = fx.rates[c];
 
@@ -396,6 +441,7 @@ export async function runScan({
     fx: { date: fx.date, source: fx.source, rates },
     stats,
     homeAirports,
+    people: config.people || [],
     origins: config.origins,
     routes: (config.routes || []).map((r) => ({ key: `${r.o}-${r.d}`, o: r.o, d: r.d, p: r.p, region: airportRegion(r.d), bm: config.benchmarks?.[r.bm] || null })),
     deals,
@@ -404,16 +450,17 @@ export async function runScan({
   await mkdir(outDir, { recursive: true });
   await writeFile(path.join(outDir, 'deals.json'), JSON.stringify(out) + '\n');
   await writeFile(path.join(outDir, 'history.json'), JSON.stringify(history) + '\n');
+  await writeFile(path.join(outDir, 'trackers.json'), JSON.stringify(trackerState) + '\n');
   log(`■ ${deals.length} deals published · ${stats.offersSeen} offers seen · excluded ${stats.excluded.china} China/HK/MO + ${stats.excluded.unverified} unverified · ${stats.errors.length} errors`);
 
   // Push only genuinely new, strong deals + personal target hits (never for demo data unless asked).
   const minScore = Number(env.NOTIFY_MIN_SCORE) || config.notifyMinScore || 72;
   const newGood = deals.filter((d) => d.firstSeen === today && d.score >= minScore).slice(0, 8);
+  const [owner, repo] = (env.GITHUB_REPOSITORY || '').split('/');
+  const siteUrl = env.SITE_URL || config.siteUrl || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
   let sent = [];
   if (!notificationsOn) log('🔕 notifications paused — nothing sent');
   else if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
-    const [owner, repo] = (env.GITHUB_REPOSITORY || '').split('/');
-    const siteUrl = env.SITE_URL || config.siteUrl || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
     try {
       sent = await sendNotifications(newGood, alertHits, { env, siteUrl, fetchImpl });
       if (sent.length) log(`🔔 notified: ${sent.join(', ')}`);
@@ -421,6 +468,12 @@ export async function runScan({
       log(`notify failed: ${e.message}`);
     }
   }
+
+  let trackerSent = [];
+  if (trackerAlerts.length && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
+    trackerSent = await sendTrackerAlerts(trackerAlerts, { env, siteUrl, fetchImpl, log });
+    log(`📈 tracker alerts: ${trackerAlerts.map((a) => `${a.tracker.id}:${a.kind}`).join(', ')} → ${trackerSent.join(', ') || 'no channel configured (ALERT_EMAILS + SMTP_URL, or NTFY_TOPICS)'}`);
+  } else if (!trackerAlertsOn && trackers.length) log('🔕 tracker notifications paused');
 
   // Human-readable run summary on the GitHub Actions run page.
   if (env.GITHUB_STEP_SUMMARY) {
@@ -431,13 +484,14 @@ export async function runScan({
       ['Deals published', String(deals.length)],
       ['Excluded CN/HK/MO', `${stats.excluded.china} (+${stats.excluded.unverified} unverified)`],
       ['Cheaper on a foreign site', `${stats.pos.cheaper} of ${stats.pos.checked} checks`],
+      ['Real Tracker', `${trackers.length} tracker${trackers.length === 1 ? '' : 's'} · ${stats.trackers.searches} searches · ${trackerAlerts.length} alert${trackerAlerts.length === 1 ? '' : 's'}${trackerSent.length ? ` (sent: ${trackerSent.join(', ')})` : ''}`],
       ['Notifications', notificationsOn ? 'on' : 'paused'],
       ['Errors', String(stats.errors.length)],
     ];
     await appendFile(env.GITHUB_STEP_SUMMARY, `### ✈️ Fare scan ${today}\n\n| | |\n|---|---|\n${rows.map(([k, v]) => `| ${k} | ${v} |`).join('\n')}\n`).catch(() => {});
   }
 
-  return { out, history, alertHits, sent, allFailed: plan.length > 0 && searched.size === 0 };
+  return { out, history, alertHits, sent, trackerState, trackerAlerts, trackerSent, allFailed: plan.length > 0 && searched.size === 0 };
 }
 
 /**

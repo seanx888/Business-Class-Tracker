@@ -1,4 +1,4 @@
-# 設定指南 · Setup guide（Sean & Blue）
+# ÆtherSky 設定指南 · Setup guide（Sean & Blue）
 
 > 本 App 只追蹤**機票**（商務艙），不含火車。 This app tracks **flight tickets only** (business class) — no trains.
 
@@ -13,6 +13,8 @@ App 網址 App URL：**https://business-class-tracker-lime.vercel.app**
 | 5 | 個人目標價、固定行程 · Personal price targets & trips | 選用 Optional | Free | 3 min |
 | 6 | 兩支手機安裝 App · Install on both phones | ✋ 需手動 Manual | — | 1 min |
 | 7 | 第一次執行與檢查 · First run & check | ✋ 需手動 Manual | — | 3 min |
+| 8 | Real Tracker 同步（Vercel）· Tracker sync | ✋ 需手動 Manual（選用但推薦） | Free | 5 min |
+| 9 | 追蹤 Email 通知 · Tracker e-mail alerts | ✋ 需手動 Manual | Free | 5 min |
 
 > 為什麼 SerpApi / ntfy 還是要設定在 GitHub？每天的票價掃描是在 **GitHub Actions** 執行（Vercel 只負責放網頁），
 > 所以掃描需要的兩個金鑰要放在 GitHub Secrets。Vercel 端**不需要**任何 token。
@@ -161,6 +163,60 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 
 ---
 
+## 8. Real Tracker 同步 · Tracker sync（Vercel）
+
+**航線追蹤 → 即時追蹤** 新增的行程先存在手機裡；伺服器（每日掃描）要知道它們才會查價。
+同步做法：App → Vercel Function → 寫入**私人**的 GitHub Variable `TRACKERS`（不會出現在公開程式碼），每日掃描直接讀取。
+Trackers saved in the app are written to the private repository variable `TRACKERS` through a small Vercel function.
+
+1. **建立 GitHub 權杖 Fine-grained token**：<https://github.com/settings/personal-access-tokens/new>
+   - Token name：`aethersky-trackers`；Expiration：1 year（到期前記得更新）
+   - Repository access：**Only select repositories** → `Business-Class-Tracker`
+   - Permissions → Repository permissions → **Variables：Read and write**（其他都不用）→ **Generate token** → 複製
+2. **Vercel 環境變數**：<https://vercel.com> → 專案 `business-class-tracker` → **Settings → Environment Variables**
+   - `TRACKERS_GITHUB_TOKEN` = 上一步的權杖（勾選 Sensitive）
+   - `APP_PASSCODE` = 自訂通關密碼，**至少 12 個字元**（Sean 與 Blue 共用；不要用生日）
+   - Environment 選 **Production** → Save → **Deployments → 最新一筆 ⋯ → Redeploy**（環境變數要重新部署才生效）
+3. **兩支手機**：App → **設定 → 同步** → 輸入通關密碼 → **連線**。之後新增／修改／暫停／刪除都會自動同步。
+4. 驗證：GitHub → Settings → Secrets and variables → Actions → **Variables** 出現 `TRACKERS`。
+
+> 不想設定同步？在「即時追蹤」頁最下方 **複製 JSON** → 貼到 Variable `TRACKERS`（每次修改都要重貼）。
+> Without sync: copy the JSON at the bottom of the Real Tracker page into the `TRACKERS` variable by hand.
+
+**省額度說明**：固定日期每天 1 次搜尋；彈性日期（±N 天）每天 2 次（重查目前最便宜的日期 + 探索新日期）。
+追蹤最多用掉每日額度的 75%，其餘留給每日好價輪替。SerpApi 免費方案每天約 8 次 → 建議同時 3–4 個追蹤。
+🔒 `web/data/trackers.json` 是公開的：只有航點、日期、價格，**不含名稱（label）、通知對象、Email**。
+
+---
+
+## 9. 追蹤 Email 通知 · Tracker e-mail alerts（像 Google Flights）
+
+價格明顯變化（≥ NT$1,000 且 ≥ 3%）、找到更便宜的彈性日期、達到目標價（可選：漲價）時寄 Email；
+第一次查到價格時會寄「開始追蹤」確認信。有設定 `NTFY_TOPICS` 的話也會同時推播。
+⚠️ 示範資料（demo）不寄信 — 要先完成第 3 步 SerpApi 金鑰。
+
+**A. 用 Gmail 寄信（最簡單）**
+1. Google 帳戶開啟兩步驟驗證 → <https://myaccount.google.com/apppasswords> → 建立應用程式密碼（名稱 `ÆtherSky`）→ 16 碼
+2. GitHub **Secret** `SMTP_URL` = `smtps://你的帳號%40gmail.com:16碼密碼不含空白@smtp.gmail.com:465`
+   （帳號裡的 `@` 要寫成 `%40`）
+
+**B. 用 Naver 寄信（Sean）**
+1. Naver 메일 → 환경설정 → **POP3/IMAP 설정** → IMAP/SMTP 사용 **사용함**；若開了 2단계 인증，到 네이버 보안설정建立 **애플리케이션 비밀번호**
+2. `SMTP_URL` = `smtps://아이디%40naver.com:앱비밀번호@smtp.naver.com:465`
+
+**收件人 Recipients** — GitHub **Secret** `ALERT_EMAILS`（Email 是個資，務必放 Secrets）：
+```
+sean=sean的信箱#zh-TW,blue=blue的信箱#en
+```
+名字要和 App「通知誰」的選項一致（`config/routes.json` → `people`）；`#ko` = 韓文信件。
+
+選用 Optional：Variable `MAIL_FROM` = `ÆtherSky <你的帳號@gmail.com>`；Variable `TRACKER_NOTIFICATIONS` = `paused` 暫停所有追蹤通知。
+也可改用 [Resend](https://resend.com)（Secret `RESEND_API_KEY`，需驗證自己的網域才能寄給別人）。
+
+**測試 Test**：Actions → Run workflow → 跑完看 Summary 的 **Real Tracker** 一列，例如 `sent: mail:sean, mail:blue`。
+
+---
+
 ## 外國站結帳（他國網站／VPN 比較便宜）· Foreign-site checkout
 
 同一張機票在不同國家的網站、用當地貨幣結帳，價格可能差 3–20%。每天掃描完，系統會把**當天最佳票價**
@@ -194,6 +250,13 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 | `VERCEL_TOKEN` | Secret | 不需要（只有 `DEPLOY_TARGET=vercel` 的進階用法才需要）|
 | `DUFFEL_ACCESS_TOKEN` | Secret | 選用 |
 | `NTFY_TOKEN` | Secret | 選用：受保護主題 |
+| `ALERT_EMAILS` | Secret | 追蹤 Email 收件人 `sean=信箱#zh-TW,blue=信箱#en`（第 9 步）|
+| `SMTP_URL` | Secret | 寄信伺服器 `smtps://帳號%40gmail.com:應用程式密碼@smtp.gmail.com:465`（第 9 步）|
+| `RESEND_API_KEY` | Secret | 選用：用 Resend 取代 SMTP |
+| `TRACKERS` | Variable | Real Tracker 行程 JSON（App 同步自動寫入，第 8 步）|
+| `TRACKER_NOTIFICATIONS` | Variable | `paused` = 暫停追蹤通知（預設開啟）|
+| `MAIL_FROM` | Variable | 選用：寄件人名稱與地址 |
+| `APP_PASSCODE`, `TRACKERS_GITHUB_TOKEN` | **Vercel** env | 追蹤同步（第 8 步）|
 | `DEPLOY_TARGET` | Variable | `none`（預設，Vercel 讀 GitHub 資料）· `pages` · `vercel` · `pages,vercel` |
 | `SITE_URL` | Variable | 推播連結網址（預設 `config/routes.json` 的 `siteUrl` = Vercel 網址）|
 | `PRICE_ALERTS` | Variable | 個人目標價 JSON |
@@ -215,3 +278,7 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 | 沒收到推播 | 目前暫停中（Variable `NOTIFICATIONS=on` 才會開始）？主題名稱是否一致？今天沒有 ≥ 72 分的新好價？示範資料不推播 |
 | 每天沒有自動執行 | 預設分支必須是 `main`（第 1 步）|
 | App 資料沒更新 | 看 Actions 當天是否綠色 ✓；App 右上 ↻ 重新整理（GitHub 快取約 5 分鐘）|
+| 同步顯示「伺服器尚未設定」| Vercel 沒有 `APP_PASSCODE`（≥ 8 字元）與 `TRACKERS_GITHUB_TOKEN`，或設定後沒 Redeploy |
+| 同步顯示「通關密碼錯誤」| 手機輸入的和 Vercel 的 `APP_PASSCODE` 不同（區分大小寫）|
+| 同步失敗 | 權杖過期或沒有 **Variables: Read and write** 權限（第 8 步）|
+| 沒收到追蹤 Email | 還在 demo 資料？`ALERT_EMAILS` 名字和「通知誰」一致？Gmail 要用**應用程式密碼**；Summary 的 Real Tracker 列會顯示寄送結果；查垃圾郵件匣 |

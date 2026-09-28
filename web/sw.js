@@ -1,5 +1,5 @@
 // Service worker: offline app shell + network-first fare data.
-const VERSION = 'bct-v4';
+const VERSION = 'aethersky-v5';
 const SHELL = [
   './',
   'index.html',
@@ -12,6 +12,8 @@ const SHELL = [
   'core/exclusion.js',
   'core/scoring.js',
   'core/links.js',
+  'core/trackers.js',
+  'core/programs.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',
@@ -37,6 +39,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   const remoteData = url.hostname === 'raw.githubusercontent.com' && url.pathname.includes('/web/data/');
   if (url.origin !== self.location.origin && !remoteData) return; // airline logos etc. go straight to network
+  if (url.pathname.includes('/api/')) return; // tracker sync must never be served from cache
 
   if (remoteData || url.pathname.includes('/data/')) {
     // Network-first so the daily scan shows up immediately; cache (keyed without query) for offline.
