@@ -1,11 +1,12 @@
 // Service worker: offline app shell + network-first fare data.
-const VERSION = 'bct-v2';
+const VERSION = 'bct-v4';
 const SHELL = [
   './',
   'index.html',
   'styles.css',
   'app.js',
   'i18n.js',
+  'icons.js',
   'core/airlines.js',
   'core/airports.js',
   'core/exclusion.js',

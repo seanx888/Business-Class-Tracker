@@ -1,12 +1,34 @@
 {
   "$comment": "Edit this file to change what the daily scanner watches. Personal trips / price targets are better kept in the WATCH_TRIPS / PRICE_ALERTS repository variables (see docs/SETUP.md) because this repo is public. Prices are ROUND-TRIP business class in TWD. 'typical' = normal fare, 'deal' = what a seasoned flyer would call a good buy. priority: 1 = scanned most often, 3 = least.",
   "currency": "TWD",
-  "siteUrl": "https://business-class-tracker.vercel.app/",
+  "siteUrl": "https://business-class-tracker-lime.vercel.app/",
+  "notifications": "paused",
   "homeAirports": ["TPE", "TSA", "KHH"],
-  "searchesPerRun": { "serpapi": 8, "duffel": 30, "demo": 999 },
+  "searchesPerRun": { "serpapi": 20, "duffel": 30, "demo": 999 },
   "dealTtlDays": 4,
   "keepPerSearch": 3,
+  "keepLccPerSearch": 2,
   "notifyMinScore": 72,
+  "pos": {
+    "$comment": "Point-of-sale checks: re-price today's best deals on other countries' Google Flights markets (gl + currency) to find cheaper foreign-site fares. checksPerRun = extra SerpApi searches per day.",
+    "enabled": true,
+    "checksPerRun": 2,
+    "marketsPerDeal": 2,
+    "minSavingsPct": 3,
+    "demoChecks": 24,
+    "markets": [
+      { "country": "VN", "currency": "VND" },
+      { "country": "TH", "currency": "THB" },
+      { "country": "ID", "currency": "IDR" },
+      { "country": "PH", "currency": "PHP" },
+      { "country": "MY", "currency": "MYR" },
+      { "country": "SG", "currency": "SGD" },
+      { "country": "KR", "currency": "KRW" },
+      { "country": "JP", "currency": "JPY" },
+      { "country": "IN", "currency": "INR" },
+      { "country": "US", "currency": "USD" }
+    ]
+  },
   "origins": {
     "TPE": { "type": "home" },
     "ICN": { "type": "exstation", "positioningTWD": 9000, "via": "KE / CI / BR / JX" },

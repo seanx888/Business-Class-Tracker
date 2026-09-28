@@ -9,6 +9,14 @@ test('Google Flights link asks for business class round trip', () => {
   assert.match(u.searchParams.get('q'), /from TPE to CDG on 2026-11-10 through 2026-11-24 business class/);
   assert.equal(u.searchParams.get('curr'), 'TWD');
   assert.match(new URL(googleFlightsUrl({ ...q, returnDate: null })).searchParams.get('q'), /one way/);
+  assert.equal(u.searchParams.get('gl'), null);
+});
+
+test('Google Flights link can open another country market (foreign-site checkout)', () => {
+  const u = new URL(googleFlightsUrl({ ...q, currency: 'VND', gl: 'vn' }));
+  assert.equal(u.searchParams.get('gl'), 'VN');
+  assert.equal(u.searchParams.get('curr'), 'VND');
+  assert.equal(u.searchParams.get('hl'), 'zh-TW');
 });
 
 test('Skyscanner link uses YYMMDD and business cabin, localized host', () => {

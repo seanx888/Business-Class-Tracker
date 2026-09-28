@@ -6,11 +6,11 @@
 //   4. score deals, merge with recent ones, update price history
 //   5. write web/data/deals.json + history.json, optionally push a digest
 //
-// Env: FARE_PROVIDER (serpapi|duffel|demo), SERPAPI_KEY, SERPAPI_VERIFY_RETURN, SERPAPI_DEEP_SEARCH,
-//      DUFFEL_ACCESS_TOKEN, SEARCHES_PER_RUN, SCAN_DATE, SITE_URL,
+// Env: FARE_PROVIDER (serpapi|duffel|demo), SERPAPI_KEY (+ optional SERPAPI_KEY_2), SERPAPI_VERIFY_RETURN,
+//      SERPAPI_DEEP_SEARCH, DUFFEL_ACCESS_TOKEN, SEARCHES_PER_RUN, SCAN_DATE, SITE_URL,
 //      NTFY_TOPICS / NTFY_TOKEN / NTFY_SERVER (push), WATCH_TRIPS / PRICE_ALERTS (JSON, kept out of the public repo)
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, appendFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -21,9 +21,10 @@ import { AIRLINES } from '../web/core/airlines.js';
 import { buildPlan, dayIndex } from './lib/plan.mjs';
 import { emptyHistory, recordLow, pruneHistory, routeStats } from './lib/history.mjs';
 import { fetchFx, toTWD, FALLBACK_FX } from './lib/fx.mjs';
-import { searchSerpApi } from './providers/serpapi.mjs';
+import { searchSerpApi, serpApiAccount, isQuotaError } from './providers/serpapi.mjs';
 import { searchDuffel } from './providers/duffel.mjs';
-import { demoSearch } from './providers/demo.mjs';
+import { demoSearch, demoPos } from './providers/demo.mjs';
+import { pickMarkets, matchOffer, posResult, summarizePos } from './lib/pos.mjs';
 import { sendNotifications } from './notify.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -39,23 +40,55 @@ async function readJson(file, fallback) {
   }
 }
 
+export function serpApiKeys(env) {
+  return [env.SERPAPI_KEY, env.SERPAPI_KEY_2].map((k) => String(k || '').trim()).filter(Boolean);
+}
+
 export function pickProvider(env, fetchImpl = fetch) {
+  const keys = serpApiKeys(env);
   const name = (env.FARE_PROVIDER || '').toLowerCase() ||
-    (env.SERPAPI_KEY ? 'serpapi' : env.DUFFEL_ACCESS_TOKEN ? 'duffel' : 'demo');
+    (keys.length ? 'serpapi' : env.DUFFEL_ACCESS_TOKEN ? 'duffel' : 'demo');
   if (name === 'serpapi') {
-    if (!env.SERPAPI_KEY) throw new Error('FARE_PROVIDER=serpapi but SERPAPI_KEY is not set');
+    if (!keys.length) throw new Error('FARE_PROVIDER=serpapi but SERPAPI_KEY is not set');
+    // Optional second key (SERPAPI_KEY_2): used when the first key's monthly quota runs out.
+    let keyIdx = 0;
+    const base = {
+      currency: 'TWD',
+      deepSearch: env.SERPAPI_DEEP_SEARCH === 'true',
+      fetchImpl,
+    };
+    const call = async (q, opts) => {
+      for (;;) {
+        try {
+          return await searchSerpApi(q, { ...base, ...opts, apiKey: keys[keyIdx] });
+        } catch (e) {
+          if (isQuotaError(e) && keyIdx < keys.length - 1) {
+            keyIdx++;
+            continue;
+          }
+          throw e;
+        }
+      }
+    };
     return {
       name,
       delayMs: Number(env.SCAN_DELAY_MS ?? 1200),
-      secret: env.SERPAPI_KEY,
-      search: (q, filter) => searchSerpApi(q, {
-        apiKey: env.SERPAPI_KEY,
-        currency: 'TWD',
-        deepSearch: env.SERPAPI_DEEP_SEARCH === 'true',
-        verifyReturn: Number(env.SERPAPI_VERIFY_RETURN || 0),
-        filter,
-        fetchImpl,
-      }),
+      secrets: keys,
+      search: (q, filter) => call(q, { verifyReturn: Number(env.SERPAPI_VERIFY_RETURN || 0), filter }),
+      // Same trip in another Google Flights market (point-of-sale check); never verifies return legs.
+      pos: (q, market) => call(q, { gl: market.country, currency: market.currency, verifyReturn: 0 }),
+      // Free Account API: searches left across all keys; start with the first key that still has quota.
+      quota: async () => {
+        const accounts = await Promise.all(keys.map((k) => serpApiAccount(k, fetchImpl).catch(() => null)));
+        if (accounts.every((a) => !a)) return null;
+        const firstWithQuota = accounts.findIndex((a) => a && a.left > 0);
+        if (firstWithQuota >= 0) keyIdx = firstWithQuota;
+        return {
+          left: accounts.reduce((n, a) => n + (a?.left || 0), 0),
+          perMonth: accounts.reduce((n, a) => n + (a?.perMonth || 0), 0) || null,
+          keys: keys.length,
+        };
+      },
     };
   }
   if (name === 'duffel') {
@@ -63,12 +96,20 @@ export function pickProvider(env, fetchImpl = fetch) {
     return {
       name,
       delayMs: Number(env.SCAN_DELAY_MS ?? 700),
-      secret: env.DUFFEL_ACCESS_TOKEN,
+      secrets: [env.DUFFEL_ACCESS_TOKEN],
       search: (q) => searchDuffel(q, { token: env.DUFFEL_ACCESS_TOKEN, fetchImpl }),
     };
   }
-  if (name === 'demo') return { name, delayMs: 0, secret: null, search: async (q) => demoSearch(q) };
+  if (name === 'demo') {
+    return { name, delayMs: 0, secrets: [], search: async (q) => demoSearch(q), pos: async (q, market, ctx) => demoPos(q, market, ctx) };
+  }
   throw new Error(`Unknown FARE_PROVIDER "${name}"`);
+}
+
+/** Days left in the current month, today included (SerpApi quotas are monthly). */
+export function daysLeftInMonth(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate() - d + 1;
 }
 
 const scaleBenchmark = (bm, f) => (bm ? { typical: Math.round(bm.typical * f), deal: Math.round(bm.deal * f) } : null);
@@ -129,8 +170,31 @@ export async function runScan({
   const priceAlerts = [...(config.priceAlerts || []), ...parseJsonList(env.PRICE_ALERTS, 'PRICE_ALERTS', log)];
   const baseCountries = await readJson(path.join(root, 'config', 'airport-countries.json'), {});
   const provider = pickProvider(env, fetchImpl);
-  const maxSearches = Number(env.SEARCHES_PER_RUN) || config.searchesPerRun?.[provider.name] || 8;
-  const plan = buildPlan(config, { today, maxSearches });
+  let maxSearches = Number(env.SEARCHES_PER_RUN) || config.searchesPerRun?.[provider.name] || 8;
+  const notes = [];
+  if (provider.name === 'demo' && !env.FARE_PROVIDER) notes.push('SERPAPI_KEY / DUFFEL_ACCESS_TOKEN not set → demo data');
+
+  // Pace SerpApi usage so the monthly quota lasts until the end of the month.
+  let quota = null;
+  if (provider.quota) {
+    try {
+      quota = await provider.quota();
+    } catch {
+      quota = null;
+    }
+    if (quota) {
+      const dailyCap = Math.floor(quota.left / daysLeftInMonth(today));
+      maxSearches = Math.min(maxSearches, quota.left > 0 ? Math.max(1, dailyCap) : 0);
+      quota.dailyCap = dailyCap;
+      if (!quota.left) notes.push('SerpApi quota used up for this month — keeping recent deals');
+    }
+  }
+
+  // Point-of-sale (foreign-site) checks get a small reserved slice of the daily budget.
+  const posCfg = config.pos || {};
+  const posWanted = posCfg.enabled && provider.pos ? (provider.name === 'demo' ? posCfg.demoChecks ?? 24 : posCfg.checksPerRun ?? 2) : 0;
+  const posReserve = provider.name === 'demo' ? 0 : Math.min(posWanted, Math.max(0, maxSearches - 1));
+  const plan = buildPlan(config, { today, maxSearches: maxSearches - posReserve });
   const prev = await readJson(path.join(outDir, 'deals.json'), null);
   let history = await readJson(path.join(outDir, 'history.json'), emptyHistory());
   // Never mix demo prices into real price history (or vice versa).
@@ -141,12 +205,15 @@ export async function runScan({
   const exFactor = config.exStationBenchmarkFactor || 0.85;
   const keepPerSearch = config.keepPerSearch || 3;
 
-  const stats = { planned: plan.length, searches: 0, offersSeen: 0, kept: 0, excluded: { china: 0, unverified: 0 }, errors: [], samples: [] };
+  const stats = { planned: plan.length, searches: 0, offersSeen: 0, kept: 0, excluded: { china: 0, unverified: 0 }, errors: [], samples: [], notes, pos: { checked: 0, cheaper: 0 } };
+  if (quota) stats.quota = { left: quota.left, perMonth: quota.perMonth, dailyCap: quota.dailyCap, keys: quota.keys };
   const fresh = [];
   const searched = new Set();
-  const redact = (msg) => (provider.secret ? String(msg).split(provider.secret).join('***') : String(msg));
+  const redact = (msg) => provider.secrets.reduce((m, sec) => m.split(sec).join('***'), String(msg));
 
-  log(`▶ ${today} · provider=${provider.name} · ${plan.length} searches planned (budget ${maxSearches})`);
+  log(`▶ ${today} · provider=${provider.name} · ${plan.length} searches planned (budget ${maxSearches}${posReserve ? `, ${posReserve} for foreign-site checks` : ''})`);
+  for (const n of notes) log(`  ℹ ${n}`);
+  if (quota) log(`  ℹ SerpApi quota: ${quota.left} searches left (${quota.keys} key${quota.keys > 1 ? 's' : ''}) → up to ${quota.dailyCap}/day`);
 
   for (const q of plan) {
     if (stats.searches >= maxSearches) break;
@@ -225,25 +292,68 @@ export async function runScan({
     }
 
     clean.sort((a, b) => a.priceTWD - b.priceTWD);
-    if (clean.length) recordLow(history, q.key, { date: today, priceTWD: clean[0].priceTWD, carrier: clean[0].primaryCarrier, departDate: q.departDate, returnDate: q.returnDate });
+    // Full-service and LCC fares are tracked separately so cheap LCCs never crowd out full-service options.
+    const fsc = clean.filter((d) => !d.budget);
+    const lcc = clean.filter((d) => d.budget);
+    const low = (d) => ({ date: today, priceTWD: d.priceTWD, carrier: d.primaryCarrier, departDate: q.departDate, returnDate: q.returnDate });
+    if (fsc.length) recordLow(history, q.key, low(fsc[0]));
+    if (lcc.length) recordLow(history, q.key, low(lcc[0]), 'lcc');
 
-    // Keep the cheapest few (distinct carriers) + best SkyTeam + best nonstop — what a frequent flyer wants to see.
+    // Keep the cheapest few full-service fares (distinct carriers) + best SkyTeam + best nonstop,
+    // plus the cheapest LCC options — what a frequent flyer wants to see.
     const keep = [];
-    const seenCarrier = new Set();
-    for (const d of clean) {
-      if (keep.length >= keepPerSearch) break;
-      if (seenCarrier.has(d.primaryCarrier)) continue;
-      seenCarrier.add(d.primaryCarrier);
-      keep.push(d);
-    }
+    const pickDistinct = (list, n) => {
+      const seen = new Set();
+      for (const d of list) {
+        if (seen.size >= n) break;
+        if (seen.has(d.primaryCarrier)) continue;
+        seen.add(d.primaryCarrier);
+        keep.push(d);
+      }
+    };
+    pickDistinct(fsc, keepPerSearch);
     for (const pickFn of [(d) => d.alliance === 'SKYTEAM', (d) => d.stops === 0]) {
-      const best = clean.find(pickFn);
+      const best = fsc.find(pickFn);
       if (best && !keep.includes(best)) keep.push(best);
     }
+    pickDistinct(lcc, config.keepLccPerSearch ?? 2);
     fresh.push(...keep);
     stats.kept += keep.length;
     log(`  ✓ ${q.key} ${q.departDate}${q.returnDate ? '→' + q.returnDate : ''}: ${res.offers.length} offers, ${clean.length} China-free, kept ${keep.length}`);
     if (provider.delayMs) await sleep(provider.delayMs);
+  }
+
+  // Point-of-sale checks: re-price today's best full-service deals in other countries' markets.
+  const posBudget = provider.name === 'demo' ? posWanted : Math.max(0, maxSearches - stats.searches);
+  if (posWanted && posBudget > 0) {
+    const perDeal = Math.max(1, posCfg.marketsPerDeal ?? 2);
+    const candidates = fresh.filter((d) => !d.budget).sort((a, b) => b.score - a.score);
+    let used = 0;
+    for (const d of candidates) {
+      if (used >= posBudget) break;
+      const markets = pickMarkets(d, posCfg.markets || [], { perDeal: Math.min(perDeal, posBudget - used), dayIdx: dayIndex(today), countries: baseCountries });
+      const results = [];
+      for (const m of markets) {
+        try {
+          const q = { origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate };
+          const res = await provider.pos(q, m, { fx, deal: d });
+          used += res.searches || 1;
+          const hit = matchOffer(d, res.offers, { countries: baseCountries });
+          if (hit) results.push(posResult(d, m, hit, fx));
+        } catch (e) {
+          used++;
+          stats.errors.push(`POS ${m.country} ${d.routeKey}: ${redact(e.message)}`);
+        }
+        stats.pos.checked++;
+        if (provider.delayMs) await sleep(provider.delayMs);
+      }
+      d.pos = summarizePos(results, today, posCfg.minSavingsPct ?? 3);
+      if (d.pos.best) {
+        stats.pos.cheaper++;
+        log(`  🌏 ${d.routeKey} ${d.primaryCarrier}: ${d.pos.best.country} site ${d.pos.best.savingsPct}% cheaper`);
+      }
+    }
+    stats.searches += provider.name === 'demo' ? 0 : used;
   }
 
   // Merge with recent deals from previous runs (rotation means most routes aren't searched daily).
@@ -267,7 +377,10 @@ export async function runScan({
 
   const deals = [...fresh, ...carried].sort((a, b) => b.score - a.score).slice(0, 400).map(compact);
   pruneHistory(history, today);
-  const alertHits = evaluatePriceAlerts(priceAlerts, deals, history, today);
+  // Notifications can be paused in config/routes.json ("notifications": "paused") or with the
+  // NOTIFICATIONS repository variable (on | paused), which wins over the config.
+  const notificationsOn = String(env.NOTIFICATIONS || config.notifications || 'on').trim().toLowerCase() !== 'paused';
+  const alertHits = notificationsOn ? evaluatePriceAlerts(priceAlerts, deals, history, today) : new Map();
 
   const rates = {};
   for (const c of fx.display || Object.keys(fx.rates)) if (fx.rates[c]) rates[c] = fx.rates[c];
@@ -278,6 +391,7 @@ export async function runScan({
     scanDate: today,
     provider: provider.name,
     isDemo: provider.name === 'demo',
+    notifications: notificationsOn ? 'on' : 'paused',
     currency: 'TWD',
     fx: { date: fx.date, source: fx.source, rates },
     stats,
@@ -296,7 +410,8 @@ export async function runScan({
   const minScore = Number(env.NOTIFY_MIN_SCORE) || config.notifyMinScore || 72;
   const newGood = deals.filter((d) => d.firstSeen === today && d.score >= minScore).slice(0, 8);
   let sent = [];
-  if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
+  if (!notificationsOn) log('🔕 notifications paused — nothing sent');
+  else if ((newGood.length || alertHits.size) && (!out.isDemo || env.NOTIFY_DEMO === '1')) {
     const [owner, repo] = (env.GITHUB_REPOSITORY || '').split('/');
     const siteUrl = env.SITE_URL || config.siteUrl || (owner && repo ? `https://${owner}.github.io/${repo}/` : null);
     try {
@@ -305,6 +420,21 @@ export async function runScan({
     } catch (e) {
       log(`notify failed: ${e.message}`);
     }
+  }
+
+  // Human-readable run summary on the GitHub Actions run page.
+  if (env.GITHUB_STEP_SUMMARY) {
+    const rows = [
+      ['Provider', provider.name === 'demo' ? `demo ⚠️ ${notes.join('; ')}` : `${provider.name} ✅`],
+      ['Searches', `${stats.searches} (planned ${plan.length}${posReserve ? ` + ${posReserve} foreign-site` : ''})`],
+      ...(quota ? [['SerpApi quota left', `${quota.left} (${quota.keys} key${quota.keys > 1 ? 's' : ''}) → up to ${quota.dailyCap}/day`]] : []),
+      ['Deals published', String(deals.length)],
+      ['Excluded CN/HK/MO', `${stats.excluded.china} (+${stats.excluded.unverified} unverified)`],
+      ['Cheaper on a foreign site', `${stats.pos.cheaper} of ${stats.pos.checked} checks`],
+      ['Notifications', notificationsOn ? 'on' : 'paused'],
+      ['Errors', String(stats.errors.length)],
+    ];
+    await appendFile(env.GITHUB_STEP_SUMMARY, `### ✈️ Fare scan ${today}\n\n| | |\n|---|---|\n${rows.map(([k, v]) => `| ${k} | ${v} |`).join('\n')}\n`).catch(() => {});
   }
 
   return { out, history, alertHits, sent, allFailed: plan.length > 0 && searched.size === 0 };

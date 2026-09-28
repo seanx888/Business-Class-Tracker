@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkItinerary, isChinaFree } from '../web/core/exclusion.js';
-import { isBlockedCarrierCode, isBlockedCarrierName, allianceOf } from '../web/core/airlines.js';
+import { isBlockedCarrierCode, isBlockedCarrierName, allianceOf, isLccItinerary } from '../web/core/airlines.js';
 import { airportCountry } from '../web/core/airports.js';
 
 const seg = (from, to, carrier, extra = {}) => ({ from, to, carrier, ...extra });
@@ -102,4 +102,11 @@ test('Taiwan airports are TW, not CN', () => {
   assert.equal(airportCountry('HKG'), 'HK');
   assert.equal(airportCountry('MFM'), 'MO');
   assert.equal(airportCountry('PEK'), 'CN');
+});
+
+test('LCC detection: any low-cost carrier on the itinerary makes it LCC; full-service carriers never are', () => {
+  assert.equal(isLccItinerary(['VJ']), true);
+  assert.equal(isLccItinerary(['BR', 'TW']), true);
+  for (const c of ['CI', 'BR', 'JX', 'KE', 'VN', 'SQ', 'TG', 'PR', 'VA', 'EK']) assert.equal(isLccItinerary([c]), false, c);
+  assert.equal(isLccItinerary([]), false);
 });

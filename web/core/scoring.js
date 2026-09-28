@@ -2,7 +2,7 @@
 // Price vs. "normal" price dominates; alliance (SkyTeam first) is a secondary nudge;
 // product quality (nonstop, lie-flat, no mixed cabin) adjusts the rest.
 
-import { ALLIANCES, allianceOf, BUDGET_PREMIUM } from './airlines.js';
+import { ALLIANCES, allianceOf, isLccItinerary } from './airlines.js';
 import { distanceKm } from './airports.js';
 
 export const TIERS = [
@@ -71,7 +71,7 @@ export function summarizeItinerary(itin, homeAirports = ['TPE', 'TSA', 'KHH']) {
   return {
     carriers,
     primaryCarrier,
-    budget: BUDGET_PREMIUM.has(primaryCarrier),
+    budget: isLccItinerary(carriers),
     alliance,
     mixedAlliance: alliances.length > 1,
     stops,

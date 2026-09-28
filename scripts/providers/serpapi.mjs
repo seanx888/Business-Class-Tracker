@@ -17,7 +17,9 @@ export const EXCLUDE_CONNS = [
 const NOT_SEARCHABLE = new Set(['CK', 'O3', 'LD', 'KA']);
 const EXCLUDE_AIRLINES = Object.keys(BLOCKED_CARRIERS).filter((c) => !NOT_SEARCHABLE.has(c));
 
-export function buildParams(q, { apiKey, currency = 'TWD', deepSearch = false, departureToken = null, preFilter = true } = {}) {
+// `gl` = Google market (point of sale). The daily scan uses Taiwan; point-of-sale checks re-price
+// the same trip in other markets (e.g. gl=vn + currency=VND) to spot cheaper foreign-site fares.
+export function buildParams(q, { apiKey, currency = 'TWD', gl = 'tw', deepSearch = false, departureToken = null, preFilter = true } = {}) {
   const p = new URLSearchParams({
     engine: 'google_flights',
     departure_id: q.origin,
@@ -28,7 +30,7 @@ export function buildParams(q, { apiKey, currency = 'TWD', deepSearch = false, d
     adults: '1',
     currency,
     hl: 'en',
-    gl: 'tw',
+    gl: String(gl).toLowerCase(),
     api_key: apiKey,
   });
   if (preFilter) {
@@ -160,3 +162,17 @@ export async function searchSerpApi(q, opts) {
   }
   return { ...result, searches };
 }
+
+/** SerpApi Account API — free, does not count against the monthly quota. */
+export async function serpApiAccount(apiKey, fetchImpl = fetch) {
+  const res = await fetchImpl(`https://serpapi.com/account.json?api_key=${encodeURIComponent(apiKey)}`, { signal: AbortSignal.timeout(20000) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error(`SerpApi account: ${j.error || `HTTP ${res.status}`}`);
+  const left = Number.isFinite(j.total_searches_left)
+    ? j.total_searches_left
+    : Number.isFinite(j.plan_searches_left) ? j.plan_searches_left + (j.extra_credits || 0) : null;
+  if (left == null) throw new Error('SerpApi account: no quota fields');
+  return { left, perMonth: j.searches_per_month ?? null, used: j.this_month_usage ?? null, plan: j.plan_name || null };
+}
+
+export const isQuotaError = (e) => /run out of searches|out of searches|searches? (limit|quota)|exceeded|HTTP 429|too many requests/i.test(String(e?.message || e));
