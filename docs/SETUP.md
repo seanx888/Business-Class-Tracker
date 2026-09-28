@@ -2,7 +2,7 @@
 
 > 本 App 只追蹤**機票**（商務艙），不含火車。 This app tracks **flight tickets only** (business class) — no trains.
 
-App 網址 App URL：**https://business-class-tracker-lime.vercel.app**
+App 網址 App URL：**https://jcd-class.bluechiou.com**
 
 | # | 步驟 Step | 狀態 Status | 費用 Cost | 時間 Time |
 |---|---|---|---|---|
@@ -31,7 +31,7 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
 
 ## 2. 網站：Vercel · The app on Vercel — ✅ Claude 已完成 Done by Claude
 
-- 網址 URL：**https://business-class-tracker-lime.vercel.app**（公開，Blue 不需要 Vercel 帳號）
+- 網址 URL：**https://jcd-class.bluechiou.com**（公開，Blue 不需要 Vercel 帳號）
 - Vercel 帳號：**seanx888**（與 GitHub 同一個），專案 `business-class-tracker`，已**連結 GitHub repo**：
   - `main` 有程式碼更新 → **自動部署**正式網站；其他分支 / PR → 自動產生預覽網址。
   - 只有 `web/data/` 變動（每天的票價資料）時**略過部署**（Ignored Build Step），不浪費額度。
@@ -39,9 +39,9 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
   （約 5 分鐘快取）→ **不需要**重新部署、**不需要** Vercel token。
   The app reads fare data straight from GitHub, so the site never needs a redeploy for new fares.
 
-> 想要短網址 `business-class-tracker.vercel.app`？這個名稱還被**舊帳號（koowa888）**的舊專案佔用。
-> 用舊帳號登入 Vercel → 舊專案 **Settings** → 頁面最下方 **Delete Project** 刪除後，告訴 Claude 把名稱加到新專案即可。
-> The short name is still held by the old project on the old Vercel account — delete it there, then ask Claude to move the name.
+> 自訂網域 `jcd-class.bluechiou.com` 由 Cloudflare DNS 指向 Vercel（CNAME `jcd-class` → `cname.vercel-dns-0.com`，**DNS only 灰色雲**；
+> TXT `_vercel` 為網域驗證用，與 aeonracle 的那筆並存，兩筆都不要刪）。備用網址 https://business-class-tracker-lime.vercel.app 也一直可用。
+> Custom domain via Cloudflare DNS (CNAME, DNS only). The vercel.app address keeps working as a backup.
 
 <details>
 <summary>替代方案：GitHub Pages · Alternative: GitHub Pages</summary>
@@ -141,7 +141,7 @@ ntfy 免費、免註冊。ntfy.sh 上的主題是公開的，**知道主題名�
 
 ## 6. 兩支手機安裝 App · Install on both phones
 
-打開 **https://business-class-tracker-lime.vercel.app** → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
+打開 **https://jcd-class.bluechiou.com** → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
 
 App 一律以**繁體中文、新台幣**開啟（可在設定改語言／幣別，只影響那支手機）。票價預設只顯示**傳統航空**，
 頂端「傳統航空｜LCC｜全部」一鍵切換。「特殊票價」分頁有 **外站出發** 與 **外國站結帳** 兩種省錢方式。
@@ -156,7 +156,7 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 
 1. **Actions → Daily fare scan & deploy → Run workflow**（provider 留空）→ **Run workflow**。
 2. 約 2–5 分鐘後應為綠色 ✓。
-3. 打開 https://business-class-tracker-lime.vercel.app ：「示範資料」提示消失；**設定 → 資料** 顯示 `serpapi` 與本月剩餘次數。
+3. 打開 https://jcd-class.bluechiou.com ：「示範資料」提示消失；**設定 → 資料** 顯示 `serpapi` 與本月剩餘次數。
 4. 之後每天 **台北時間 05:40** 自動執行，不用再手動。
 
 ---
@@ -210,7 +210,7 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 | 症狀 Symptom | 解法 Fix |
 |---|---|
 | `configure-pages` 失敗 / *Get Pages site failed* | 只有 `DEPLOY_TARGET=pages` 才會用到 Pages；刪掉該 Variable 即可 |
-| 一直顯示示範資料 / Summary 寫 `demo ⚠️` | `SERPAPI_KEY` 不在 **Secrets** 分頁（放到 Variables、Environment secrets 或 Vercel 都讀不到）— 見第 3 步 |
+| 一直顯示示範資料 / Summary 寫 `demo ⚠️` | `SERPAPI_KEY` 必須出現在 **Secrets 分頁 → Repository secrets** 清單裡。放在 *Environment secrets*（例如 Vercel 自動建立的 Production / Preview 環境）、Variables 或 Vercel 都讀不到 — 見第 3 步 |
 | *Every search failed* | `SERPAPI_KEY` 錯誤或本月額度用完（看 SerpApi dashboard）|
 | 沒收到推播 | 目前暫停中（Variable `NOTIFICATIONS=on` 才會開始）？主題名稱是否一致？今天沒有 ≥ 72 分的新好價？示範資料不推播 |
 | 每天沒有自動執行 | 預設分支必須是 `main`（第 1 步）|
