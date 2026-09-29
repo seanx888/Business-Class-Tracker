@@ -1,5 +1,5 @@
 // ÆtherSky (商務艙雷達) — PWA front-end (vanilla ES modules, no build step).
-// Layout follows design-system/business-class-tracker/pages/app.md (Minimal Swiss, SVG icons, hash routes).
+// Layout follows design-system/aethersky/pages/app.md (Minimal Swiss, SVG icons, hash routes).
 import { t, setLang, getLang, LANGS, regionName, countryName } from './i18n.js';
 import { ALLIANCES, ALLIANCE_ORDER, BLOCKED_CARRIERS, AIRLINES, airlineName } from './core/airlines.js';
 import { AIRPORTS, airportCity } from './core/airports.js';
@@ -875,7 +875,7 @@ function trackerHtml() {
         <p class="small">${esc(t('trkHowCopy'))}</p>
         <pre class="snippet">${esc(json)}</pre>
         <div class="links"><button class="btn" data-act="copy" data-text="${esc(json)}">${icon('copy')}${esc(t('copy'))}</button>
-        <a class="btn" href="https://github.com/seanx888/Business-Class-Tracker/settings/variables/actions" target="_blank" rel="noopener">${esc(t('openGithubVars'))}${ext()}</a></div>
+        <a class="btn" href="https://github.com/seanx888/aethersky/settings/variables/actions" target="_blank" rel="noopener">${esc(t('openGithubVars'))}${ext()}</a></div>
       </section>` : ''}
     <p class="small muted" style="margin-top:14px">${esc(t('trkMailHint'))}</p>`;
 }

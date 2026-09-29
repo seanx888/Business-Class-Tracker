@@ -36,9 +36,9 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 
 ## 快速開始 Quick start
 
-👉 **完整步驟請看 [docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 Sean & Blue）。 Full step-by-step guide.
+👉 **全部金鑰／Secrets 一覽與重設步驟：[docs/SECRETS.md](docs/SECRETS.md)**；各功能詳細說明：**[docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 Sean & Blue）。 Full step-by-step guide.
 
-**App：https://jcd-class.bluechiou.com**（Vercel 託管；每日資料直接從本 repo 讀取，不需重新部署）
+**App：https://aethersky.bluechiou.com**（Vercel 託管；每日資料直接從本 repo 讀取，不需重新部署）
 
 1. ✅ PR 已合併、預設分支 `main`；✅ Vercel 專案已建立
 2. GitHub Secret `SERPAPI_KEY`（<https://serpapi.com>，免費 250 次/月）— 不設定則顯示示範資料 demo
