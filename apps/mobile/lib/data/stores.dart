@@ -19,6 +19,9 @@ final flightSourceProvider = Provider<FlightDataSource>(
 
 final httpClientProvider = Provider<http.Client>((ref) => http.Client());
 
+/// Current time; overridden in tests so countdowns and upcoming/past grouping are deterministic.
+final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
 /// Flights the user follows, kept on the device (account sync comes with the backend).
 class MyFlights extends Notifier<List<Flight>> {
   static const _key = 'aether.flights.v1';

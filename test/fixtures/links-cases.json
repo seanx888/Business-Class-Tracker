@@ -1,0 +1,248 @@
+[
+  {
+    "name": "round trip, zh-TW",
+    "fn": "google",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW"
+    },
+    "url": "https://www.google.com/travel/flights?q=Flights%20from%20TPE%20to%20CDG%20on%202026-11-10%20through%202026-11-24%20business%20class&curr=TWD&hl=zh-TW"
+  },
+  {
+    "name": "round trip, zh-TW",
+    "fn": "skyscanner",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW"
+    },
+    "url": "https://www.skyscanner.com.tw/transport/flights/tpe/cdg/261110/261124/?adultsv2=1&cabinclass=business&rtn=1&currency=TWD"
+  },
+  {
+    "name": "round trip, zh-TW",
+    "fn": "kayak",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW"
+    },
+    "url": "https://www.kayak.com/flights/TPE-CDG/2026-11-10/2026-11-24/business?sort=price_a"
+  },
+  {
+    "name": "one way, English",
+    "fn": "google",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": null,
+      "currency": "USD",
+      "lang": "en"
+    },
+    "url": "https://www.google.com/travel/flights?q=Flights%20from%20TPE%20to%20CDG%20on%202026-11-10%20one%20way%20business%20class&curr=USD&hl=en"
+  },
+  {
+    "name": "one way, English",
+    "fn": "skyscanner",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": null,
+      "currency": "USD",
+      "lang": "en"
+    },
+    "url": "https://www.skyscanner.net/transport/flights/tpe/cdg/261110/?adultsv2=1&cabinclass=business&rtn=0&currency=USD"
+  },
+  {
+    "name": "one way, English",
+    "fn": "kayak",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": null,
+      "currency": "USD",
+      "lang": "en"
+    },
+    "url": "https://www.kayak.com/flights/TPE-CDG/2026-11-10/business?sort=price_a"
+  },
+  {
+    "name": "Korean, foreign market VN",
+    "fn": "google",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "VND",
+      "lang": "ko",
+      "gl": "vn"
+    },
+    "url": "https://www.google.com/travel/flights?q=Flights%20from%20TPE%20to%20CDG%20on%202026-11-10%20through%202026-11-24%20business%20class&curr=VND&hl=ko&gl=VN"
+  },
+  {
+    "name": "Korean, foreign market VN",
+    "fn": "skyscanner",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "VND",
+      "lang": "ko",
+      "gl": "vn"
+    },
+    "url": "https://www.skyscanner.co.kr/transport/flights/tpe/cdg/261110/261124/?adultsv2=1&cabinclass=business&rtn=1&currency=VND"
+  },
+  {
+    "name": "Korean, foreign market VN",
+    "fn": "kayak",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "VND",
+      "lang": "ko",
+      "gl": "vn"
+    },
+    "url": "https://www.kayak.co.kr/flights/TPE-CDG/2026-11-10/2026-11-24/business?sort=price_a"
+  },
+  {
+    "name": "economy tracker",
+    "fn": "google",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "economy"
+    },
+    "url": "https://www.google.com/travel/flights?q=Flights%20from%20TPE%20to%20CDG%20on%202026-11-10%20through%202026-11-24%20economy&curr=TWD&hl=zh-TW"
+  },
+  {
+    "name": "economy tracker",
+    "fn": "skyscanner",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "economy"
+    },
+    "url": "https://www.skyscanner.com.tw/transport/flights/tpe/cdg/261110/261124/?adultsv2=1&cabinclass=business&rtn=1&currency=TWD"
+  },
+  {
+    "name": "economy tracker",
+    "fn": "kayak",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "economy"
+    },
+    "url": "https://www.kayak.com/flights/TPE-CDG/2026-11-10/2026-11-24/business?sort=price_a"
+  },
+  {
+    "name": "premium economy",
+    "fn": "google",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "premium"
+    },
+    "url": "https://www.google.com/travel/flights?q=Flights%20from%20TPE%20to%20CDG%20on%202026-11-10%20through%202026-11-24%20premium%20economy&curr=TWD&hl=zh-TW"
+  },
+  {
+    "name": "premium economy",
+    "fn": "skyscanner",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "premium"
+    },
+    "url": "https://www.skyscanner.com.tw/transport/flights/tpe/cdg/261110/261124/?adultsv2=1&cabinclass=business&rtn=1&currency=TWD"
+  },
+  {
+    "name": "premium economy",
+    "fn": "kayak",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": "2026-11-24",
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "premium"
+    },
+    "url": "https://www.kayak.com/flights/TPE-CDG/2026-11-10/2026-11-24/business?sort=price_a"
+  },
+  {
+    "name": "first class",
+    "fn": "google",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": null,
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "first"
+    },
+    "url": "https://www.google.com/travel/flights?q=Flights%20from%20TPE%20to%20CDG%20on%202026-11-10%20one%20way%20first%20class&curr=TWD&hl=zh-TW"
+  },
+  {
+    "name": "first class",
+    "fn": "skyscanner",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": null,
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "first"
+    },
+    "url": "https://www.skyscanner.com.tw/transport/flights/tpe/cdg/261110/?adultsv2=1&cabinclass=business&rtn=0&currency=TWD"
+  },
+  {
+    "name": "first class",
+    "fn": "kayak",
+    "query": {
+      "origin": "TPE",
+      "destination": "CDG",
+      "departDate": "2026-11-10",
+      "returnDate": null,
+      "currency": "TWD",
+      "lang": "zh-TW",
+      "cabin": "first"
+    },
+    "url": "https://www.kayak.com/flights/TPE-CDG/2026-11-10/business?sort=price_a"
+  }
+]

@@ -42,6 +42,8 @@ dependencies:
   timezone: ^0.11.1
   flutter_localizations:
     sdk: flutter
+  url_launcher: ^6.3.2
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:

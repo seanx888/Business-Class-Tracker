@@ -11,7 +11,8 @@
     "serve": "npx --yes http-server web -p 8080 -c-1",
     "test": "node --test test/*.test.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "airports": "node scripts/update-airports.mjs"
+    "airports": "node scripts/update-airports.mjs",
+    "gen:dart": "node scripts/gen-dart-airlines.mjs"
   },
   "license": "MIT"
 }

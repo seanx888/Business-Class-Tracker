@@ -15,6 +15,9 @@ class S {
 
   String get locale => const {'zh': 'zh_TW', 'en': 'en_US', 'ko': 'ko_KR'}[lang]!;
 
+  /// Language tag used by the metasearch deep links (same values as the PWA).
+  String get linkLang => const {'zh': 'zh-TW', 'en': 'en', 'ko': 'ko'}[lang]!;
+
   String _t(String zh, String en, String ko) => lang == 'en' ? en : lang == 'ko' ? ko : zh;
 
   String get tabFlights => _t('航班', 'Flights', '항공편');
@@ -91,6 +94,11 @@ class S {
   String get copied => _t('已複製', 'Copied', '복사됨');
   String get noMemberships => _t('還沒有會員卡', 'No memberships yet', '회원카드가 없습니다');
   String expiresIn(int d) => d < 0 ? _t('等級已到期', 'Status expired', '등급 만료') : _t('$d 天後到期', 'Expires in $d days', '$d일 후 만료');
+
+  String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
+  String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
+  String get openFail => _t('無法開啟連結', 'Could not open the link', '링크를 열 수 없습니다');
+  String get fareHint => _t('票價為掃描當下的參考價，訂票前請再確認。', 'Fares are snapshots — confirm before booking.', '운임은 조회 시점 기준이므로 예약 전 확인하세요.');
 
   String get plans => _t('ÆtherSky 方案', 'ÆtherSky plans', 'ÆtherSky 요금제');
   String get plansHint => _t('競品免費的功能，我們一律免費。第一趟旅程送 Elite 全功能。', 'Everything competitors give away is free here too. Your first trip includes every Elite feature.', '경쟁 앱이 무료로 주는 기능은 모두 무료. 첫 여행은 Elite 전체 기능 제공.');
