@@ -1,93 +1,182 @@
-// Google sign-in for the two owners (Sean & Blue). No dependencies, no database.
+// Two passwords, one per person (USERA, USERB). No accounts, no extra service, no dependencies.
 //
-// Flow (Google Identity Services, ux_mode=redirect): the page shows Google's button → Google POSTs an ID token to
-// /api/auth → we verify it (Google's RS256 signature, audience, expiry, verified e-mail), check the e-mail against
-// ALLOWED_EMAILS, and answer with our own signed, HttpOnly session cookie. Nothing is stored server-side.
+// The password itself says who is signing in: /api/auth checks it against each person's password and, on a match,
+// answers with a signed HttpOnly session cookie naming that person. Everything that spends SerpApi quota (the trackers
+// the daily scan searches for) sits behind that cookie; the public pages never spend quota.
+//
+// Two layers of passwords:
+//   1. INITIAL passwords, from Vercel env PASSWORD_USERA / PASSWORD_USERB. They only get you as far as the
+//      "choose your own password" screen — tracker sync stays locked until you have changed it.
+//   2. Your OWN password, stored as a salted scrypt hash in the repository variable AUTH (never the password itself).
+//      Once it exists it replaces the initial one. Forgot it? Delete your entry from the AUTH variable (or the whole
+//      variable) in GitHub → the initial password works again and asks for a new one.
 //
 // Vercel → Project → Settings → Environment Variables:
-//   GOOGLE_CLIENT_ID   OAuth "Web application" client ID (public value)
-//   ALLOWED_EMAILS     comma-separated Google accounts allowed in, e.g. sean@gmail.com,blue@gmail.com
-//   SESSION_SECRET     random string, ≥ 32 characters (signs the session cookie; changing it signs everyone out)
-import { createHmac, createPublicKey, createVerify, timingSafeEqual } from 'node:crypto';
+//   PASSWORD_USERA, PASSWORD_USERB   initial passwords, each ≥ 12 characters and different from each other.
+//                                  The name after PASSWORD_ is the person's code (matches `people` in config/routes.json);
+//                                  only names of the form USER<letter> are read.
+//   SESSION_SECRET                 random string, ≥ 32 characters (signs the cookie; changing it signs everyone out)
+//   TRACKERS_GITHUB_TOKEN          (also stores the AUTH variable) — see api/trackers.mjs
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+import { variables } from './github.mjs';
+
+const scryptAsync = promisify(scrypt);
 
 export const COOKIE = 'aethersky_session';
 export const SESSION_DAYS = 30;
-const CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
-const ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
+export const MIN_PASSWORD = 12;
+export const MAX_PASSWORD = 128;
+export const MIN_SECRET = 32;
+export const AUTH_VAR = 'AUTH';
+const CACHE_MS = 20 * 1000; // other server instances notice a password change within this long
 
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
 const fromB64u = (s) => Buffer.from(String(s), 'base64url');
-const fail = (code) => Object.assign(new Error(code), { code });
 
-export function allowedEmails(env) {
-  return new Set(String(env.ALLOWED_EMAILS || '').split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')));
+export const safeEqual = (a, b) => {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && timingSafeEqual(x, y);
+};
+
+// ── Configuration (Vercel env) ──────────────────────────────────────────────
+/** { usera: '…', userb: '…' } from PASSWORD_USERA / PASSWORD_USERB (only the names PASSWORD_USER<letter> count; anything
+ *  else is ignored). Too-short or duplicated passwords are ignored. */
+export function passwords(env) {
+  const all = Object.entries(env)
+    .map(([k, v]) => [/^PASSWORD_(USER[A-Z])$/.exec(k)?.[1]?.toLowerCase(), String(v || '')])
+    .filter(([name, pw]) => name && pw.length >= MIN_PASSWORD);
+  const counts = new Map();
+  for (const [, pw] of all) counts.set(pw, (counts.get(pw) || 0) + 1);
+  return Object.fromEntries(all.filter(([, pw]) => counts.get(pw) === 1));
 }
 
-export const authConfigured = (env) =>
-  !!(env.GOOGLE_CLIENT_ID && String(env.SESSION_SECRET || '').length >= 32 && allowedEmails(env).size);
+export const authConfigured = (env) => String(env.SESSION_SECRET || '').length >= MIN_SECRET && Object.keys(passwords(env)).length > 0;
 
-/** Whole tracker sync works only when sign-in AND the GitHub token are set. */
+/** Whole tracker sync works only when sign-in AND the GitHub token (which also stores passwords) are set. */
 export const syncConfigured = (env) => authConfigured(env) && !!env.TRACKERS_GITHUB_TOKEN;
 
-// ── Google ID token ─────────────────────────────────────────────────────────
-const certCaches = new WeakMap(); // per fetch implementation, so tests never see production keys
-
-async function googleKeys(fetchImpl, now, refresh) {
-  const cache = certCaches.get(fetchImpl);
-  if (cache && !refresh && now < cache.until) return cache.keys;
-  const res = await fetchImpl(CERTS_URL);
-  if (!res.ok) throw fail('certs-unavailable');
-  const { keys } = await res.json();
-  const maxAge = Number(/max-age=(\d+)/.exec(res.headers.get('cache-control') || '')?.[1]) || 3600;
-  certCaches.set(fetchImpl, { keys, until: now + maxAge * 1000 });
-  return keys;
+/** Which variables are missing or unusable — names only, never values — so a bad setup can be diagnosed from /api/auth. */
+export function syncProblems(env) {
+  const problems = [];
+  const raw = Object.entries(env).filter(([k]) => /^PASSWORD_USER[A-Z]$/.test(k) && env[k]);
+  const usable = passwords(env);
+  if (!raw.length) problems.push('PASSWORD_USERA', 'PASSWORD_USERB');
+  for (const [k, v] of raw) {
+    const name = k.slice('PASSWORD_'.length).toLowerCase();
+    if (String(v).length < MIN_PASSWORD) problems.push(`${k} (needs at least ${MIN_PASSWORD} characters)`);
+    else if (!(name in usable)) problems.push(`${k} (same as another password — each person needs their own)`);
+  }
+  if (!env.SESSION_SECRET) problems.push('SESSION_SECRET');
+  else if (String(env.SESSION_SECRET).length < MIN_SECRET) problems.push(`SESSION_SECRET (needs at least ${MIN_SECRET} characters)`);
+  if (!env.TRACKERS_GITHUB_TOKEN) problems.push('TRACKERS_GITHUB_TOKEN');
+  return problems;
 }
 
-/** Verifies a Google ID token and returns { email, name }. Throws an Error with a `code` when anything is off. */
-export async function verifyGoogleIdToken(token, { clientId, fetchImpl = fetch, now = Date.now() }) {
-  const parts = String(token || '').split('.');
-  if (parts.length !== 3) throw fail('bad-token');
-  let header;
-  let claims;
+// ── Password hashes (scrypt) ────────────────────────────────────────────────
+const SCRYPT = { N: 16384, r: 8, p: 1 };
+
+export async function hashPassword(password) {
+  const salt = randomBytes(16);
+  const key = await scryptAsync(password, salt, 32, SCRYPT);
+  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${b64u(salt)}$${b64u(key)}`;
+}
+
+export async function verifyHash(password, stored) {
+  const [alg, N, r, p, salt, key] = String(stored || '').split('$');
+  if (alg !== 'scrypt' || !key) return false;
   try {
-    header = JSON.parse(fromB64u(parts[0]));
-    claims = JSON.parse(fromB64u(parts[1]));
+    const want = fromB64u(key);
+    const got = await scryptAsync(String(password), fromB64u(salt), want.length, { N: Number(N), r: Number(r), p: Number(p) });
+    return got.length === want.length && timingSafeEqual(got, want);
   } catch {
-    throw fail('bad-token');
+    return false;
   }
-  if (header.alg !== 'RS256' || !header.kid) throw fail('bad-token');
+}
 
-  let jwk = (await googleKeys(fetchImpl, now, false)).find((k) => k.kid === header.kid);
-  if (!jwk) jwk = (await googleKeys(fetchImpl, now, true)).find((k) => k.kid === header.kid); // key rotation
-  if (!jwk) throw fail('bad-signature');
-  const valid = createVerify('RSA-SHA256').update(`${parts[0]}.${parts[1]}`).verify(createPublicKey({ key: jwk, format: 'jwk' }), fromB64u(parts[2]));
-  if (!valid) throw fail('bad-signature');
+// ── Where changed passwords live: the AUTH repository variable ─────────────
+// State shape: { usera: { hash, at }, userb: { hash, at } } — only people who have chosen their own password.
+const cleanState = (v) => {
+  const out = {};
+  for (const [name, e] of Object.entries(v && typeof v === 'object' && !Array.isArray(v) ? v : {})) {
+    if (e && typeof e.hash === 'string') out[name] = { hash: e.hash, at: String(e.at || '') };
+  }
+  return out;
+};
+const caches = new WeakMap(); // per fetch implementation, so tests never see production state
 
-  if (!ISSUERS.includes(claims.iss)) throw fail('bad-issuer');
-  if (!clientId || claims.aud !== clientId) throw fail('bad-audience');
-  if (!(claims.exp * 1000 > now)) throw fail('expired');
-  if (claims.iat * 1000 > now + 5 * 60 * 1000) throw fail('bad-token');
-  if (!(claims.email_verified === true || claims.email_verified === 'true') || typeof claims.email !== 'string') throw fail('email-unverified');
-  return { email: claims.email.toLowerCase(), name: String(claims.name || '').slice(0, 60) };
+export function authStore(env, fetchImpl = fetch) {
+  const gh = variables(env, fetchImpl);
+  const key = env.TRACKERS_REPO || '';
+  const cache = () => {
+    if (!caches.has(fetchImpl)) caches.set(fetchImpl, new Map());
+    return caches.get(fetchImpl);
+  };
+  const fresh = async () => {
+    const raw = await gh.read(AUTH_VAR); // any GitHub / network failure throws → callers fail closed
+    let state = {};
+    try {
+      state = cleanState(JSON.parse(raw || '{}'));
+    } catch {
+      /* a variable holding junk just means "nobody has changed their password yet" */
+    }
+    cache().set(key, { state, until: Date.now() + CACHE_MS });
+    return state;
+  };
+  return {
+    /** Everyone's own-password hashes; cached for a few seconds. Throws when GitHub cannot be reached. */
+    async load({ force = false } = {}) {
+      const hit = cache().get(key);
+      return !force && hit && hit.until > Date.now() ? hit.state : fresh();
+    },
+    /** Record `name`'s new password hash (re-reads first so a change by the other person is not lost). */
+    async setHash(name, hash, at) {
+      const state = await fresh();
+      state[name] = { hash, at };
+      await gh.write(AUTH_VAR, JSON.stringify(state));
+      cache().set(key, { state, until: Date.now() + CACHE_MS });
+      return state;
+    },
+  };
+}
+
+// ── Who is this password? ───────────────────────────────────────────────────
+/** Does `password` match `name`'s CURRENT password (their own if they chose one, otherwise the initial one)? */
+export async function matches(name, password, env, own) {
+  if (typeof password !== 'string' || !password) return false;
+  if (own[name]?.hash) return verifyHash(password, own[name].hash);
+  const initial = passwords(env)[name];
+  return !!initial && safeEqual(password, initial);
+}
+
+/** The single person whose current password this is, or null (no match, or ambiguous). */
+export async function whoIs(password, env, own) {
+  const hits = [];
+  for (const name of Object.keys(passwords(env))) if (await matches(name, password, env, own)) hits.push(name);
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // ── Our own session cookie ──────────────────────────────────────────────────
 const mac = (payload, secret) => b64u(createHmac('sha256', secret).update(payload).digest());
+// Ties a cookie to the password it was issued for: choosing a new password signs that person out everywhere else.
+const credentialId = (name, env, own) => (own[name]?.hash ? `h:${own[name].hash}` : `i:${passwords(env)[name]}`);
+const fingerprint = (name, env, own) => mac(`pw:${name}:${credentialId(name, env, own)}`, env.SESSION_SECRET).slice(0, 16);
 
-export function signSession(user, secret, { now = Date.now(), days = SESSION_DAYS } = {}) {
-  const payload = b64u(JSON.stringify({ e: user.email, n: user.name || '', x: Math.floor(now / 1000) + days * 86400 }));
-  return `${payload}.${mac(payload, secret)}`;
+export function signSession(name, env, own, { now = Date.now(), days = SESSION_DAYS } = {}) {
+  const payload = b64u(JSON.stringify({ p: name, f: fingerprint(name, env, own), x: Math.floor(now / 1000) + days * 86400 }));
+  return `${payload}.${mac(payload, env.SESSION_SECRET)}`;
 }
 
-export function readSession(token, secret, now = Date.now()) {
+/** The signed-in person's name, or null (bad signature, expired, person removed, or password changed since). */
+export function readSession(token, env, own, now = Date.now()) {
   const [payload, sig] = String(token || '').split('.');
-  if (!payload || !sig || !secret) return null;
-  const want = Buffer.from(mac(payload, secret));
-  const got = Buffer.from(sig);
-  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
+  if (!payload || !sig || !authConfigured(env)) return null;
+  if (!safeEqual(sig, mac(payload, env.SESSION_SECRET))) return null;
   try {
     const s = JSON.parse(fromB64u(payload));
-    return s.x * 1000 > now && typeof s.e === 'string' ? { email: s.e, name: s.n || '' } : null;
+    if (!(s.x * 1000 > now) || !(s.p in passwords(env))) return null;
+    return safeEqual(s.f, fingerprint(s.p, env, own)) ? s.p : null;
   } catch {
     return null;
   }
@@ -105,11 +194,20 @@ export const sessionCookie = (token, { days = SESSION_DAYS } = {}) =>
   `${COOKIE}=${token}; Path=/; Max-Age=${days * 86400}; HttpOnly; Secure; SameSite=Lax`;
 export const clearCookie = () => `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 
-/** The signed-in user, or null. Removing an e-mail from ALLOWED_EMAILS revokes its sessions immediately. */
-export function currentUser(request, env, now = Date.now()) {
-  if (!authConfigured(env)) return null;
-  const user = readSession(cookieValue(request, COOKIE), env.SESSION_SECRET, now);
-  return user && allowedEmails(env).has(user.email) ? user : null;
+/** { name, mustChange } for the signed-in person, or null. mustChange = still on the initial password. */
+export function currentUser(request, env, own, now = Date.now()) {
+  const name = readSession(cookieValue(request, COOKIE), env, own, now);
+  return name ? { name, mustChange: !own[name]?.hash } : null;
+}
+
+/** Why a proposed new password is not acceptable, or null when it is fine. */
+export async function passwordProblem(next, { name, current, env, own }) {
+  if (typeof next !== 'string' || next.length < MIN_PASSWORD) return 'too-short';
+  if (next.length > MAX_PASSWORD) return 'too-long';
+  if (next === current) return 'same-as-current';
+  if (passwords(env)[name] === next) return 'same-as-initial'; // the initial password is known to whoever set it up
+  for (const other of Object.keys(passwords(env))) if (other !== name && (await matches(other, next, env, own))) return 'taken';
+  return null;
 }
 
 /** Same-origin check for state-changing requests (cookies are sent automatically, so verify who is asking). */
@@ -125,9 +223,3 @@ export function sameOrigin(request) {
   }
   return request.headers.get('sec-fetch-site') === 'same-origin';
 }
-
-export const safeEqual = (a, b) => {
-  const x = Buffer.from(String(a));
-  const y = Buffer.from(String(b));
-  return x.length === y.length && timingSafeEqual(x, y);
-};

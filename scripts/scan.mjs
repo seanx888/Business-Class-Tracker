@@ -495,7 +495,7 @@ export async function runScan({
 }
 
 /**
- * Personal price targets: [{ who: 'blue' | ['sean','blue'] | 'all', route: 'TPE-CDG', maxTWD: 110000 }].
+ * Personal price targets: [{ who: 'userb' | ['usera','userb'] | 'all', route: 'TPE-CDG', maxTWD: 110000 }].
  * Fires when today's scan found the route at/below the target; repeats only if it gets cheaper
  * or after 7 days. State lives in history.alerts.
  * @returns {Map<string, {deal, maxTWD}[]>} hits keyed by person

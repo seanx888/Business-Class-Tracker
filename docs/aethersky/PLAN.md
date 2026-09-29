@@ -1,6 +1,6 @@
 # ÆtherSky — 產品與技術計畫 · Product & Technical Plan
 
-> 版本 v1 · 2026-09-28 · 給 Sean & Blue。For Sean & Blue.
+> 版本 v1 · 2026-09-28 · 給 USERA & USERB。For USERA & USERB.
 > 範圍：把「商務艙雷達」PWA 升級為 **ÆtherSky** 品牌，並規劃一個 iOS + Android 的航班追蹤 App（對標 Flighty，但要更好）。
 > Scope: rebrand the PWA as ÆtherSky and plan a cross-platform flight-tracking app that beats Flighty.
 
@@ -11,7 +11,7 @@
 | | 決定 Decision | 為什麼 Why |
 |---|---|---|
 | 品牌 | **ÆtherSky**（PWA 已改名） | 一個品牌涵蓋票價雷達 + 航班追蹤 + 會員／貴賓室 |
-| 跨平台 | **Flutter**（客戶端）+ 原生小擴充（Live Activities、Widgets、Watch） | 一套 UI 兩個平台、自繪 UI 適合 Flighty 級質感、Sean 已偏好 |
+| 跨平台 | **Flutter**（客戶端）+ 原生小擴充（Live Activities、Widgets、Watch） | 一套 UI 兩個平台、自繪 UI 適合 Flighty 級質感、使用者已偏好 |
 | 後端 | **Supabase**（Postgres + Auth + Realtime + Edge Functions TS） | SQL、列級權限 RLS、即時推送、TypeScript 可直接重用現有 `web/core/*.js` |
 | 航班資料 | **FlightAware AeroAPI**（即時＋推播 Alerts）＋ **OAG**（班表）＋ AeroDataBox（便宜備援） | 業界資料品質；Alerts 用 webhook 推送，不必一直輪詢 → 省錢 |
 | 票價 | SerpApi（Google Flights，現有）＋ Duffel（NDC，可訂位） | GDS 直連需商業合約／認證，先走 NDC 聚合商 |
@@ -283,7 +283,7 @@ flowchart LR
 
 | 規模 | Supabase | 航班資料 | 票價 | 推播/Email | 合計 |
 |---|---|---|---|---|---|
-| 內部測試（Sean & Blue） | Free | AeroAPI Personal（≤US$5 免費） | SerpApi 免費 250 次 | 免費 | **≈ US$0** |
+| 內部測試（USERA & USERB） | Free | AeroAPI Personal（≤US$5 免費） | SerpApi 免費 250 次 | 免費 | **≈ US$0** |
 | 1k MAU | US$25 | US$100–300 | US$50–150 | US$0–20 | ≈ US$200–500 |
 | 10k MAU | US$25–100 | US$1,000–3,000 | US$300–800 | US$50 | ≈ US$1.5k–4k |
 
@@ -309,12 +309,12 @@ flowchart LR
 **本 PR 已完成**
 - ✅ PWA 改名 **ÆtherSky**（標題、App 名稱、manifest、推播／Email 品牌）
 - ✅ **Real Tracker**：航線追蹤分頁 → 指定日期或彈性日期（±1～7 天）、艙等、轉機、目標價、通知對象；每日掃描自動查價；降價／找到更便宜日期／達標價／（可選）漲價 → **Email + ntfy 推播**
-- ✅ 追蹤清單同步：Vercel Function → 私人 GitHub Variable `TRACKERS`（Google 登入 + 白名單保護）
+- ✅ 追蹤清單同步：Vercel Function → 私人 GitHub Variable `TRACKERS`（兩組密碼登入保護，密碼決定是 USERA 或 USERB）
 - ✅ **會員卡夾**：新分頁，28 個常客計畫、等級建議、到期提醒、號碼遮蔽/複製、匯出/匯入備份；好價詳情顯示「可累積到你的會員」
 - ✅ Flutter App 骨架（`apps/mobile`）＋ Supabase 資料庫 schema（`backend/supabase`）＋ CI
 
-**需要 Sean / Blue 手動 Manual steps** → 見 [docs/SETUP.md](../SETUP.md) 第 8、9 步
-1. Vercel 環境變數 `GOOGLE_CLIENT_ID`、`ALLOWED_EMAILS`、`SESSION_SECRET`、`TRACKERS_GITHUB_TOKEN`（啟用同步與登入）
+**需要 USERA / USERB 手動 Manual steps** → 見 [docs/SETUP.md](../SETUP.md) 第 8、9 步
+1. Vercel 環境變數 `PASSWORD_USERA`、`PASSWORD_USERB`、`SESSION_SECRET`、`TRACKERS_GITHUB_TOKEN`（啟用同步與登入）
 2. GitHub Secrets `ALERT_EMAILS`、`SMTP_URL`（啟用 Email 通知）
 3. 決定：訂閱價格、是否申請 FlightAware AeroAPI（Personal 免費額度）與 OAG 試用
 4. 建立 Supabase 專案（建議區域 Tokyo `ap-northeast-1`）與 Apple / Google 開發者帳號

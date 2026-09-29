@@ -142,7 +142,7 @@ const wants = (tracker, name) => tracker.notify === 'all' || ['all', 'family'].i
 const rfc2047 = (text) => `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`;
 
 /**
- * Deliver alerts on every configured channel. Returns a list like ['mail:sean', 'ntfy:family:200'].
+ * Deliver alerts on every configured channel. Returns a list like ['mail:usera', 'ntfy:family:200'].
  * One failing recipient never blocks the others.
  */
 export async function sendTrackerAlerts(alerts, { env = process.env, siteUrl = null, fetchImpl = fetch, transport = mailTransport(env, fetchImpl), log = () => {} } = {}) {

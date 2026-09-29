@@ -122,7 +122,7 @@ void main() {
   });
 
   test('membership: masking, expiry, PWA backup compatibility', () {
-    final m = Membership.fromJson({'id': 'm1', 'program': 'AFKL', 'number': '2045 1234 56', 'expiry': '2026-10-28', 'owner': 'Sean'})!;
+    final m = Membership.fromJson({'id': 'm1', 'program': 'AFKL', 'number': '2045 1234 56', 'expiry': '2026-10-28', 'owner': 'USERA'})!;
     expect(m.masked, '•••• 3456');
     expect(m.daysToExpiry(DateTime(2026, 9, 28)), 30);
     expect(m.displayName(chinese: true), 'Flying Blue 藍天飛行');

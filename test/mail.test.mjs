@@ -4,9 +4,9 @@ import net from 'node:net';
 import { parseRecipients, parseAddress, buildMime, smtpSend, mailTransport, parseSmtpUrls } from '../scripts/lib/mail.mjs';
 
 test('parseRecipients: names, languages, bare addresses, junk dropped', () => {
-  assert.deepEqual(parseRecipients('sean=me@naver.com#zh-TW, Blue=blue@gmail.com#en'), [
-    { name: 'sean', email: 'me@naver.com', lang: 'zh-TW' },
-    { name: 'blue', email: 'blue@gmail.com', lang: 'en' },
+  assert.deepEqual(parseRecipients('usera=me@naver.com#zh-TW, USERB=userb@gmail.com#en'), [
+    { name: 'usera', email: 'me@naver.com', lang: 'zh-TW' },
+    { name: 'userb', email: 'userb@gmail.com', lang: 'en' },
   ]);
   assert.deepEqual(parseRecipients('solo@x.com'), [{ name: 'subscriber1', email: 'solo@x.com', lang: 'zh-TW' }]);
   assert.equal(parseRecipients('x=not-an-email, y=a@b.co#ko')[0].lang, 'ko');
@@ -63,13 +63,13 @@ function fakeSmtp({ auth = 'PLAIN LOGIN', failRcpt = false } = {}) {
 test('smtpSend: AUTH PLAIN, envelope, message delivered', async () => {
   const { server, log, port } = await fakeSmtp();
   try {
-    await smtpSend(`smtp://me%40x.com:app%20pw@127.0.0.1:${port}`, { from: 'ÆtherSky <me@x.com>', to: 'sean@x.com', subject: 'Hi', text: 'hello', html: '<p>hello</p>' });
+    await smtpSend(`smtp://me%40x.com:app%20pw@127.0.0.1:${port}`, { from: 'ÆtherSky <me@x.com>', to: 'usera@x.com', subject: 'Hi', text: 'hello', html: '<p>hello</p>' });
     const plain = Buffer.from(log.commands.find((c) => c.startsWith('AUTH PLAIN')).slice(11), 'base64').toString();
     assert.equal(plain, '\0me@x.com\0app pw');
     assert.ok(log.commands.includes('MAIL FROM:<me@x.com>'));
-    assert.ok(log.commands.includes('RCPT TO:<sean@x.com>'));
+    assert.ok(log.commands.includes('RCPT TO:<usera@x.com>'));
     assert.match(log.data, /^From: /);
-    assert.match(log.data, /To: sean@x\.com/);
+    assert.match(log.data, /To: usera@x\.com/);
   } finally {
     server.close();
   }
@@ -114,7 +114,7 @@ test('mailTransport: comma-separated SMTP_URL fails over to the next account', a
     const env = { SMTP_URL: `smtp://a%40x.com:p1@127.0.0.1:${bad.port},smtp://b%40x.com:p2@127.0.0.1:${good.port}` };
     const t = mailTransport(env);
     assert.equal(t.name, 'smtp');
-    await t.send({ to: 'sean@x.com', subject: 's', text: 't' });
+    await t.send({ to: 'usera@x.com', subject: 's', text: 't' });
     assert.ok(good.log.commands.includes('MAIL FROM:<b@x.com>'), 'second account delivered');
     assert.match(good.log.data, /From: .*<b@x\.com>/);
 

@@ -15,12 +15,12 @@ const quiet = () => {};
 const T = (over = {}) => normalizeTracker({ id: 'tparis', o: 'TPE', d: 'CDG', depart: '2026-12-20', return: '2027-01-05', ...over }).tracker;
 
 test('normalizeTracker: cleans input, refuses China/HK/Macau and bad dates', () => {
-  const t = T({ o: 'tpe', flex: 3, cabin: 'first', notify: ['Sean', 'bad name!'], target: '90000.4', label: '  Paris NYE ' });
+  const t = T({ o: 'tpe', flex: 3, cabin: 'first', notify: ['USERA', 'bad name!'], target: '90000.4', label: '  Paris NYE ' });
   assert.equal(t.o, 'TPE');
   assert.equal(t.mode, 'flex');
   assert.equal(t.flex, 3);
   assert.equal(t.cabin, 'first');
-  assert.deepEqual(t.notify, ['sean']);
+  assert.deepEqual(t.notify, ['usera']);
   assert.equal(t.target, 90000);
   assert.equal(t.label, 'Paris NYE');
   assert.equal(T({ flex: 30 }).flex, 7, 'flex is capped');
@@ -144,15 +144,15 @@ test('sendTrackerAlerts: right people, right language, one failure does not stop
   const transport = { send: async (m) => { if (m.to === 'broken@x.com') throw new Error('boom'); mails.push(m); } };
   const pushes = [];
   const fetchImpl = async (url, init) => (pushes.push({ url, init }), new Response('', { status: 200 }));
-  const env = { ALERT_EMAILS: 'sean=sean@x.com#zh-TW, blue=blue@x.com#en, carol=broken@x.com', NTFY_TOPICS: 'family=fam-topic@ko' };
+  const env = { ALERT_EMAILS: 'usera=usera@x.com#zh-TW, userb=userb@x.com#en, carol=broken@x.com', NTFY_TOPICS: 'family=fam-topic@ko' };
   const best = { p: 88000, dep: '2026-12-20', ret: '2027-01-05', c: 'CI', s: 0 };
   const alerts = [
-    { tracker: T({ id: 'tsean', notify: ['sean'] }), kind: 'drop', best, prev: { p: 95000 } },
+    { tracker: T({ id: 'tusera', notify: ['usera'] }), kind: 'drop', best, prev: { p: 95000 } },
     { tracker: T({ id: 'tall' }), kind: 'start', best, prev: null },
   ];
   const logs = [];
   const sent = await sendTrackerAlerts(alerts, { env, transport, fetchImpl, log: (m) => logs.push(m) });
-  assert.deepEqual(mails.map((m) => m.to), ['sean@x.com', 'sean@x.com', 'blue@x.com']);
+  assert.deepEqual(mails.map((m) => m.to), ['usera@x.com', 'usera@x.com', 'userb@x.com']);
   assert.match(mails[2].subject, /Now tracking/);
   assert.ok(logs.some((l) => /carol/.test(l)));
   assert.equal(pushes.length, 2, 'shared family topic gets every alert');
@@ -173,7 +173,7 @@ test('demo scan with TRACKERS: results published without private fields, alerts 
   const root = await sandbox();
   const outDir = path.join(root, 'out');
   const TRACKERS = JSON.stringify([
-    { id: 'tbiz', o: 'TPE', d: 'NRT', depart: '2026-11-10', return: '2026-11-15', flex: 1, label: 'Secret trip', notify: ['blue'] },
+    { id: 'tbiz', o: 'TPE', d: 'NRT', depart: '2026-11-10', return: '2026-11-15', flex: 1, label: 'Secret trip', notify: ['userb'] },
     { id: 'teco', o: 'TPE', d: 'BKK', depart: '2026-11-10', cabin: 'economy' },
     { id: 'tbad', o: 'TPE', d: 'HKG', depart: '2026-11-10' },
   ]);
@@ -182,7 +182,7 @@ test('demo scan with TRACKERS: results published without private fields, alerts 
   assert.deepEqual(first.trackerAlerts.map((a) => `${a.tracker.id}:${a.kind}`).sort(), ['tbiz:start', 'teco:start']);
   assert.deepEqual(first.trackerSent, [], 'demo data never sends alerts');
   const raw = await readFile(path.join(outDir, 'trackers.json'), 'utf8');
-  assert.ok(!raw.includes('Secret trip') && !raw.includes('blue'), 'labels / names never published');
+  assert.ok(!raw.includes('Secret trip') && !raw.includes('userb'), 'labels / names never published');
   const data = JSON.parse(raw);
   assert.equal(data.trackers.tbiz.status, 'tracking');
   assert.equal(data.trackers.tbiz.checked, 2);
@@ -220,12 +220,12 @@ test('real provider + mail transport: tracker alerts are e-mailed', async () => 
   const env = {
     SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '3', SCAN_DELAY_MS: '0',
     TRACKERS: JSON.stringify([{ id: 'tfirst', o: 'TPE', d: 'CDG', depart: '2026-12-20', return: '2027-01-05', cabin: 'first' }]),
-    ALERT_EMAILS: 'sean=sean@x.com', RESEND_API_KEY: 're_test',
+    ALERT_EMAILS: 'usera=usera@x.com', RESEND_API_KEY: 're_test',
   };
   const { trackerSent } = await runScan({ root, outDir, env, fetchImpl, today: '2026-09-28', log: quiet });
   assert.equal(searches[0].get('outbound_date'), '2026-12-20', 'tracker searched first');
   assert.equal(searches[0].get('travel_class'), '4', 'first class');
-  assert.deepEqual(trackerSent, ['mail:sean']);
-  assert.equal(posts[0].to[0], 'sean@x.com');
+  assert.deepEqual(trackerSent, ['mail:usera']);
+  assert.equal(posts[0].to[0], 'usera@x.com');
   assert.match(posts[0].subject, /開始追蹤 TPE→CDG/);
 });

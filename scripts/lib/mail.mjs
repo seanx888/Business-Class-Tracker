@@ -1,6 +1,6 @@
 // E-mail for Real Tracker alerts (like Google Flights' price e-mails). No dependencies.
 //
-//   ALERT_EMAILS (secret)  who gets mail:  sean=me@naver.com#zh-TW, blue=blue@gmail.com#en
+//   ALERT_EMAILS (secret)  who gets mail:  usera=me@naver.com#zh-TW, userb=userb@gmail.com#en
 //   SMTP_URL (secret)      any SMTP server with an app password, e.g.
 //                          smtps://me%40gmail.com:app-password@smtp.gmail.com:465
 //                          smtps://me%40naver.com:app-password@smtp.naver.com:465
