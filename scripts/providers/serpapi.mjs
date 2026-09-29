@@ -17,6 +17,9 @@ export const EXCLUDE_CONNS = [
 const NOT_SEARCHABLE = new Set(['CK', 'O3', 'LD', 'KA']);
 const EXCLUDE_AIRLINES = Object.keys(BLOCKED_CARRIERS).filter((c) => !NOT_SEARCHABLE.has(c));
 
+// Google Flights travel_class: 1 economy · 2 premium economy · 3 business · 4 first.
+export const TRAVEL_CLASS = { economy: '1', premium: '2', business: '3', first: '4' };
+
 // `gl` = Google market (point of sale). The daily scan uses Taiwan; point-of-sale checks re-price
 // the same trip in other markets (e.g. gl=vn + currency=VND) to spot cheaper foreign-site fares.
 export function buildParams(q, { apiKey, currency = 'TWD', gl = 'tw', deepSearch = false, departureToken = null, preFilter = true } = {}) {
@@ -26,7 +29,7 @@ export function buildParams(q, { apiKey, currency = 'TWD', gl = 'tw', deepSearch
     arrival_id: q.destination,
     outbound_date: q.departDate,
     type: q.returnDate ? '1' : '2',
-    travel_class: '3',
+    travel_class: TRAVEL_CLASS[q.cabin] || TRAVEL_CLASS.business,
     adults: '1',
     currency,
     hl: 'en',

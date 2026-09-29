@@ -49,6 +49,9 @@ jobs:
           HAS_NTFY_SECRET: ${{ secrets.NTFY_TOPICS != '' || secrets.NTFY_TOPIC != '' }}
           SERPAPI_SAVED_AS_VARIABLE: ${{ vars.SERPAPI_KEY != '' || vars.SERPAPI_API_KEY != '' }}
           NTFY_SAVED_AS_VARIABLE: ${{ vars.NTFY_TOPICS != '' || vars.NTFY_TOPIC != '' }}
+          HAS_TRACKERS: ${{ vars.TRACKERS != '' }}
+          HAS_MAIL: ${{ secrets.ALERT_EMAILS != '' && (secrets.SMTP_URL != '' || secrets.RESEND_API_KEY != '') }}
+          MAIL_SAVED_AS_VARIABLE: ${{ vars.SMTP_URL != '' || vars.ALERT_EMAILS != '' || vars.RESEND_API_KEY != '' }}
         run: |
           if [ "$SERPAPI_SAVED_AS_VARIABLE" = "true" ]; then
             echo "::error title=SERPAPI_KEY is saved as a Variable::Variables are not secret and are not used. Delete it under Variables and add it under Settings → Secrets and variables → Actions → Secrets → New repository secret."
@@ -61,6 +64,12 @@ jobs:
           fi
           if [ "$HAS_NTFY_SECRET" != "true" ]; then
             echo "::notice title=No NTFY_TOPICS secret::Push notifications stay off until NTFY_TOPICS is set as a secret."
+          fi
+          if [ "$MAIL_SAVED_AS_VARIABLE" = "true" ]; then
+            echo "::error title=Mail settings saved as a Variable::SMTP_URL / ALERT_EMAILS / RESEND_API_KEY hold passwords or e-mail addresses — store them as Secrets instead."
+          fi
+          if [ "$HAS_TRACKERS" = "true" ] && [ "$HAS_MAIL" != "true" ]; then
+            echo "::notice title=Real Tracker e-mail off::Add the secrets ALERT_EMAILS and SMTP_URL (docs/SETUP.md step 9) to get price-change e-mails."
           fi
 
       - name: Scan business-class fares
@@ -81,6 +90,13 @@ jobs:
           NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
           NTFY_SERVER: ${{ vars.NTFY_SERVER }}
           SITE_URL: ${{ vars.SITE_URL }}
+          # Real Tracker: trips saved in the app (synced into this variable) and alert e-mails.
+          TRACKERS: ${{ vars.TRACKERS }}
+          TRACKER_NOTIFICATIONS: ${{ vars.TRACKER_NOTIFICATIONS }}
+          ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
+          SMTP_URL: ${{ secrets.SMTP_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
         run: node scripts/scan.mjs
 
       - name: Commit fare data

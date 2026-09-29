@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>商務艙雷達 · Business Class Tracker</title>
-  <meta name="description" content="Daily cheap business-class fares from Taipei and nearby ex-stations. China / Hong Kong / Macau carriers and connections excluded. SkyTeam first.">
+  <title>ÆtherSky · 商務艙雷達</title>
+  <meta name="description" content="ÆtherSky — daily cheap business-class fares from Taipei and nearby ex-stations, real-time price trackers and a frequent-flyer wallet. China / Hong Kong / Macau carriers and connections excluded. SkyTeam first.">
   <meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
   <!-- Daily fare data is read from the public GitHub repo so the hosted app never needs a redeploy for new data. -->
@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="商務艙雷達">
+  <meta name="apple-mobile-web-app-title" content="ÆtherSky">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
@@ -26,8 +26,8 @@
   <header class="topbar">
     <div class="brand">
       <img src="icons/icon.svg" alt="" width="28" height="28">
-      <h1 id="app-name">商務艙雷達</h1>
-      <small id="app-sub">Business Class Tracker</small>
+      <h1 id="app-name">ÆtherSky</h1>
+      <small id="app-sub">商務艙雷達</small>
     </div>
     <button id="install-btn" class="icon-btn" hidden aria-label="安裝 App"></button>
     <button id="refresh-btn" class="icon-btn" aria-label="重新整理"></button>
@@ -39,6 +39,7 @@
     <section id="view-deals" class="view"><div class="skeleton"></div></section>
     <section id="view-special" class="view" hidden></section>
     <section id="view-routes" class="view" hidden></section>
+    <section id="view-members" class="view" hidden></section>
     <section id="view-settings" class="view" hidden></section>
   </main>
 
@@ -46,6 +47,7 @@
     <button data-tab="deals" data-icon="airplane-tilt" aria-current="page"><span data-i18n="tabDeals">今日好價</span></button>
     <button data-tab="special" data-icon="globe-hemisphere-east"><span data-i18n="tabEx">特殊票價</span></button>
     <button data-tab="routes" data-icon="chart-line-up"><span data-i18n="tabRoutes">航線追蹤</span></button>
+    <button data-tab="members" data-icon="wallet"><span data-i18n="tabMembers">會員卡</span></button>
     <button data-tab="settings" data-icon="gear-six"><span data-i18n="tabSettings">設定</span></button>
   </nav>
 

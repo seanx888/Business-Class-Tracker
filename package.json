@@ -1,8 +1,8 @@
 {
-  "name": "business-class-tracker",
-  "version": "1.0.0",
+  "name": "aethersky",
+  "version": "2.0.0",
   "private": true,
-  "description": "PWA that tracks cheap business-class fares daily from Taipei (TPE) and nearby ex-stations, excluding China/HK/Macau carriers and connections. SkyTeam first.",
+  "description": "ÆtherSky — PWA that tracks cheap business-class fares daily from Taipei (TPE) and nearby ex-stations, with real-time price trackers and a frequent-flyer wallet, excluding China/HK/Macau carriers and connections. SkyTeam first.",
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {

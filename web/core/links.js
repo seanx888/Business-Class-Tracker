@@ -3,10 +3,12 @@ import { AIRLINES } from './airlines.js';
 
 const yymmdd = (iso) => iso.slice(2, 4) + iso.slice(5, 7) + iso.slice(8, 10);
 
+const CABIN_WORDS = { business: 'business class', first: 'first class', premium: 'premium economy', economy: 'economy' };
+
 // `gl` (optional, ISO country) opens Google Flights as that country's market — used for foreign-site price checks.
-export function googleFlightsUrl({ origin, destination, departDate, returnDate, currency = 'TWD', lang = 'zh-TW', gl }) {
+export function googleFlightsUrl({ origin, destination, departDate, returnDate, currency = 'TWD', lang = 'zh-TW', gl, cabin = 'business' }) {
   const q = `Flights from ${origin} to ${destination} on ${departDate}` +
-    (returnDate ? ` through ${returnDate}` : ' one way') + ' business class';
+    (returnDate ? ` through ${returnDate}` : ' one way') + ` ${CABIN_WORDS[cabin] || CABIN_WORDS.business}`;
   const hl = lang.startsWith('zh') ? 'zh-TW' : lang.startsWith('ko') ? 'ko' : 'en';
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}&curr=${currency}&hl=${hl}` + (gl ? `&gl=${String(gl).toUpperCase()}` : '');
 }

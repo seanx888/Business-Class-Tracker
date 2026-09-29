@@ -177,9 +177,14 @@ function routingsFor(o, d, net) {
 const round100 = (x) => Math.round(x / 100) * 100;
 
 /** q: { origin, destination, departDate, returnDate, benchmark:{typical}, originType } */
+// Rough cabin price ratios vs business, so demo trackers in other cabins look plausible.
+const CABIN_FACTOR = { economy: 0.3, premium: 0.5, business: 1, first: 1.9 };
+
 export function demoSearch(q) {
   const r = rng(hash(`${q.origin}-${q.destination}-${q.departDate}-${q.returnDate}`));
-  const typical = (q.benchmark?.typical || 60000) * (q.originType === 'exstation' ? 0.85 : 1);
+  // Demo trackers move a little from day to day so price-change alerts can be tried out.
+  const drift = q.scanDate ? 0.93 + rng(hash(`${q.origin}${q.destination}${q.departDate}${q.scanDate}`))() * 0.14 : 1;
+  const typical = (q.benchmark?.typical || 60000) * (q.originType === 'exstation' ? 0.85 : 1) * (CABIN_FACTOR[q.cabin] || 1) * drift;
 
   const legit = routingsFor(q.origin, q.destination, NET).sort(() => r() - 0.5).slice(0, 9);
   const traps = routingsFor(q.origin, q.destination, TRAPS).sort(() => r() - 0.5).slice(0, 2);
