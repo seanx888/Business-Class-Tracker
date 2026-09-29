@@ -1,7 +1,8 @@
 // Airline reference data. The table itself is generated from web/core/airlines.js
 // (node scripts/gen-dart-airlines.mjs), so the PWA, the scanner and this app never disagree.
 import 'airlines.g.dart';
-import 'membership.dart' show Alliance;
+
+enum Alliance { skyteam, star, oneworld, none }
 
 class Airline {
   const Airline({required this.code, required this.en, required this.zh, required this.alliance, required this.country, required this.url});

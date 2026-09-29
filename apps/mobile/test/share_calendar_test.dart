@@ -129,6 +129,7 @@ void main() {
     await pumpApp(
       tester,
       actions: actions,
+      source: InertFlightSource(),
       clock: () => now,
       prefs: {
         'aether.flights.v1': jsonEncode([flight.toJson()]),
@@ -148,6 +149,6 @@ void main() {
     final cal = actions.shared.last;
     expect(cal.fileName, 'BR198-2026-12-20.ics');
     expect(cal.fileText, startsWith('BEGIN:VCALENDAR'));
-    expect(cal.fileText, contains('K7XQ2P'), reason: 'the booking reference travels with the calendar entry');
+    expect(cal.fileText!.replaceAll('\r\n ', ''), contains('K7XQ2P'), reason: 'the booking reference travels with the calendar entry');
   });
 }

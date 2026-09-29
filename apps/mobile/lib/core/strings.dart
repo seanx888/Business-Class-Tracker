@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../domain/airlines.dart' show Alliance;
 import '../domain/flight.dart';
 import '../domain/trip.dart';
 
@@ -143,6 +144,28 @@ class S {
   String get searching => _t('查詢中…', 'Looking up…', '조회 중…');
   String addCount(int n) => _t('加入 $n 個航班', 'Add $n flight${n == 1 ? '' : 's'}', '항공편 $n개 추가');
   String get orPaste => _t('或貼上訂位確認信', 'or paste a booking e-mail', '또는 예약 확인 메일 붙여넣기');
+
+  String get loungeTitle => _t('貴賓室資格', 'Lounge access', '라운지 이용 자격');
+  String loungeAt(String iata) => _t('在 $iata 出發時', 'When departing $iata', '$iata 출발 시');
+  String allianceName(Alliance a) => switch (a) {
+        Alliance.skyteam => _t('天合聯盟', 'SkyTeam', '스카이팀'),
+        Alliance.star => _t('星空聯盟', 'Star Alliance', '스타얼라이언스'),
+        Alliance.oneworld => _t('寰宇一家', 'oneworld', '원월드'),
+        Alliance.none => _t('無聯盟', 'No alliance', '얼라이언스 없음'),
+      };
+  String loungeOwnCabin(Cabin c, String airline) => _t('${cabinName(c)} · $airline 自家貴賓室', '${cabinName(c)} · $airline lounge', '${cabinName(c)} · $airline 라운지');
+  String loungeAllianceCabin(Cabin c, Alliance a) => _t('${cabinName(c)} · ${allianceName(a)}貴賓室', '${cabinName(c)} · ${allianceName(a)} lounges', '${cabinName(c)} · ${allianceName(a)} 라운지');
+  String loungeStatus(String program, String? tier, String status, Alliance a, int guests) => _t(
+        '$program${tier == null ? '' : ' $tier'}（$status）· ${allianceName(a)}貴賓室${guests > 0 ? '，可攜 $guests 位同行者' : ''}',
+        '$program${tier == null ? '' : ' $tier'} ($status) · ${allianceName(a)} lounges${guests > 0 ? ', +$guests guest' : ''}',
+        '$program${tier == null ? '' : ' $tier'} ($status) · ${allianceName(a)} 라운지${guests > 0 ? ', 동반 $guests명' : ''}',
+      );
+  String get loungeNone => _t('依目前的艙等與會員等級，這班沒有自動的貴賓室資格。', 'With your cabin and status, this flight carries no automatic lounge access.', '현재 좌석 등급과 회원 등급으로는 자동 라운지 이용 자격이 없습니다.');
+  String loungeNeedTier(String programs) => _t('$programs 尚未填寫等級 — 到「會員卡」補上等級才能判斷。', 'Add your tier for $programs in Wallet to check status access.', '$programs 등급을 지갑에서 입력하면 확인할 수 있습니다.');
+  String get loungeNoAlliance => _t('這家航空公司不屬於任何聯盟：只有它自己的商務／頭等艙貴賓室。', 'This airline is in no alliance — only its own premium-cabin lounge applies.', '이 항공사는 얼라이언스에 속하지 않아 자사 프리미엄 라운지만 해당됩니다.');
+  String get loungeUnknownCarrier => _t('尚未收錄這家航空公司的貴賓室規則。', 'No lounge rules for this airline yet.', '이 항공사의 라운지 규정이 아직 없습니다.');
+  String get loungeDisclaimer => _t('依聯盟通則判斷；各貴賓室另有限制（國內線、人數、時段），請以航空公司／機場公告為準。', 'Based on general alliance rules; individual lounges add limits (domestic itineraries, capacity, hours) — confirm with the airline or airport.', '얼라이언스 일반 규정 기준이며 라운지별 제한(국내선, 인원, 시간)이 있을 수 있으니 항공사·공항에 확인하세요.');
+  String findLounges(String iata) => _t('查詢 $iata 貴賓室', 'Find lounges at $iata', '$iata 라운지 찾기');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

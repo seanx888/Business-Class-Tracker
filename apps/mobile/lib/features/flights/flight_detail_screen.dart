@@ -9,6 +9,7 @@ import '../../data/external.dart';
 import '../../data/stores.dart';
 import '../../domain/flight.dart';
 import '../../domain/ics.dart';
+import 'lounge_card.dart';
 import 'trip_info_card.dart';
 import 'widgets.dart';
 
@@ -66,6 +67,10 @@ class FlightDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           TripInfoCard(flight: flight),
           const SizedBox(height: 12),
+          if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[
+            LoungeCard(flight: flight),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),

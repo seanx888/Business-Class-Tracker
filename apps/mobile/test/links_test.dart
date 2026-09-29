@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:aethersky/domain/airlines.dart';
 import 'package:aethersky/domain/links.dart';
-import 'package:aethersky/domain/membership.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

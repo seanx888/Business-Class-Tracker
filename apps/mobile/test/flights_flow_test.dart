@@ -94,7 +94,7 @@ void main() {
     await pumpApp(tester, prefs: seed([soon]), clock: clock, source: CountingSource());
     await tester.tap(find.text('BR198').last);
     await tester.pumpAndSettle();
-    expect(find.text('填寫艙等後，可判斷你能進哪些貴賓室。'), findsOneWidget);
+    expect(find.text('填寫艙等後，可判斷你能進哪些貴賓室。'), findsWidgets, reason: 'trip card and lounge card both ask for the cabin');
 
     await tester.scrollUntilVisible(find.text('編輯'), 300, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('編輯'));

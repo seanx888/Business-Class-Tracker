@@ -50,7 +50,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Expanded(child: Text(m.displayName(chinese: s.lang == 'zh'), style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700))),
+                      Expanded(child: Text(m.displayName(lang: s.lang), style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700))),
                       if (m.tier != null) Chip(label: Text(m.tier!), visualDensity: VisualDensity.compact),
                       IconButton(icon: const Icon(Icons.delete_outline), tooltip: s.cancel, onPressed: () => ref.read(walletProvider.notifier).remove(m.id)),
                     ]),
@@ -92,7 +92,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 initialValue: program,
                 isExpanded: true,
                 decoration: InputDecoration(labelText: s.program),
-                items: [for (final p in programs) DropdownMenuItem(value: p.key, child: Text(s.lang == 'zh' ? p.zh : p.name, overflow: TextOverflow.ellipsis))],
+                items: [for (final p in programs) DropdownMenuItem(value: p.key, child: Text(p.label(s.lang), overflow: TextOverflow.ellipsis))],
                 onChanged: (v) => setLocal(() => program = v ?? program),
               ),
               TextField(controller: number, decoration: InputDecoration(labelText: s.memberNumber), textCapitalization: TextCapitalization.characters),

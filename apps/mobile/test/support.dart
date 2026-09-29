@@ -2,6 +2,7 @@ import 'package:aethersky/app.dart';
 import 'package:aethersky/data/external.dart';
 import 'package:aethersky/data/flight_repository.dart';
 import 'package:aethersky/data/stores.dart';
+import 'package:aethersky/domain/flight.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,15 @@ class FakeExternalActions implements ExternalActions {
   Future<void> share({required String text, String? subject, String? fileName, String? fileText, String fileMime = 'text/plain'}) async {
     shared.add((text: text, subject: subject, fileName: fileName, fileText: fileText));
   }
+}
+
+/// A source that knows nothing and never changes what is stored — for tests that seed their own flights.
+class InertFlightSource implements FlightDataSource {
+  @override
+  Future<Flight?> lookup(String carrier, String number, DateTime date) async => null;
+
+  @override
+  Future<Flight?> refresh(Flight flight) async => flight;
 }
 
 Future<void> pumpApp(
