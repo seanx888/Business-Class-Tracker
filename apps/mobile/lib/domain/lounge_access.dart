@@ -147,6 +147,9 @@ enum LoungeHint {
   /// A membership of this flight's alliance has no recognised tier.
   needTier,
 
+  /// A membership of this flight's alliance is in a program whose tiers we do not map yet — ask the airline.
+  unmappedProgram,
+
   /// The airline is in no alliance — only its own premium cabins and program apply.
   noAlliance,
 
@@ -155,7 +158,13 @@ enum LoungeHint {
 }
 
 class LoungeVerdict {
-  const LoungeVerdict({required this.entitlements, required this.hints, required this.alliance, required this.tierUnknownFor});
+  const LoungeVerdict({
+    required this.entitlements,
+    required this.hints,
+    required this.alliance,
+    required this.tierUnknownFor,
+    required this.unmapped,
+  });
 
   final List<LoungeEntitlement> entitlements;
   final Set<LoungeHint> hints;
@@ -163,6 +172,9 @@ class LoungeVerdict {
 
   /// Memberships (of this flight's alliance) whose tier we could not place.
   final List<Membership> tierUnknownFor;
+
+  /// Memberships of this flight's alliance in programs missing from the tier table.
+  final List<Membership> unmapped;
 
   bool get eligible => entitlements.isNotEmpty;
 }
@@ -174,6 +186,7 @@ LoungeVerdict checkLoungeAccess({required String carrier, required Cabin? cabin,
   final entitlements = <LoungeEntitlement>[];
   final hints = <LoungeHint>{};
   final unknownTier = <Membership>[];
+  final unmapped = <Membership>[];
 
   if (airline == null) hints.add(LoungeHint.unknownCarrier);
   if (airline != null && alliance == Alliance.none) hints.add(LoungeHint.noAlliance);
@@ -190,8 +203,12 @@ LoungeVerdict checkLoungeAccess({required String carrier, required Cabin? cabin,
       final program = programFor(m.program);
       if (program == null || program.alliance != alliance) continue;
       final status = allianceStatusOf(m);
+      if (!_tierTable.containsKey(m.program)) {
+        unmapped.add(m); // e.g. Vietnam Airlines, Garuda, Qatar — never claim "no access" for what we cannot judge
+        continue;
+      }
       if (status == null) {
-        if (_tierTable.containsKey(m.program)) unknownTier.add(m);
+        unknownTier.add(m);
         continue;
       }
       if (status.opensLounges) {
@@ -199,7 +216,8 @@ LoungeVerdict checkLoungeAccess({required String carrier, required Cabin? cabin,
       }
     }
     if (unknownTier.isNotEmpty) hints.add(LoungeHint.needTier);
+    if (unmapped.isNotEmpty) hints.add(LoungeHint.unmappedProgram);
   }
 
-  return LoungeVerdict(entitlements: entitlements, hints: hints, alliance: alliance, tierUnknownFor: unknownTier);
+  return LoungeVerdict(entitlements: entitlements, hints: hints, alliance: alliance, tierUnknownFor: unknownTier, unmapped: unmapped);
 }

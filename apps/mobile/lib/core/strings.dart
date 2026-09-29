@@ -162,10 +162,26 @@ class S {
       );
   String get loungeNone => _t('依目前的艙等與會員等級，這班沒有自動的貴賓室資格。', 'With your cabin and status, this flight carries no automatic lounge access.', '현재 좌석 등급과 회원 등급으로는 자동 라운지 이용 자격이 없습니다.');
   String loungeNeedTier(String programs) => _t('$programs 尚未填寫等級 — 到「會員卡」補上等級才能判斷。', 'Add your tier for $programs in Wallet to check status access.', '$programs 등급을 지갑에서 입력하면 확인할 수 있습니다.');
+  String loungeUnmapped(String programs) => _t('$programs 的聯盟等級對照尚未收錄，請向航空公司確認貴賓室資格。', 'We do not map $programs tiers to alliance status yet — check lounge access with the airline.', '$programs 등급의 얼라이언스 등급 매핑이 아직 없어 항공사에 확인이 필요합니다.');
   String get loungeNoAlliance => _t('這家航空公司不屬於任何聯盟：只有它自己的商務／頭等艙貴賓室。', 'This airline is in no alliance — only its own premium-cabin lounge applies.', '이 항공사는 얼라이언스에 속하지 않아 자사 프리미엄 라운지만 해당됩니다.');
   String get loungeUnknownCarrier => _t('尚未收錄這家航空公司的貴賓室規則。', 'No lounge rules for this airline yet.', '이 항공사의 라운지 규정이 아직 없습니다.');
   String get loungeDisclaimer => _t('依聯盟通則判斷；各貴賓室另有限制（國內線、人數、時段），請以航空公司／機場公告為準。', 'Based on general alliance rules; individual lounges add limits (domestic itineraries, capacity, hours) — confirm with the airline or airport.', '얼라이언스 일반 규정 기준이며 라운지별 제한(국내선, 인원, 시간)이 있을 수 있으니 항공사·공항에 확인하세요.');
   String findLounges(String iata) => _t('查詢 $iata 貴賓室', 'Find lounges at $iata', '$iata 라운지 찾기');
+
+  String get passport => _t('飛行紀錄', 'Passport', '패스포트');
+  String get passportEmpty => _t('完成第一趟追蹤的航班後，飛行紀錄會自動累積在這裡。', 'Once a tracked flight is over, your flying stats build up here.', '추적한 항공편이 끝나면 비행 기록이 여기에 쌓입니다.');
+  String get statFlights => _t('航班', 'Flights', '항공편');
+  String get statDistance => _t('總里程', 'Distance', '총 거리');
+  String get statAirtime => _t('飛行時間', 'Time flown', '비행 시간');
+  String get statAirports => _t('機場', 'Airports', '공항');
+  String get statCountries => _t('國家／地區', 'Countries', '국가/지역');
+  String get statAirlines => _t('航空公司', 'Airlines', '항공사');
+  String get statTopRoute => _t('最常飛的航線', 'Most flown route', '가장 많이 탄 노선');
+  String get statLongest => _t('最長航班', 'Longest flight', '최장 비행');
+  String get statByYear => _t('每年航班數', 'Flights per year', '연도별 항공편');
+  String earthLaps(double laps) => _t('繞地球 ${laps.toStringAsFixed(2)} 圈', '${laps.toStringAsFixed(2)}× around the Earth', '지구 ${laps.toStringAsFixed(2)}바퀴');
+  String get distanceLowerBound => _t('部分航班沒有距離資料，實際更多', 'Some flights have no distance data — the real total is higher', '일부 항공편은 거리 정보가 없어 실제로는 더 많습니다');
+  String flightCount(int n) => _t('$n 班', '$n', '$n편');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

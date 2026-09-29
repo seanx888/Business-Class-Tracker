@@ -103,6 +103,23 @@ void main() {
     expect(find.textContaining('無限萬哩遊 尚未填寫等級'), findsOneWidget);
   });
 
+  testWidgets('a Vietnam Airlines card on a SkyTeam flight → "check with the airline", not "no access"', (tester) async {
+    final f = flightOf('CI', '100');
+    await openFlight(
+      tester,
+      f,
+      seed(
+        f,
+        cabin: Cabin.economy,
+        members: [
+          {'id': 'v', 'program': 'VN', 'number': '5550001', 'tier': 'Gold'},
+        ],
+      ),
+    );
+    await reveal(tester, find.text('貴賓室資格'));
+    expect(find.textContaining('金蓮花里程 的聯盟等級對照尚未收錄'), findsOneWidget);
+  });
+
   testWidgets('non-alliance airline says so; "Find lounges" opens a web search for the departure airport', (tester) async {
     final f = flightOf('JX', '800');
     final actions = FakeExternalActions();

@@ -83,6 +83,8 @@ class LoungeCard extends ConsumerWidget {
               ),
             if (v.hints.contains(LoungeHint.needTier))
               row(Icons.info_outline, muted, s.loungeNeedTier(v.tierUnknownFor.map((m) => m.displayName(lang: s.lang)).join(', '))),
+            if (v.hints.contains(LoungeHint.unmappedProgram))
+              row(Icons.info_outline, muted, s.loungeUnmapped(v.unmapped.map((m) => m.displayName(lang: s.lang)).join(', '))),
             if (v.hints.contains(LoungeHint.noAlliance)) row(Icons.info_outline, muted, s.loungeNoAlliance),
             if (v.hints.contains(LoungeHint.unknownCarrier)) row(Icons.info_outline, muted, s.loungeUnknownCarrier),
             const SizedBox(height: 4),

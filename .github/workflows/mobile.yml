@@ -1,11 +1,24 @@
 name: Mobile app (Flutter)
 
+# Also runs when the shared sources the app is generated from / tested against change.
 on:
   pull_request:
-    paths: ['apps/mobile/**', '.github/workflows/mobile.yml']
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/mobile.yml'
+      - 'web/core/**'
+      - 'config/airport-countries.json'
+      - 'test/fixtures/links-cases.json'
+      - 'scripts/gen-dart-airlines.mjs'
   push:
     branches: [main]
-    paths: ['apps/mobile/**', '.github/workflows/mobile.yml']
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/mobile.yml'
+      - 'web/core/**'
+      - 'config/airport-countries.json'
+      - 'test/fixtures/links-cases.json'
+      - 'scripts/gen-dart-airlines.mjs'
 
 jobs:
   analyze-and-test:

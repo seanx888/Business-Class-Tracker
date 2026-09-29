@@ -67,6 +67,7 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
       appBar: AppBar(
         title: const Text('ÆtherSky'),
         actions: [
+          IconButton(tooltip: s.passport, icon: const Icon(Icons.badge_outlined), onPressed: () => context.go('/flights/passport')),
           IconButton(
             tooltip: s.addFlight,
             icon: const Icon(Icons.add_circle_outline),

@@ -164,7 +164,8 @@ flowchart LR
 | 階段 | 時間（估） | 內容 | 狀態 |
 |---|---|---|---|
 | **P0 PWA 升級** | 本 PR | ÆtherSky 改名、Real Tracker（固定/彈性日期＋Email/推播通知）、會員卡夾、Flutter 專案骨架、Supabase schema | ✅ 本次完成 |
-| **P1 MVP** | 6–8 週 | 帳號登入、新增航班（航班號/日期）、即時狀態、推播、Live Activity / Live Updates、航班時間軸、地圖、Passport 基本統計、PWA 票價追蹤搬進 App | 🔜 |
+| **P1a 免帳號實用功能** | 已完成 | 下一班倒數＋即將出發/已完成分組、開啟自動刷新（省 API）、艙等/座位/訂位代號、分享航班、加入行事曆 (.ics)、**貼上訂位確認信批次加入**、**貴賓室資格判斷**、票價一鍵開搜尋、Passport 飛行統計、會員計畫與 PWA 完全對齊（28 個） | ✅ 本次完成（Flutter 96 測試） |
+| **P1 MVP（其餘）** | 4–6 週 | 帳號登入與雲端同步、推播（FCM/APNs）、Live Activity / Live Updates、地圖與航跡、RevenueCat 付費牆 | 🔜 需要帳號／裝置（見 §13） |
 | **P2 Pro** | +6 週 | Email 轉寄匯入、日曆同步、轉機助理、inbound 飛機追蹤、延誤預測、機場延誤趨勢、RevenueCat 付費牆、家庭方案 | |
 | **P3 Elite** | +8 週 | 貴賓室指南＋評價、快速通關預約、會員等級進度、里程兌換位提醒、AI 助理、賠償申請 | |
 | **P4 擴張** | 之後 | Apple Watch / Wear OS、CarPlay/Android Auto、企業版、NDC 直接訂位 | |
@@ -318,3 +319,38 @@ flowchart LR
 2. GitHub Secrets `ALERT_EMAILS`、`SMTP_URL`（啟用 Email 通知）
 3. 決定：訂閱價格、是否申請 FlightAware AeroAPI（Personal 免費額度）與 OAG 試用
 4. 建立 Supabase 專案（建議區域 Tokyo `ap-northeast-1`）與 Apple / Google 開發者帳號
+
+---
+
+## 13. P1a 本次完成與下一步 · Done in P1a & what's next（2026-09-29）
+
+**選擇原則 Priority rule**：每趟旅程都用得到 × 不需要外部帳號就能做完並驗證。
+Everything below works on-device today, is unit- or widget-tested, and needs no Supabase / FlightAware / Apple / Google account.
+
+| # | 功能 Feature | 為什麼優先 Why | 位置 Where |
+|---|---|---|---|
+| 1 | **票價一鍵開搜尋**：好價／Real Tracker 點一下 → Google Flights · Skyscanner · KAYAK · 航空公司官網（與 PWA 相同連結，測試共用同一份 fixture） | App 的票價分頁原本只能看不能訂，每天都會用 | `lib/features/fares`, `lib/domain/links.dart` |
+| 2 | **下一班倒數 + 即將出發／已完成分組**；降落後 2 小時仍算「進行中」（看行李轉盤） | 開 App 的第一眼；過去航班不再擠掉未來航班 | `lib/domain/schedule.dart` |
+| 3 | **開啟／回前景自動刷新**，只刷新「飛行中或 2 天內起飛」的航班；下拉刷新才刷新全部 | 使用者不用手動拉；遠期航班不花 API 費用（PLAN §4 省錢原則） | `lib/app.dart`, `stores.dart` |
+| 4 | **艙等／座位／訂位代號／備註**（存本機，不會被伺服器更新覆蓋） | 機場櫃檯與貴賓室判斷都需要 | `lib/domain/trip.dart` |
+| 5 | **分享航班**（文字，不含座位與訂位代號）＋**加入行事曆**（.ics：UTC 時間、起飛前 3 小時提醒、固定 UID → 重新匯入會更新不會重複） | Flighty 收費功能；接機家人、行事曆同步 | `lib/domain/ics.dart`, `lib/core/share_text.dart` |
+| 6 | **貼上訂位確認信 → 批次加入**：解析航班號與日期（中／英／韓、GDS 行、表格），逐班查詢後讓你勾選；飛機型號（A350、B787）與時間（10:35 AM）不會被誤認為航班 | 新增航班是進入點；一趟來回 2–6 班，逐班輸入太煩 | `lib/domain/itinerary_parser.dart` |
+| 7 | **貴賓室資格判斷**：艙等 + 會員卡夾等級 + 聯盟規則 → 「你能進哪些貴賓室、可攜幾位」；等級對照表未列出者顯示「請補等級」而不是猜 | PLAN §9 最高 ROI 項目；規則層先做，貴賓室目錄／評價待資料來源 | `lib/domain/lounge_access.dart` |
+| 8 | **Passport 飛行統計**：航班數、里程（繞地球幾圈）、飛行時間、機場、國家（旗幟）、航空公司、最常飛航線、每年 | 留存與分享；資料來自已追蹤且已結束的航班 | `lib/domain/passport.dart` |
+| 9 | **會員計畫 14 → 28 個**（由 `web/core/programs.js` 產生）；之前匯入 PWA 備份會**靜默丟掉**另外 14 個計畫的卡 | 資料正確性 | `scripts/gen-dart-airlines.mjs` |
+
+**單一資料來源 Single source of truth**：航空公司／聯盟／會員計畫／機場國別表由 `web/core/*.js` 與 `config/` 產生 Dart，`npm test` 會檢查是否過期（`npm run gen:dart` 重新產生）。
+
+### 仍需要你（USERA / USERB）做的事 · Blocked on accounts or devices
+
+| 項目 | 需要 | 我能先做的 |
+|---|---|---|
+| 帳號登入＋雲端同步（Apple / Google / Email） | 建立 Supabase 專案（見 backend/README.md） | schema、Edge Functions 已備；App 端等專案網址與 anon key |
+| 即時航班資料（真實延誤、登機門） | FlightAware AeroAPI key（Personal 有免費額度） | `flight-lookup`、`aeroapi-webhook` 已完成並有測試 |
+| 推播（延誤、登機門、取消） | Firebase 專案（FCM）＋ Apple Developer（APNs） | 事件流 `flight_events` 已設計 |
+| iOS Live Activity／Dynamic Island、Android 16 Live Updates、Widgets | Xcode / 實機測試 | 無法在無裝置環境驗證，不硬寫 |
+| 付費牆 | RevenueCat 帳號＋兩家商店的訂閱商品 | `plans.dart` 權限閘已就緒 |
+| 貴賓室目錄與評價、快速通關 | 資料來源合約（LoungeReview / DragonPass / Priority Pass） | 資格判斷規則層已完成，接上目錄即可顯示「哪一間」 |
+
+**下一批（不需帳號，依序）**：① 轉機助理（最短轉機時間、風險提示）② 時差調整計畫 ③ 護照／簽證到期提醒（本機）④ 航線大圓弧地圖（不需圖磚）⑤ 手動補登過去航班（讓 Passport 立刻有資料）。
+

@@ -108,6 +108,14 @@ void main() {
       expect(v.eligible, isFalse);
     });
 
+    test('a card in an alliance program we do not map (Vietnam Airlines, Qatar…) is flagged, never treated as "no access"', () {
+      final v = checkLoungeAccess(carrier: 'VN', cabin: Cabin.economy, memberships: [m('VN', 'Gold')]);
+      expect(v.hints, contains(LoungeHint.unmappedProgram));
+      expect(v.unmapped.single.program, 'VN');
+      expect(v.eligible, isFalse);
+      expect(v.hints, isNot(contains(LoungeHint.needTier)));
+    });
+
     test('non-alliance airlines: own premium cabin only', () {
       final v = checkLoungeAccess(carrier: 'JX', cabin: Cabin.business, memberships: [m('BR', 'Gold')]);
       expect(bases(v), [AccessBasis.ownCabin]);

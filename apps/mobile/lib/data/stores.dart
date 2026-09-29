@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -141,6 +142,12 @@ class Wallet extends Notifier<List<Membership>> {
 }
 
 final walletProvider = NotifierProvider<Wallet, List<Membership>>(Wallet.new);
+
+/// IATA → ISO country for the Passport stats (bundled OurAirports extract, same file the scanner uses).
+final airportCountriesProvider = FutureProvider<Map<String, String>>((ref) async {
+  final raw = jsonDecode(await rootBundle.loadString('assets/airport-countries.json')) as Map<String, dynamic>;
+  return raw.map((k, v) => MapEntry(k, v as String));
+});
 
 Future<Map<String, dynamic>> _fetchJson(http.Client client, String file) async {
   final res = await client.get(Uri.parse('${AppConfig.dataBase}$file')).timeout(const Duration(seconds: 20));

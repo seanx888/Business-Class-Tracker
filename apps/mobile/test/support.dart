@@ -5,6 +5,7 @@ import 'package:aethersky/data/stores.dart';
 import 'package:aethersky/domain/flight.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/date_symbol_data_local.dart';
@@ -44,6 +45,7 @@ Future<void> pumpApp(
   FlightDataSource? source,
   Map<String, Object> prefs = const {},
   DateTime Function()? clock,
+  List<Override> overrides = const [],
 }) async {
   SharedPreferences.setMockInitialValues(prefs);
   final sp = await SharedPreferences.getInstance();
@@ -60,6 +62,7 @@ Future<void> pumpApp(
         if (client != null) httpClientProvider.overrideWithValue(client),
         if (actions != null) externalActionsProvider.overrideWithValue(actions),
         if (clock != null) clockProvider.overrideWithValue(clock),
+      ...overrides,
       ],
       child: const AetherApp(),
     ),
