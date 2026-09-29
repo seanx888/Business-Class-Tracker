@@ -1,5 +1,5 @@
 // Service worker: offline app shell + network-first fare data.
-const VERSION = 'aethersky-v7';
+const VERSION = 'aethersky-v8';
 const SHELL = [
   './',
   'index.html',

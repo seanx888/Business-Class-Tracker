@@ -104,6 +104,7 @@ const S = {
     trkMailHint: 'Email 通知需要 GitHub Secrets 的 ALERT_EMAILS 與 SMTP_URL（見 docs/SETUP.md 第 9 步）。',
     // Sync
     grpSync: '同步', syncMissing: '目前缺少或無效：{list}。', syncPassword: '密碼', syncLogin: '登入', syncSignedInAs: '已登入：{who}', syncSignOut: '登出',
+    gateSub: '登入後才能同步與新增追蹤（追蹤會用到搜尋額度）。', rememberMe: '記住我（此裝置 90 天內免再登入）', gateSkip: '稍後再說，先瀏覽', gateWelcome: '歡迎回來，{who}',
     pwTitle: '更改密碼', pwMustChange: '這是初始密碼，請立即設定你自己的新密碼。更改之前無法同步追蹤清單。', pwCurrent: '目前密碼', pwNew: '新密碼（至少 12 個字元）', pwConfirm: '再輸入一次新密碼',
     pwSave: '更改密碼', pwDone: '密碼已更改', pwMismatch: '兩次輸入的新密碼不一致。', pwShort: '新密碼至少 12 個字元。', pwWrong: '目前密碼不正確。', pwSame: '新密碼不能與目前或初始密碼相同。', pwTaken: '這個密碼無法使用，請換一個。', pwError: '更改失敗，請稍後再試。',
     'syncStatus_off': '伺服器尚未設定同步（Vercel 需設定 PASSWORD_USERA、PASSWORD_USERB、SESSION_SECRET 與 TRACKERS_GITHUB_TOKEN，見 docs/SECRETS.md）。',
@@ -220,6 +221,7 @@ const S = {
     openGithubVars: 'Open GitHub Variables', trkNotifPaused: 'Tracker alerts are paused (variable TRACKER_NOTIFICATIONS = paused).',
     trkMailHint: 'E-mail alerts need the GitHub secrets ALERT_EMAILS and SMTP_URL (docs/SETUP.md step 9).',
     grpSync: 'Sync', syncMissing: 'Missing or invalid: {list}.', syncPassword: 'Password', syncLogin: 'Sign in', syncSignedInAs: 'Signed in: {who}', syncSignOut: 'Sign out',
+    gateSub: 'Sign in to sync and add trackers (they use search quota).', rememberMe: 'Remember me (stay signed in on this device for 90 days)', gateSkip: 'Not now — just browse', gateWelcome: 'Welcome back, {who}',
     pwTitle: 'Change password', pwMustChange: 'This is the initial password — choose your own new password now. Tracker sync stays locked until you do.', pwCurrent: 'Current password', pwNew: 'New password (at least 12 characters)', pwConfirm: 'New password again',
     pwSave: 'Change password', pwDone: 'Password changed', pwMismatch: 'The two new passwords do not match.', pwShort: 'The new password needs at least 12 characters.', pwWrong: 'Current password is incorrect.', pwSame: 'The new password cannot be the same as the current or initial one.', pwTaken: 'That password cannot be used — pick another.', pwError: 'Could not change it — please try again later.',
     'syncStatus_off': 'Sync is not set up on the server yet (Vercel needs PASSWORD_USERA, PASSWORD_USERB, SESSION_SECRET and TRACKERS_GITHUB_TOKEN — docs/SECRETS.md).',
@@ -334,6 +336,7 @@ const S = {
     openGithubVars: 'GitHub Variables 열기', trkNotifPaused: '추적 알림이 일시 중지되었습니다 (TRACKER_NOTIFICATIONS = paused).',
     trkMailHint: '이메일 알림에는 GitHub Secrets의 ALERT_EMAILS와 SMTP_URL이 필요합니다 (docs/SETUP.md 9단계).',
     grpSync: '동기화', syncMissing: '누락되었거나 잘못됨: {list}.', syncPassword: '암호', syncLogin: '로그인', syncSignedInAs: '로그인됨: {who}', syncSignOut: '로그아웃',
+    gateSub: '로그인하면 추적을 동기화하고 추가할 수 있습니다(검색 할당량을 사용합니다).', rememberMe: '로그인 상태 유지(이 기기에서 90일)', gateSkip: '나중에 — 둘러보기', gateWelcome: '{who}님, 환영합니다',
     pwTitle: '암호 변경', pwMustChange: '초기 암호입니다. 지금 바로 본인의 새 암호를 설정하세요. 변경하기 전에는 추적 목록을 동기화할 수 없습니다.', pwCurrent: '현재 암호', pwNew: '새 암호 (12자 이상)', pwConfirm: '새 암호 다시 입력',
     pwSave: '암호 변경', pwDone: '암호가 변경되었습니다', pwMismatch: '새 암호가 서로 일치하지 않습니다.', pwShort: '새 암호는 12자 이상이어야 합니다.', pwWrong: '현재 암호가 올바르지 않습니다.', pwSame: '새 암호는 현재 또는 초기 암호와 같을 수 없습니다.', pwTaken: '사용할 수 없는 암호입니다. 다른 암호를 선택하세요.', pwError: '변경에 실패했습니다. 잠시 후 다시 시도하세요.',
     'syncStatus_off': '서버 동기화가 아직 설정되지 않았습니다 (Vercel에 PASSWORD_USERA, PASSWORD_USERB, SESSION_SECRET, TRACKERS_GITHUB_TOKEN 필요 — docs/SECRETS.md).',

@@ -1,8 +1,9 @@
 // Two passwords, one per person (USERA, USERB). No accounts, no extra service, no dependencies.
 //
 // The password itself says who is signing in: /api/auth checks it against each person's password and, on a match,
-// answers with a signed HttpOnly session cookie naming that person. Everything that spends SerpApi quota (the trackers
-// the daily scan searches for) sits behind that cookie; the public pages never spend quota.
+// answers with a signed HttpOnly session cookie naming that person ("remember me" ticked → 90 days, otherwise until the
+// browser closes). Everything that spends SerpApi quota (the trackers the daily scan searches for) sits behind that
+// cookie; the public pages never spend quota.
 //
 // Two layers of passwords:
 //   1. INITIAL passwords, from Vercel env PASSWORD_USERA / PASSWORD_USERB. They only get you as far as the
@@ -24,7 +25,8 @@ import { variables } from './github.mjs';
 const scryptAsync = promisify(scrypt);
 
 export const COOKIE = 'aethersky_session';
-export const SESSION_DAYS = 30;
+export const REMEMBER_DAYS = 90; // "remember me" ticked: a persistent cookie, refreshed whenever the app is opened late in its life
+export const SESSION_HOURS = 24; // not ticked: a browser-session cookie whose token also lapses after a day
 export const MIN_PASSWORD = 12;
 export const MAX_PASSWORD = 128;
 export const MIN_SECRET = 32;
@@ -163,24 +165,28 @@ const mac = (payload, secret) => b64u(createHmac('sha256', secret).update(payloa
 const credentialId = (name, env, own) => (own[name]?.hash ? `h:${own[name].hash}` : `i:${passwords(env)[name]}`);
 const fingerprint = (name, env, own) => mac(`pw:${name}:${credentialId(name, env, own)}`, env.SESSION_SECRET).slice(0, 16);
 
-export function signSession(name, env, own, { now = Date.now(), days = SESSION_DAYS } = {}) {
-  const payload = b64u(JSON.stringify({ p: name, f: fingerprint(name, env, own), x: Math.floor(now / 1000) + days * 86400 }));
+export function signSession(name, env, own, { now = Date.now(), remember = false } = {}) {
+  const seconds = remember ? REMEMBER_DAYS * 86400 : SESSION_HOURS * 3600;
+  const payload = b64u(JSON.stringify({ p: name, f: fingerprint(name, env, own), x: Math.floor(now / 1000) + seconds, r: remember ? 1 : 0 }));
   return `${payload}.${mac(payload, env.SESSION_SECRET)}`;
 }
 
-/** The signed-in person's name, or null (bad signature, expired, person removed, or password changed since). */
-export function readSession(token, env, own, now = Date.now()) {
+/** { name, remember, exp } for a valid session token (bad signature, expired, person removed, or password changed since → null). */
+export function parseSession(token, env, own, now = Date.now()) {
   const [payload, sig] = String(token || '').split('.');
   if (!payload || !sig || !authConfigured(env)) return null;
   if (!safeEqual(sig, mac(payload, env.SESSION_SECRET))) return null;
   try {
     const s = JSON.parse(fromB64u(payload));
     if (!(s.x * 1000 > now) || !(s.p in passwords(env))) return null;
-    return safeEqual(s.f, fingerprint(s.p, env, own)) ? s.p : null;
+    return safeEqual(s.f, fingerprint(s.p, env, own)) ? { name: s.p, remember: s.r === 1, exp: s.x } : null;
   } catch {
     return null;
   }
 }
+
+/** The signed-in person's name, or null. */
+export const readSession = (token, env, own, now = Date.now()) => parseSession(token, env, own, now)?.name ?? null;
 
 export function cookieValue(request, name) {
   for (const part of (request.headers.get('cookie') || '').split(';')) {
@@ -190,14 +196,15 @@ export function cookieValue(request, name) {
   return null;
 }
 
-export const sessionCookie = (token, { days = SESSION_DAYS } = {}) =>
-  `${COOKIE}=${token}; Path=/; Max-Age=${days * 86400}; HttpOnly; Secure; SameSite=Lax`;
+// Remembered → persistent cookie; otherwise no Max-Age, so the browser drops it when it closes.
+export const sessionCookie = (token, { remember = false } = {}) =>
+  `${COOKIE}=${token}; Path=/;${remember ? ` Max-Age=${REMEMBER_DAYS * 86400};` : ''} HttpOnly; Secure; SameSite=Lax`;
 export const clearCookie = () => `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 
-/** { name, mustChange } for the signed-in person, or null. mustChange = still on the initial password. */
+/** { name, mustChange, remember, exp } for the signed-in person, or null. mustChange = still on the initial password. */
 export function currentUser(request, env, own, now = Date.now()) {
-  const name = readSession(cookieValue(request, COOKIE), env, own, now);
-  return name ? { name, mustChange: !own[name]?.hash } : null;
+  const s = parseSession(cookieValue(request, COOKIE), env, own, now);
+  return s ? { name: s.name, mustChange: !own[s.name]?.hash, remember: s.remember, exp: s.exp } : null;
 }
 
 /** Why a proposed new password is not acceptable, or null when it is fine. */

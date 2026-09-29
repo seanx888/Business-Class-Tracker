@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   passwords, whoIs, matches, hashPassword, verifyHash, authStore, signSession, readSession, currentUser, passwordProblem,
-  sameOrigin, authConfigured, syncConfigured, syncProblems, COOKIE, AUTH_VAR,
+  sameOrigin, authConfigured, syncConfigured, syncProblems, sessionCookie, COOKIE, AUTH_VAR, REMEMBER_DAYS, SESSION_HOURS,
 } from '../web/api/_lib/auth.mjs';
 import { handle } from '../web/api/auth.mjs';
 import { fakeGitHub } from './helpers/github.mjs';
@@ -77,7 +77,10 @@ test('configuration checks and problem report (names only, never values)', () =>
 test('session cookie: signed, expires, tamper-proof', () => {
   const token = signSession('usera', env, {}, { now: NOW });
   assert.equal(readSession(token, env, {}, NOW + 1000), 'usera');
-  assert.equal(readSession(token, env, {}, NOW + 31 * 86400 * 1000), null, 'expires after 30 days');
+  assert.equal(readSession(token, env, {}, NOW + (SESSION_HOURS * 3600 + 1) * 1000), null, 'without "remember me" it lapses after a day');
+  const kept = signSession('usera', env, {}, { now: NOW, remember: true });
+  assert.equal(readSession(kept, env, {}, NOW + 89 * 86400 * 1000), 'usera', 'remembered: still valid after 89 days');
+  assert.equal(readSession(kept, env, {}, NOW + (REMEMBER_DAYS * 86400 + 1) * 1000), null, 'remembered: lapses after 90 days');
   assert.equal(readSession(token, { ...env, SESSION_SECRET: 'x'.repeat(40) }, {}, NOW), null, 'wrong secret');
   const [payload, sig] = token.split('.');
   const forged = `${Buffer.from(JSON.stringify({ p: 'userb', f: 'x', x: NOW / 1000 + 999999 })).toString('base64url')}.${sig}`;
@@ -90,11 +93,12 @@ test('a cookie dies when that person changes password or is removed; the other p
   const useraToken = signSession('usera', env, {}, { now: NOW });
   const userbToken = signSession('userb', env, {}, { now: NOW });
   const req = (t) => new Request('https://app.example/api/x', { headers: { cookie: `a=1; ${COOKIE}=${t}` } });
-  assert.deepEqual(currentUser(req(useraToken), env, {}, NOW), { name: 'usera', mustChange: true });
+  const brief = (u) => u && { name: u.name, mustChange: u.mustChange };
+  assert.deepEqual(currentUser(req(useraToken), env, {}, NOW), { name: 'usera', mustChange: true, remember: false, exp: NOW / 1000 + SESSION_HOURS * 3600 });
   const own = { usera: { hash: await hashPassword('usera-own-password-9'), at: '' } };
   assert.equal(currentUser(req(useraToken), env, own, NOW), null, 'chose a new password → old cookie invalid');
-  assert.deepEqual(currentUser(req(userbToken), env, own, NOW), { name: 'userb', mustChange: true });
-  assert.deepEqual(currentUser(req(signSession('usera', env, own, { now: NOW })), env, own, NOW), { name: 'usera', mustChange: false });
+  assert.deepEqual(brief(currentUser(req(userbToken), env, own, NOW)), { name: 'userb', mustChange: true });
+  assert.deepEqual(brief(currentUser(req(signSession('usera', env, own, { now: NOW })), env, own, NOW)), { name: 'usera', mustChange: false });
   assert.equal(currentUser(req(useraToken), { ...env, PASSWORD_USERA: undefined }, {}, NOW), null, 'removed');
 });
 
@@ -217,4 +221,41 @@ test('GET /api/auth is public and explains a broken setup; DELETE signs out only
   assert.equal(out.status, 200);
   assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
   assert.equal((await run(call('PATCH', {}), gh)).status, 405);
+});
+
+test('"remember me": ticked → persistent 90-day cookie; not ticked → ends with the browser', async () => {
+  const gh = fakeGitHub();
+  const kept = await run(call('POST', { password: INITIAL.usera, remember: true }), gh);
+  assert.match(kept.headers.get('set-cookie'), new RegExp(`Max-Age=${REMEMBER_DAYS * 86400}`));
+  const plain = await run(call('POST', { password: INITIAL.usera, remember: false }), gh);
+  assert.doesNotMatch(plain.headers.get('set-cookie'), /Max-Age|Expires/, 'a session cookie');
+  const omitted = await run(call('POST', { password: INITIAL.usera }), gh);
+  assert.doesNotMatch(omitted.headers.get('set-cookie'), /Max-Age/, 'only an explicit true remembers');
+  const lookalike = await run(call('POST', { password: INITIAL.usera, remember: 'true' }), gh);
+  assert.doesNotMatch(lookalike.headers.get('set-cookie'), /Max-Age/);
+  assert.match(sessionCookie('t', { remember: true }), /Max-Age=7776000; HttpOnly; Secure; SameSite=Lax/);
+  assert.equal(sessionCookie('t'), `${COOKIE}=t; Path=/; HttpOnly; Secure; SameSite=Lax`);
+});
+
+test('a remembered sign-in survives a password change and renews itself once past halfway', async () => {
+  const gh = fakeGitHub();
+  const login = await run(call('POST', { password: INITIAL.usera, remember: true }), gh);
+  const cookie = cookieOf(login);
+  // Fresh cookie: nothing to renew.
+  assert.equal((await run(call('GET', null, { cookie }), gh)).headers.get('set-cookie'), null);
+  // 50 days later: more than half used → a new 90-day cookie, same person.
+  const later = NOW + 50 * 86400 * 1000;
+  const renewed = await run(call('GET', null, { cookie }), gh, { now: later });
+  assert.match(renewed.headers.get('set-cookie'), new RegExp(`Max-Age=${REMEMBER_DAYS * 86400}`));
+  assert.deepEqual((await renewed.json()).user, { name: 'usera', mustChange: true });
+  assert.equal(readSession(cookieOf(renewed).slice(COOKIE.length + 1), env, {}, later + 80 * 86400 * 1000), 'usera');
+  // Not remembered: never renewed.
+  const short = cookieOf(await run(call('POST', { password: INITIAL.userb }), gh));
+  assert.equal((await run(call('GET', null, { cookie: short }), gh)).headers.get('set-cookie'), null);
+  // Changing the password keeps the choice.
+  const changed = await run(call('PUT', { current: INITIAL.usera, next: 'usera-own-password-9' }, { cookie }), gh);
+  assert.equal(changed.status, 200);
+  assert.match(changed.headers.get('set-cookie'), /Max-Age=/);
+  const changedShort = await run(call('PUT', { current: INITIAL.userb, next: 'userb-own-password-9' }, { cookie: short }), gh);
+  assert.doesNotMatch(changedShort.headers.get('set-cookie'), /Max-Age/);
 });
