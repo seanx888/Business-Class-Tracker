@@ -8,6 +8,8 @@ import '../core/config.dart';
 import '../domain/fares.dart';
 import '../domain/flight.dart';
 import '../domain/membership.dart';
+import '../domain/schedule.dart';
+import '../domain/trip.dart';
 import 'flight_repository.dart';
 
 /// Overridden in main() with the real instance (and in tests with a mock).
@@ -50,11 +52,17 @@ class MyFlights extends Notifier<List<Flight>> {
   void remove(String id) {
     state = state.where((f) => f.id != id).toList();
     _save();
+    ref.read(tripInfosProvider.notifier).remove(id);
   }
 
-  Future<void> refreshAll() async {
+  /// Refreshes flights from the data source. By default only flights that are under way or leave within
+  /// two days (far-off flights barely change and every lookup costs money); [force] — pull-to-refresh —
+  /// refreshes every flight that is not finished yet.
+  Future<void> refreshAll({bool force = false}) async {
     final source = ref.read(flightSourceProvider);
+    final now = ref.read(clockProvider)().toUtc();
     for (final f in [...state]) {
+      if (isFinished(f, now) || (!force && !needsAutoRefresh(f, now))) continue;
       try {
         final fresh = await source.refresh(f);
         if (fresh != null) upsert(fresh);
@@ -66,6 +74,44 @@ class MyFlights extends Notifier<List<Flight>> {
 }
 
 final myFlightsProvider = NotifierProvider<MyFlights, List<Flight>>(MyFlights.new);
+
+/// Cabin / seat / booking reference the traveller entered, per Flight.id (never overwritten by server refreshes).
+class TripInfos extends Notifier<Map<String, TripInfo>> {
+  static const _key = 'aether.trips.v1';
+
+  @override
+  Map<String, TripInfo> build() {
+    final raw = ref.read(prefsProvider).getString(_key);
+    if (raw == null) return const {};
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      return {for (final e in data.entries) if (e.value is Map<String, dynamic>) e.key: TripInfo.fromJson(e.value as Map<String, dynamic>)};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  void _save() => ref.read(prefsProvider).setString(_key, jsonEncode(state.map((k, v) => MapEntry(k, v.toJson()))));
+
+  void set(String flightId, TripInfo info) {
+    final next = {...state};
+    if (info.isEmpty) {
+      next.remove(flightId);
+    } else {
+      next[flightId] = info;
+    }
+    state = next;
+    _save();
+  }
+
+  void remove(String flightId) {
+    if (!state.containsKey(flightId)) return;
+    state = {...state}..remove(flightId);
+    _save();
+  }
+}
+
+final tripInfosProvider = NotifierProvider<TripInfos, Map<String, TripInfo>>(TripInfos.new);
 
 class Wallet extends Notifier<List<Membership>> {
   static const _key = 'aether.members.v1'; // same key and shape as the PWA

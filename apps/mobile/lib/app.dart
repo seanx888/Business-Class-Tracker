@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/strings.dart';
 import 'core/theme.dart';
+import 'data/stores.dart';
 import 'features/fares/fares_screen.dart';
 import 'features/flights/flight_detail_screen.dart';
 import 'features/flights/flights_screen.dart';
@@ -56,15 +58,45 @@ class _Shell extends StatelessWidget {
   }
 }
 
-class AetherApp extends StatefulWidget {
+class AetherApp extends ConsumerStatefulWidget {
   const AetherApp({super.key});
 
   @override
-  State<AetherApp> createState() => _AetherAppState();
+  ConsumerState<AetherApp> createState() => _AetherAppState();
 }
 
-class _AetherAppState extends State<AetherApp> {
+/// Refreshes flights that matter (under way / leaving within 2 days) when the app opens and whenever
+/// it returns to the foreground — at most every [_minGap], so opening the app never hammers the data API.
+class _AetherAppState extends ConsumerState<AetherApp> with WidgetsBindingObserver {
+  static const _minGap = Duration(minutes: 2);
   final _router = buildRouter();
+  DateTime? _lastRefresh;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  void _refresh() {
+    final now = ref.read(clockProvider)();
+    final last = _lastRefresh;
+    if (last != null && now.difference(last) < _minGap) return;
+    _lastRefresh = now;
+    ref.read(myFlightsProvider.notifier).refreshAll();
+  }
 
   @override
   Widget build(BuildContext context) {

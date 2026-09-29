@@ -4,6 +4,7 @@ import '../../core/format.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../domain/flight.dart';
+import '../../domain/schedule.dart';
 
 /// Status as colour + icon + word (never colour alone).
 class StatusChip extends StatelessWidget {
@@ -119,6 +120,58 @@ class FlightCard extends StatelessWidget {
               const Spacer(),
               if (f.destination.baggage != null) Text('${s.baggage} ${f.destination.baggage}', style: t.bodySmall?.copyWith(color: muted)),
             ]),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Countdown line for a flight ("Departs in 3h 20m" / "Lands in ~1h 05m" / status word).
+String countdownText(S s, Flight f, DateTime now) {
+  switch (f.phase) {
+    case FlightPhase.scheduled:
+    case FlightPhase.delayed:
+      final d = untilDeparture(f, now);
+      return d == null ? s.phase(f.phase) : (d.inMinutes <= 0 ? s.departingNow : s.departsIn(d));
+    case FlightPhase.departed:
+    case FlightPhase.enRoute:
+      final d = untilLanding(f, now);
+      return d == null || d.inMinutes <= 0 ? s.phase(f.phase) : s.arrivesIn(d);
+    default:
+      return s.phase(f.phase);
+  }
+}
+
+/// "Next flight" hero at the top of the list: route + a live countdown.
+class NextFlightBanner extends StatelessWidget {
+  const NextFlightBanner({super.key, required this.flight, required this.now, this.onTap});
+  final Flight flight;
+  final DateTime now;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final t = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final f = flight;
+    return Card(
+      color: scheme.primaryContainer,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(s.nextFlight, style: t.labelMedium?.copyWith(color: scheme.onPrimaryContainer.withValues(alpha: 0.75))),
+            const SizedBox(height: 4),
+            Text(countdownText(s, f, now), style: t.headlineSmall?.merge(tabular).copyWith(fontWeight: FontWeight.w800, color: scheme.onPrimaryContainer)),
+            const SizedBox(height: 4),
+            Text(
+              '${f.ident} · ${f.origin.iata} → ${f.destination.iata} · ${hhmm(f.gateOut.best, f.origin.timeZone)}',
+              style: t.bodyMedium?.merge(tabular).copyWith(color: scheme.onPrimaryContainer),
+            ),
           ]),
         ),
       ),

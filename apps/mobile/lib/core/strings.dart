@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../domain/flight.dart';
+import '../domain/trip.dart';
 
 /// UI strings in 繁體中文 (default) · English · 한국어 — same three languages as the PWA.
 /// A small table keeps the scaffold dependency-free; move to ARB files (flutter gen-l10n) when it grows.
@@ -94,6 +95,40 @@ class S {
   String get copied => _t('已複製', 'Copied', '복사됨');
   String get noMemberships => _t('還沒有會員卡', 'No memberships yet', '회원카드가 없습니다');
   String expiresIn(int d) => d < 0 ? _t('等級已到期', 'Status expired', '등급 만료') : _t('$d 天後到期', 'Expires in $d days', '$d일 후 만료');
+
+  String get upcoming => _t('即將出發', 'Upcoming', '예정된 항공편');
+  String get past => _t('已完成', 'Past flights', '지난 항공편');
+  String get nextFlight => _t('下一班', 'Next flight', '다음 항공편');
+  String get noUpcoming => _t('沒有即將出發的航班', 'No upcoming flights', '예정된 항공편이 없습니다');
+
+  /// "3 天 4 小時" · "3 小時 20 分" · "45 分" — the two largest units, like the countdown on a boarding pass.
+  String span(Duration d) {
+    final days = d.inDays;
+    final hours = d.inHours % 24;
+    final mins = d.inMinutes % 60;
+    if (days >= 1) return _t('$days 天${hours > 0 ? ' $hours 小時' : ''}', '${days}d${hours > 0 ? ' ${hours}h' : ''}', '$days일${hours > 0 ? ' $hours시간' : ''}');
+    if (d.inHours >= 1) return _t('${d.inHours} 小時${mins > 0 ? ' $mins 分' : ''}', '${d.inHours}h${mins > 0 ? ' ${mins}m' : ''}', '${d.inHours}시간${mins > 0 ? ' $mins분' : ''}');
+    final m = d.inMinutes < 1 ? 1 : d.inMinutes;
+    return _t('$m 分', '${m}m', '$m분');
+  }
+
+  String departsIn(Duration d) => _t('${span(d)}後起飛', 'Departs in ${span(d)}', '${span(d)} 후 출발');
+  String arrivesIn(Duration d) => _t('約 ${span(d)}後抵達', 'Lands in ~${span(d)}', '약 ${span(d)} 후 도착');
+  String get departingNow => _t('即將起飛', 'Departing now', '곧 출발');
+
+  String get myTrip => _t('我的行程資訊', 'My trip details', '내 여정 정보');
+  String get edit => _t('編輯', 'Edit', '편집');
+  String get cabin => _t('艙等', 'Cabin', '좌석 등급');
+  String get seat => _t('座位', 'Seat', '좌석');
+  String get pnr => _t('訂位代號', 'Booking ref', '예약번호');
+  String get notes => _t('備註', 'Notes', '메모');
+  String get tripHint => _t('填寫艙等後，可判斷你能進哪些貴賓室。', 'Add your cabin to see which lounges you can enter.', '좌석 등급을 입력하면 이용 가능한 라운지를 알려 드립니다.');
+  String cabinName(Cabin c) => switch (c) {
+        Cabin.economy => _t('經濟艙', 'Economy', '이코노미'),
+        Cabin.premium => _t('豪華經濟艙', 'Premium Economy', '프리미엄 이코노미'),
+        Cabin.business => _t('商務艙', 'Business', '비즈니스'),
+        Cabin.first => _t('頭等艙', 'First', '퍼스트'),
+      };
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

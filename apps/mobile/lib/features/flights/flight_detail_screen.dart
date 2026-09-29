@@ -6,6 +6,7 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/stores.dart';
 import '../../domain/flight.dart';
+import 'trip_info_card.dart';
 import 'widgets.dart';
 
 class FlightDetailScreen extends ConsumerWidget {
@@ -23,11 +24,11 @@ class FlightDetailScreen extends ConsumerWidget {
     final flight = f;
     final t = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final now = DateTime.now().toUtc();
+    final now = ref.watch(clockProvider)().toUtc();
     return Scaffold(
       appBar: AppBar(title: Text(flight.ident)),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(),
+        onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(force: true),
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
           Row(children: [
             Text(flight.origin.iata, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -37,12 +38,16 @@ class FlightDetailScreen extends ConsumerWidget {
             StatusChip(flight),
           ]),
           Text('${flight.origin.city ?? ''} – ${flight.destination.city ?? ''}', style: t.bodyMedium?.copyWith(color: muted)),
+          const SizedBox(height: 4),
+          Text(countdownText(s, flight, now), style: t.titleMedium?.merge(tabular).copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           ProgressLine(progress: flight.progress(now), color: AetherColors.phase(flight.phase)),
           const SizedBox(height: 16),
           _EndpointPanel(title: s.departure, e: flight.origin, time: flight.gateOut, air: flight.takeoff, airLabel: s.takeoff),
           const SizedBox(height: 12),
           _EndpointPanel(title: s.arrival, e: flight.destination, time: flight.gateIn, air: flight.landing, airLabel: s.landing),
+          const SizedBox(height: 12),
+          TripInfoCard(flight: flight),
           const SizedBox(height: 12),
           Card(
             child: Padding(
