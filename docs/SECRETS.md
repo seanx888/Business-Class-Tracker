@@ -114,16 +114,18 @@ App 內新增的 Real Tracker → Vercel Function → 寫入 GitHub Variable `TR
 **取得：`GOOGLE_CLIENT_ID`（公開值，不是機密；不需要 Client secret）。**
 
 1. <https://console.cloud.google.com> → 左上專案選單 → **New project** → 名稱 `aethersky`（用 Sean 的 Google 帳號）。
-2. **APIs & Services → OAuth consent screen**（新介面叫 *Google Auth Platform*）：
-   - User type：**External**；App name：`ÆtherSky`；User support email / Developer contact：你的信箱。
-   - Authorized domain：`bluechiou.com`。
-   - Scopes 維持預設（`openid` / `email` / `profile`，不需審核）。
-   - Publishing status 維持 **Testing** → **Test users** 加入 **Sean 與 Blue 的 Google 帳號**（多一層保險：其他人連 Google 那關都過不了）。
-3. **Credentials → Create credentials → OAuth client ID** → Application type：**Web application**，名稱 `ÆtherSky web`：
-   - **Authorized JavaScript origins**：`https://aethersky.bluechiou.com`
-   - **Authorized redirect URIs**：`https://aethersky.bluechiou.com/api/auth`（要完全一致，不能少 `/api/auth`）
+2. **先做「品牌 / 同意畫面」**（新介面叫 *Google Auth Platform*，第一次進去會跳出 *Project configuration* 精靈，四步驟）：
+   1. **App Information**：App name `ÆtherSky`；User support email 選你的信箱 → **Next**
+   2. **Audience**：選 **External** → **Next**
+   3. **Contact Information**：填你的信箱 → **Next**
+   4. **Finish**：勾同意 Google API Services User Data Policy → **Continue** → **Create**
+3. **建立 OAuth Client ID**：左側選單 **Clients**（不是 Branding）→ **+ Create client** → Application type：**Web application**，Name：`ÆtherSky web`：
+   - **Authorized JavaScript origins** → Add URI：`https://aethersky.bluechiou.com`
+   - **Authorized redirect URIs** → Add URI：`https://aethersky.bluechiou.com/api/auth`（要完全一致，不能少 `/api/auth`）
    - **Create** → 複製 **Client ID**（`1234…apps.googleusercontent.com`）。Client secret 用不到，可忽略。
-4. 產生 `SESSION_SECRET`（自己產生的隨機字串，至少 32 字元）：終端機 `openssl rand -base64 48`，或用密碼管理員產生 40+ 字元。**只存 Vercel，別貼到任何地方。**
+   - 找不到 *Clients*：頂端搜尋列輸入 `Clients`，或直接開 <https://console.cloud.google.com/auth/clients>（要先選對專案 `aethersky`）。
+4. **加入允許登入的人**：左側 **Audience** → Publishing status 維持 **Testing** → **Test users → + Add users** → 加入 **Sean 與 Blue 的 Google 帳號**（不在名單的帳號 Google 直接顯示 `access_denied`，多一層保險）。
+5. 產生 `SESSION_SECRET`（自己產生的隨機字串，至少 32 字元）：終端機 `openssl rand -base64 48`，或用密碼管理員產生 40+ 字元。**只存 Vercel，別貼到任何地方。**
 
 ### B3. Vercel 環境變數
 <https://vercel.com/seanx888> → 專案 `aethersky` → **Settings → Environment Variables**
