@@ -4,6 +4,7 @@
 //   SMTP_URL (secret)      any SMTP server with an app password, e.g.
 //                          smtps://me%40gmail.com:app-password@smtp.gmail.com:465
 //                          smtps://me%40naver.com:app-password@smtp.naver.com:465
+//                          Several accounts may be listed, comma-separated: the next one is used if the first fails.
 //   RESEND_API_KEY         alternative to SMTP (https://resend.com) — needs a verified domain to mail others
 //   MAIL_FROM              optional sender, e.g. "ÆtherSky <me@gmail.com>" (default: the SMTP user)
 import net from 'node:net';
@@ -184,11 +185,32 @@ export async function smtpSend(smtpUrl, { from, to, subject, text, html }, { tim
   }
 }
 
+/** SMTP_URL may hold several accounts separated by commas / whitespace / newlines; tried in order. */
+export function parseSmtpUrls(value) {
+  return String(value || '').split(/[,\s]+/).filter((u) => /^smtps?:\/\//i.test(u));
+}
+
 /** Pick the configured transport (SMTP_URL wins over RESEND_API_KEY), or null when mail is not set up. */
 export function mailTransport(env = process.env, fetchImpl = fetch) {
-  if (env.SMTP_URL) {
-    const from = env.MAIL_FROM || `ÆtherSky <${decodeURIComponent(new URL(env.SMTP_URL).username)}>`;
-    return { name: 'smtp', send: (m) => smtpSend(env.SMTP_URL, { from, ...m }) };
+  const urls = parseSmtpUrls(env.SMTP_URL);
+  if (urls.length) {
+    return {
+      name: 'smtp',
+      // Fail over to the next account when one is rejected or unreachable. Accounts are named by position —
+      // Actions logs are public, so never print addresses.
+      async send(m) {
+        const failures = [];
+        for (const [i, url] of urls.entries()) {
+          try {
+            const from = env.MAIL_FROM || `ÆtherSky <${decodeURIComponent(new URL(url).username)}>`;
+            return await smtpSend(url, { from, ...m });
+          } catch (e) {
+            failures.push(`account #${i + 1}: ${e.message}`);
+          }
+        }
+        throw new Error(`SMTP failed — ${failures.join('; ')}`);
+      },
+    };
   }
   if (env.RESEND_API_KEY) {
     const from = env.MAIL_FROM || 'ÆtherSky <onboarding@resend.dev>';

@@ -16,10 +16,11 @@ const PREF_KEY = 'bct.prefs.v1';
 const DEFAULT_FILTERS = { carrierType: 'fsc', origin: 'all', region: 'all', alliance: 'all', nonstop: false, flat: false, minTier: 'all', sort: 'score' };
 
 function loadPrefs() {
-  const base = { lang: 'zh-TW', langChosen: false, currency: 'TWD', theme: 'auto', skyteamBoost: 'standard', positioning: {}, targets: {}, notified: {}, lastScan: null, filters: { ...DEFAULT_FILTERS }, trackers: [], syncKey: '', synced: false, syncedAt: null };
+  const base = { lang: 'zh-TW', langChosen: false, currency: 'TWD', theme: 'auto', skyteamBoost: 'standard', positioning: {}, targets: {}, notified: {}, lastScan: null, filters: { ...DEFAULT_FILTERS }, trackers: [], synced: false, syncedAt: null };
   try {
     const saved = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
     const p = { ...base, ...saved, filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) } };
+    delete p.syncKey; // the shared passcode was replaced by Google sign-in
     // Always open in Traditional Chinese unless someone explicitly picked another language in Settings.
     if (!p.langChosen) p.lang = 'zh-TW';
     return p;
@@ -41,7 +42,7 @@ const TABS = ['deals', 'special', 'routes', 'members', 'settings'];
 const state = {
   data: null, deals: [], history: null, tab: 'deals', special: 'ex', routesView: 'tracker', error: null, dropped: 0, limit: 40, installEvt: null, exOpen: new Set(), filtersOpen: false,
   trackerData: null, trackerForm: null, trackerErr: null, trkOpen: new Set(),
-  sync: { configured: null, status: 'idle' },
+  sync: { configured: null, status: 'idle', user: null, clientId: null },
   memberForm: null, memberErr: null, memberReveal: new Set(), memberFilter: 'all',
 };
 
@@ -728,7 +729,7 @@ function trackerList() {
   return [...local, ...remote];
 }
 
-const syncReady = () => !!(state.sync.configured && prefs.syncKey && state.sync.status !== 'auth');
+const syncReady = () => !!(state.sync.configured && state.sync.user && state.sync.status !== 'auth');
 
 function trackerStatus(tr, st, local) {
   if (tr.paused) return 'paused';
@@ -881,12 +882,18 @@ function trackerHtml() {
 }
 
 // ── Sync with the server (Vercel function → GitHub variable TRACKERS) ──
+// Access: Google sign-in for the two owners; the server keeps a signed HttpOnly cookie (nothing readable here).
 const SYNC_API = 'api/trackers';
+const AUTH_API = 'api/auth';
 
 async function syncPing() {
   try {
-    const res = await fetch(`${SYNC_API}?ping=1`, { cache: 'no-store' });
-    state.sync.configured = res.ok && (res.headers.get('content-type') || '').includes('json') ? !!(await res.json()).configured : false;
+    const res = await fetch(AUTH_API, { cache: 'no-store' });
+    const ok = res.ok && (res.headers.get('content-type') || '').includes('json');
+    const info = ok ? await res.json() : {};
+    state.sync.configured = !!info.configured;
+    state.sync.clientId = info.clientId || null;
+    state.sync.user = info.user || null;
   } catch {
     state.sync.configured = false;
   }
@@ -896,10 +903,13 @@ async function syncCall(method, body) {
   const res = await fetch(SYNC_API, {
     method,
     cache: 'no-store',
-    headers: { Authorization: `Bearer ${prefs.syncKey}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) throw Object.assign(new Error('auth'), { code: 'auth' });
+  if (res.status === 401 || res.status === 403) {
+    state.sync.user = null;
+    throw Object.assign(new Error('auth'), { code: 'auth' });
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -912,7 +922,7 @@ function syncDone() {
 }
 
 async function pullTrackers() {
-  if (!state.sync.configured || !prefs.syncKey) return;
+  if (!state.sync.configured || !state.sync.user) return;
   state.sync.status = 'busy';
   try {
     const { trackers } = await syncCall('GET');
@@ -933,7 +943,7 @@ async function pullTrackers() {
 
 async function pushTrackers() {
   savePrefs();
-  if (!state.sync.configured || !prefs.syncKey) return false;
+  if (!state.sync.configured || !state.sync.user) return false;
   state.sync.status = 'busy';
   try {
     await syncCall('PUT', { trackers: prefs.trackers });
@@ -949,10 +959,40 @@ function syncStatusText() {
   const s = state.sync;
   if (s.configured === false) return t('syncStatus_off');
   if (s.configured == null) return t('syncStatus_busy');
-  if (!prefs.syncKey) return t('syncStatus_nokey');
+  if (!state.sync.user) return s.status === 'auth' ? t('syncStatus_auth') : t('syncStatus_nokey');
   if (s.status === 'ok') return t('syncStatus_ok', { t: fmtWhen(prefs.syncedAt) });
   if (s.status === 'auth' || s.status === 'error' || s.status === 'busy') return t('syncStatus_' + s.status);
   return '';
+}
+
+let googleScript;
+function loadGoogle() {
+  googleScript ||= new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = 'https://accounts.google.com/gsi/client';
+    el.async = true;
+    el.onload = () => resolve(window.google);
+    el.onerror = () => {
+      googleScript = null; // let the next visit retry
+      reject(new Error('Google sign-in unavailable'));
+    };
+    document.head.append(el);
+  });
+  return googleScript;
+}
+
+// Full-page redirect flow (ux_mode=redirect): works in installed home-screen apps, where pop-ups are unreliable.
+async function mountGoogleButton() {
+  const el = $('#g-signin');
+  if (!el || !state.sync.clientId) return;
+  try {
+    const { accounts } = await loadGoogle();
+    accounts.id.initialize({ client_id: state.sync.clientId, ux_mode: 'redirect', login_uri: `${location.origin}/api/auth`, auto_select: false });
+    el.textContent = '';
+    accounts.id.renderButton(el, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: prefs.lang });
+  } catch {
+    el.textContent = t('syncStatus_error');
+  }
 }
 
 async function saveTrackerForm() {
@@ -1193,12 +1233,11 @@ function renderSettings() {
     <div class="group-title">${esc(t('grpSync'))}</div>
     <section class="panel">
       ${setting(t('rtTracker'), `
-        <div class="sync-row">
-          <input type="password" id="sync-key" autocomplete="current-password" placeholder="${esc(prefs.syncKey ? '••••••••' : t('syncPasscode'))}" aria-label="${esc(t('syncPasscode'))}" ${state.sync.configured === false ? 'disabled' : ''}>
-          <button class="btn" data-act="sync-connect" ${state.sync.configured === false ? 'disabled' : ''}>${icon('cloud-check')}${esc(t('syncConnect'))}</button>
-        </div>
-        <span class="help${state.sync.status === 'auth' || state.sync.status === 'error' ? ' warn-text' : ''}">${esc(syncStatusText())}</span>
-        ${prefs.syncKey ? `<div><button class="btn quiet" data-act="sync-off">${esc(t('syncDisconnect'))}</button></div>` : ''}`, t('syncHelp'))}
+        ${state.sync.user
+    ? `<div class="sync-row"><span class="small">${icon('cloud-check')} ${esc(t('syncSignedInAs', { who: state.sync.user.email }))}</span>
+          <button class="btn quiet" data-act="sync-signout">${esc(t('syncSignOut'))}</button></div>`
+    : state.sync.configured && state.sync.clientId ? '<div id="g-signin" class="sync-row" style="min-height:44px"></div>' : ''}
+        <span class="help${state.sync.status === 'auth' || state.sync.status === 'error' ? ' warn-text' : ''}">${esc(syncStatusText())}</span>`, t('syncHelp'))}
     </section>
 
     <div class="group-title">${esc(t('notifications'))}</div>
@@ -1225,6 +1264,7 @@ function renderSettings() {
     </section>
     <p class="small muted" style="text-align:center;margin:20px 0">${Object.keys(AIRLINES).length} airlines · SkyTeam first</p>
   `;
+  mountGoogleButton();
 }
 
 // ───────────────────────── alerts ─────────────────────────
@@ -1409,25 +1449,11 @@ document.addEventListener('click', async (e) => {
       renderRoutes();
       return;
     // Sync
-    case 'sync-connect': {
-      const key = $('#sync-key')?.value.trim();
-      if (key) {
-        if (key !== prefs.syncKey) prefs.synced = false;
-        prefs.syncKey = key;
-      }
-      if (!prefs.syncKey) return;
-      state.sync.status = 'busy';
-      renderSettings();
-      await pullTrackers();
-      savePrefs();
-      renderSettings();
-      if (state.sync.status === 'ok') toast(t('syncStatus_ok', { t: fmtWhen(prefs.syncedAt) }));
-      return;
-    }
-    case 'sync-off':
-      prefs.syncKey = '';
-      prefs.synced = false;
+    case 'sync-signout':
+      await fetch(AUTH_API, { method: 'DELETE' }).catch(() => {});
+      state.sync.user = null;
       state.sync.status = 'idle';
+      prefs.synced = false;
       break;
     // Member wallet
     case 'mem-new':
@@ -1597,6 +1623,14 @@ setLang(prefs.lang);
 readHash();
 render();
 loadData();
+{
+  const result = new URLSearchParams(location.search).get('signin');
+  if (result) {
+    history.replaceState(null, '', `${location.pathname}#/settings`); // back from Google: drop ?signin=…
+    readHash();
+    setTimeout(() => toast(t(result === 'denied' ? 'signinDenied' : 'signinError'), 6000), 300);
+  }
+}
 syncPing().then(pullTrackers).then(() => {
   savePrefs();
   if (state.tab === 'routes' || state.tab === 'settings') render();
