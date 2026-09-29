@@ -3,7 +3,7 @@
 // so nothing personal lands in the public repo and no database is needed.
 //
 // Vercel → Project → Settings → Environment Variables:
-//   GOOGLE_CLIENT_ID, ALLOWED_EMAILS, SESSION_SECRET   Google sign-in for Sean & Blue (see api/_lib/auth.mjs)
+//   PASSWORD_SEAN, PASSWORD_BLUE, SESSION_SECRET   password sign-in for Sean & Blue (see api/_lib/auth.mjs)
 //   TRACKERS_GITHUB_TOKEN   fine-grained GitHub token, this repo only, permission "Variables: Read and write"
 //   TRACKERS_REPO           optional, default seanx888/aethersky
 //
@@ -11,7 +11,8 @@
 //   GET  /api/trackers          → { trackers }                           (signed-in session cookie)
 //   PUT  /api/trackers          { trackers: [...] } → { trackers, saved }  (session cookie, same origin, JSON)
 // The scanner re-validates every trip (web/core/trackers.js); this layer only bounds shape and size.
-import { currentUser, sameOrigin, syncConfigured } from './_lib/auth.mjs';
+import { authStore, currentUser, sameOrigin, syncConfigured } from './_lib/auth.mjs';
+import { variables } from './_lib/github.mjs';
 
 const VAR = 'TRACKERS';
 const MAX_TRACKERS = 50;
@@ -49,39 +50,20 @@ export function sanitize(list) {
   });
 }
 
-function github(env, fetchImpl) {
-  const repo = env.TRACKERS_REPO || 'seanx888/aethersky';
-  const base = `https://api.github.com/repos/${repo}/actions/variables`;
-  const headers = {
-    Authorization: `Bearer ${env.TRACKERS_GITHUB_TOKEN}`,
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'aethersky-tracker-sync',
-  };
-  const fail = async (res, what) => {
-    const detail = (await res.text().catch(() => '')).slice(0, 160);
-    throw Object.assign(new Error(`GitHub ${what} HTTP ${res.status} ${detail}`), { status: res.status });
-  };
+/** The TRACKERS variable as a list. */
+function trackerStore(env, fetchImpl) {
+  const gh = variables(env, fetchImpl);
   return {
     async read() {
-      const res = await fetchImpl(`${base}/${VAR}`, { headers });
-      if (res.status === 404) return [];
-      if (!res.ok) await fail(res, 'read');
-      const { value } = await res.json();
+      const raw = await gh.read(VAR); // GitHub errors must surface (→ 502), only junk JSON is treated as "no trackers"
       try {
-        const v = JSON.parse(value || '[]');
+        const v = JSON.parse(raw || '[]');
         return Array.isArray(v) ? v : [];
       } catch {
         return [];
       }
     },
-    async write(list) {
-      const value = JSON.stringify(list);
-      const body = (extra) => JSON.stringify({ name: VAR, value, ...extra });
-      let res = await fetchImpl(`${base}/${VAR}`, { method: 'PATCH', headers, body: body() });
-      if (res.status === 404) res = await fetchImpl(base, { method: 'POST', headers, body: body() });
-      if (!res.ok) await fail(res, 'write');
-    },
+    write: (list) => gh.write(VAR, JSON.stringify(list)),
   };
 }
 
@@ -91,11 +73,17 @@ export async function handle(request, { env = process.env, fetchImpl = fetch, no
   if (request.method === 'GET' && url.searchParams.has('ping')) return json({ configured });
   if (!configured) return json({ error: 'sync-not-configured' }, 501);
   if (!['GET', 'PUT'].includes(request.method)) return json({ error: 'method-not-allowed' }, 405);
-  if (!currentUser(request, env, now)) return json({ error: 'sign-in-required' }, 401);
+  try {
+    const user = currentUser(request, env, await authStore(env, fetchImpl).load(), now);
+    if (!user) return json({ error: 'sign-in-required' }, 401);
+    if (user.mustChange) return json({ error: 'password-change-required' }, 403); // still on the initial password
+  } catch {
+    return json({ error: 'auth-store-unavailable' }, 503); // fail closed: never fall back to a password that was changed
+  }
   if (request.method === 'PUT' && (!sameOrigin(request) || !/^application\/json\b/i.test(request.headers.get('content-type') || ''))) {
     return json({ error: 'bad-origin' }, 403); // the cookie is sent automatically — only our own page may write
   }
-  const gh = github(env, fetchImpl);
+  const gh = trackerStore(env, fetchImpl);
   try {
     if (request.method === 'GET') return json({ trackers: await gh.read() });
     const text = await request.text();

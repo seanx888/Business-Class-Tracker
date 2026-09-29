@@ -309,12 +309,12 @@ flowchart LR
 **本 PR 已完成**
 - ✅ PWA 改名 **ÆtherSky**（標題、App 名稱、manifest、推播／Email 品牌）
 - ✅ **Real Tracker**：航線追蹤分頁 → 指定日期或彈性日期（±1～7 天）、艙等、轉機、目標價、通知對象；每日掃描自動查價；降價／找到更便宜日期／達標價／（可選）漲價 → **Email + ntfy 推播**
-- ✅ 追蹤清單同步：Vercel Function → 私人 GitHub Variable `TRACKERS`（Google 登入 + 白名單保護）
+- ✅ 追蹤清單同步：Vercel Function → 私人 GitHub Variable `TRACKERS`（兩組密碼登入保護，密碼決定是 Sean 或 Blue）
 - ✅ **會員卡夾**：新分頁，28 個常客計畫、等級建議、到期提醒、號碼遮蔽/複製、匯出/匯入備份；好價詳情顯示「可累積到你的會員」
 - ✅ Flutter App 骨架（`apps/mobile`）＋ Supabase 資料庫 schema（`backend/supabase`）＋ CI
 
 **需要 Sean / Blue 手動 Manual steps** → 見 [docs/SETUP.md](../SETUP.md) 第 8、9 步
-1. Vercel 環境變數 `GOOGLE_CLIENT_ID`、`ALLOWED_EMAILS`、`SESSION_SECRET`、`TRACKERS_GITHUB_TOKEN`（啟用同步與登入）
+1. Vercel 環境變數 `PASSWORD_SEAN`、`PASSWORD_BLUE`、`SESSION_SECRET`、`TRACKERS_GITHUB_TOKEN`（啟用同步與登入）
 2. GitHub Secrets `ALERT_EMAILS`、`SMTP_URL`（啟用 Email 通知）
 3. 決定：訂閱價格、是否申請 FlightAware AeroAPI（Personal 免費額度）與 OAG 試用
 4. 建立 Supabase 專案（建議區域 Tokyo `ap-northeast-1`）與 Apple / Google 開發者帳號

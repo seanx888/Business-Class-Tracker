@@ -313,7 +313,11 @@ pre.snippet { background: var(--subtle); border-radius: var(--radius-sm); paddin
 textarea { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font: inherit; font-size: 15px; resize: vertical; }
 textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.sync-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.sync-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.pw-box { margin-top: 10px; }
+.pw-box summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.pw-fields { display: grid; gap: 8px; margin-top: 6px; }
+.pw-fields input { min-width: 0; }
 .warn-text { color: var(--bad); }
 
 /* ── Member wallet ── */

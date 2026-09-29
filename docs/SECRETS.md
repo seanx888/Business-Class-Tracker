@@ -16,10 +16,9 @@
 | 優先 | 名稱 Name | 放在哪 Where | 用途 | 費用 | 步驟 |
 |---|---|---|---|---|---|
 | ★必要 | `SERPAPI_KEY` | GitHub **Secret** | 真實票價（Google Flights）。沒有 → 只顯示示範資料 | Free 250 次/月 | [A1](#a1-serpapi_key--真實票價) |
-| ★推薦 | `GOOGLE_CLIENT_ID` | **Vercel** env | Google 登入（公開值，只有 Sean & Blue 能登入）| Free | [B2](#b2-google-登入設定) |
-| ★推薦 | `ALLOWED_EMAILS` | **Vercel** env | 允許登入的 2 個 Google 帳號 | Free | [B3](#b3-vercel-環境變數) |
-| ★推薦 | `SESSION_SECRET` | **Vercel** env | 簽登入 Cookie 的隨機字串（≥32 字元）| 自己產生 | [B3](#b3-vercel-環境變數) |
-| ★推薦 | `TRACKERS_GITHUB_TOKEN` | **Vercel** env | GitHub 權杖，讓 App 寫入 `TRACKERS` | Free | [B1](#b1-github-fine-grained-權杖) |
+| ★推薦 | `PASSWORD_SEAN` / `PASSWORD_BLUE` | **Vercel** env | Sean 與 Blue 各一組**初始密碼**（密碼本身就決定是誰；登入後強制自己改）| 自己產生 | [B2](#b2-vercel-環境變數與登入) |
+| ★推薦 | `SESSION_SECRET` | **Vercel** env | 簽登入 Cookie 的隨機字串（≥32 字元）| 自己產生 | [B2](#b2-vercel-環境變數與登入) |
+| ★推薦 | `TRACKERS_GITHUB_TOKEN` | **Vercel** env | GitHub 權杖，讓 App 寫入 `TRACKERS`，也存放改過的密碼（雜湊）| Free | [B1](#b1-github-fine-grained-權杖) |
 | ★推薦 | `SMTP_URL` | GitHub **Secret** | 寄追蹤 Email 的帳號密碼 | Free | [C1](#c1-email-追蹤通知) |
 | ★推薦 | `ALERT_EMAILS` | GitHub **Secret** | 收件人 | Free | [C1](#c1-email-追蹤通知) |
 | 選用 | `NTFY_TOPICS` | GitHub **Secret** | ntfy 手機推播主題（等於密碼） | Free | [C2](#c2-ntfy-推播) |
@@ -63,7 +62,7 @@ Variables（選用，全部在 GitHub → Variables，見 [附錄](#附錄--gith
    - 舊的 CNAME `jcd-class` 確認新網域可開之後再刪。
 6. **兩支手機重新安裝**：舊網域的 PWA 和新網域是不同的「網站」，手機上的資料**不會自動搬過來**。
    - **會員卡夾**：舊 App → **會員** 分頁 → **匯出備份** → 開新網址 → **加入主畫面** → 會員分頁 **匯入**。
-   - **Real Tracker**：已同步的話，新 App → **設定 → 同步** → **Sign in with Google**，追蹤會自動回來。
+   - **Real Tracker**：已同步的話，新 App → **設定 → 同步** → 輸入你的密碼登入，追蹤會自動回來。
    - 語言、幣別、天合加權等偏好設定需重新選一次。
 7. **驗證**：<https://aethersky.bluechiou.com> 能開、`https://aethersky.bluechiou.com/api/trackers?ping=1` 回 JSON（`{"configured": …}`）。
 
@@ -93,16 +92,24 @@ Variables（選用，全部在 GitHub → Variables，見 [附錄](#附錄--gith
 
 ---
 
-## B. 追蹤同步與網站登入（Vercel + GitHub 權杖 + Google 登入）
+## B. 追蹤同步與登入（Vercel + GitHub 權杖）
 
 App 內新增的 Real Tracker → Vercel Function → 寫入 GitHub Variable `TRACKERS` → 每日掃描讀取。
-**誰能同步 = Google 登入 + 白名單**（取代舊的共用通關密碼 `APP_PASSCODE`，可從 Vercel 刪除）：
-- 只有 `ALLOWED_EMAILS` 裡的 Google 帳號登入得進去；其他人登入會被拒絕、拿不到 Cookie。
-- 網站本身與票價頁維持公開（票價資料在公開 repo，本來就看得到）；**登入只保護「追蹤同步」與個人功能**。
-- 登入資訊存成簽章過的 HttpOnly Cookie（30 天）；把某個 Email 從 `ALLOWED_EMAILS` 拿掉 = 立刻踢出。
+**會用到 SerpApi 額度的只有「每日掃描」，而它只查你同步上來的追蹤**，所以把「同步」鎖起來就等於鎖住額度：
+
+- 只有輸入正確密碼才能同步；**密碼本身就決定你是 Sean 還是 Blue**（兩組密碼不能相同），不需要帳號、不需要 Google。
+- 網站與票價頁維持公開（票價資料在公開 repo，本來就看得到）；訪客不會消耗任何額度。
+- 登入資訊是簽章過的 HttpOnly Cookie（30 天）；新增追蹤時「通知誰」預設就是登入的那個人。
+
+**密碼怎麼運作**
+1. **初始密碼**放在 Vercel（`PASSWORD_SEAN`、`PASSWORD_BLUE`）。用初始密碼登入後，App 會**立刻要求設定你自己的新密碼**；改完之前「同步追蹤清單」是鎖住的。
+2. **你自己的密碼**只以加鹽的 scrypt 雜湊存在 GitHub Variable `AUTH`（App 用 `TRACKERS_GITHUB_TOKEN` 自動寫入，不用手動建立）。改完後初始密碼就作廢；改密碼會把你在其他裝置的登入一併登出。
+3. **忘記密碼**：GitHub → Settings → Secrets and variables → Actions → **Variables** → `AUTH` → 編輯，把你的那一項（`"sean": {…}` 或 `"blue": {…}`）刪掉（或整個 Variable 刪除）→ 又可以用 Vercel 的初始密碼登入，並再次被要求改密碼。
+   ⚠️ 初始密碼若曾出現在聊天或截圖，重設前先到 Vercel 換成新的隨機初始密碼。
+4. **想暫時踢掉某人**：從 Vercel 刪掉他的 `PASSWORD_XXX`，他的登入立刻失效。
 
 ### B1. GitHub fine-grained 權杖
-**放：Vercel env `TRACKERS_GITHUB_TOKEN`（B3）。**
+**放：Vercel env `TRACKERS_GITHUB_TOKEN`（B2）。** 追蹤清單與密碼雜湊都靠它寫入 GitHub Variables。
 
 1. <https://github.com/settings/personal-access-tokens/new>（登入 seanx888）
 2. Token name：`aethersky-trackers`；Expiration：1 year（**到期前要換**，日曆記一下）。
@@ -110,43 +117,23 @@ App 內新增的 Real Tracker → Vercel Function → 寫入 GitHub Variable `TR
 4. Repository permissions → **Variables：Read and write**（其他全部不給）→ **Generate token** → 立刻複製（只顯示一次，`github_pat_…`）。
 5. 舊權杖：<https://github.com/settings/personal-access-tokens> → 舊的 `aethersky-trackers` → **Delete**（全面重設就刪掉舊的）。
 
-### B2. Google 登入設定
-**取得：`GOOGLE_CLIENT_ID`（公開值，不是機密；不需要 Client secret）。**
-
-1. <https://console.cloud.google.com> → 左上專案選單 → **New project** → 名稱 `aethersky`（用 Sean 的 Google 帳號）。
-2. **先做「品牌 / 同意畫面」**（新介面叫 *Google Auth Platform*，第一次進去會跳出 *Project configuration* 精靈，四步驟）：
-   1. **App Information**：App name `ÆtherSky`；User support email 選你的信箱 → **Next**
-   2. **Audience**：選 **External** → **Next**
-   3. **Contact Information**：填你的信箱 → **Next**
-   4. **Finish**：勾同意 Google API Services User Data Policy → **Continue** → **Create**
-3. **建立 OAuth Client ID**：左側選單 **Clients**（不是 Branding）→ **+ Create client** → Application type：**Web application**，Name：`ÆtherSky web`：
-   - **Authorized JavaScript origins** → Add URI：`https://aethersky.bluechiou.com`
-   - **Authorized redirect URIs** → Add URI：`https://aethersky.bluechiou.com/api/auth`（要完全一致，不能少 `/api/auth`）
-   - **Create** → 複製 **Client ID**（`1234…apps.googleusercontent.com`）。Client secret 用不到，可忽略。
-   - 找不到 *Clients*：頂端搜尋列輸入 `Clients`，或直接開 <https://console.cloud.google.com/auth/clients>（要先選對專案 `aethersky`）。
-4. **加入允許登入的人**：左側 **Audience** → Publishing status 維持 **Testing** → **Test users → + Add users** → 加入 **Sean 與 Blue 的 Google 帳號**（不在名單的帳號 Google 直接顯示 `access_denied`，多一層保險）。
-5. 產生 `SESSION_SECRET`（自己產生的隨機字串，至少 32 字元）：終端機 `openssl rand -base64 48`，或用密碼管理員產生 40+ 字元。**只存 Vercel，別貼到任何地方。**
-
-### B3. Vercel 環境變數
-<https://vercel.com/seanx888> → 專案 `aethersky` → **Settings → Environment Variables**
+### B2. Vercel 環境變數與登入
+<https://vercel.com/seanx888> → 專案 `aethersky` → **Settings → Environment Variables**（Production）
 
 | Key | Value | 備註 |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` | B2 的 Client ID | 公開值 |
-| `ALLOWED_EMAILS` | `sean的gmail@gmail.com,blue的gmail@gmail.com` | 逗號隔開，就是 Google 登入用的帳號（大小寫不拘）|
-| `SESSION_SECRET` | B2 產生的隨機字串（≥32 字元）| 勾 **Sensitive**；換掉這個值 = 所有人被登出 |
+| `PASSWORD_SEAN` | Sean 的**初始**密碼，≥ 12 字元 | 勾 **Sensitive**；建議隨機（例如 `XXXX-XXXX-XXXX-XXXX`）|
+| `PASSWORD_BLUE` | Blue 的**初始**密碼，≥ 12 字元，不可與 Sean 的相同 | 同上 |
+| `SESSION_SECRET` | 隨機字串 ≥ 32 字元（`openssl rand -base64 48`）| 勾 **Sensitive**；換掉這個值 = 所有人被登出 |
 | `TRACKERS_GITHUB_TOKEN` | B1 的權杖 | 勾 **Sensitive** |
-| `TRACKERS_REPO` | （不用填）預設已是 `seanx888/aethersky` | 若之前設過，值要是 `seanx888/aethersky` 或直接刪掉 |
-| ~~`APP_PASSCODE`~~ | 舊的通關密碼 | **刪除**（已不再使用）|
+| `TRACKERS_REPO` | （不用填）預設已是 `seanx888/aethersky` | 若設過，值必須是 `seanx888/aethersky`，或直接刪掉 |
+| ~~`GOOGLE_CLIENT_ID`~~、~~`ALLOWED_EMAILS`~~、~~`APP_PASSCODE`~~ | 舊方案 | **刪除**（已不再使用；Google Cloud 那個專案也可以刪）|
 
-- Environment 勾 **Production**（要在 Preview 測試才另勾 Preview）→ Save。
-- ⚠️ **一定要重新部署才生效**：Deployments → 最新一筆 **⋯ → Redeploy**（本次改動要先 merge 到 `main` 才會上線）。
-- 驗證 ①：`https://aethersky.bluechiou.com/api/trackers?ping=1` → `{"configured":true}`（四個變數都齊才是 true）。
-- 驗證 ②：兩支手機 → App **設定 → 同步** → 點 **Sign in with Google** → 選允許的帳號 → 回到 App 顯示「已登入：你的信箱」＋「已同步」。
-- 驗證 ③：用**不在白名單**的 Google 帳號登入 → 顯示「這個 Google 帳號沒有權限」。
-- 之後 GitHub → Variables 會出現 `TRACKERS`（App 自動寫入，不用手動建立）。
-
-> 手機是「加到主畫面」的 App 也能登入（用整頁跳轉，不是彈出視窗）。若之後要換網域，記得回 B2 更新 Authorized origins / redirect URI。
+- 環境變數要**重新部署**才生效（合併 PR 會自動部署）。
+- 驗證 ①：開 `https://aethersky.bluechiou.com/api/auth` → `{"configured":true,"user":null,"problems":[]}`。
+  `configured:false` 時 `problems` 會列出缺少或無效的變數名稱（只有名稱，沒有值）；若寫 `GitHub variables unreachable`，檢查 `TRACKERS_GITHUB_TOKEN` 與 `TRACKERS_REPO`。
+- 驗證 ②：App → **設定 → 同步** → 輸入初始密碼 → 顯示「已登入：Sean」和一個**要求更改密碼**的表單 → 設定新密碼（≥ 12 字元）→ 顯示「已同步」。
+- 驗證 ③：GitHub → Variables 會出現 `TRACKERS`、`AUTH`（App 自動寫入）。`AUTH` 裡只有雜湊，看不到密碼。
 
 ---
 
@@ -276,10 +263,10 @@ Android 套件 ID `app.aethersky.aethersky`；上架用的簽章金鑰、Apple /
 **再設定**
 - [ ] §0 Vercel 改名 `aethersky` + 網域 + Cloudflare DNS
 - [ ] A1 `SERPAPI_KEY` → 手動 Run workflow → Summary 顯示 `serpapi ✅`
-- [ ] B1 權杖 → B2 Google OAuth Client ID → B3 Vercel env（`GOOGLE_CLIENT_ID`、`ALLOWED_EMAILS`、`SESSION_SECRET`、`TRACKERS_GITHUB_TOKEN`；刪掉 `APP_PASSCODE`）→ **Redeploy** → `/api/trackers?ping=1` 回 `configured:true`
+- [ ] B1 權杖 → B2 Vercel env（`PASSWORD_SEAN`、`PASSWORD_BLUE`、`SESSION_SECRET`、`TRACKERS_GITHUB_TOKEN`；刪掉 `GOOGLE_CLIENT_ID`、`ALLOWED_EMAILS`、`APP_PASSCODE`）→ **Redeploy** → `/api/auth` 回 `configured:true`
 - [ ] C1 `SMTP_URL` + `ALERT_EMAILS` → Summary 的 Real Tracker 顯示 `sent`
 - [ ] C2 `NTFY_TOPICS`（選用）→ `NOTIFICATIONS=on`（想開始推播時）
-- [ ] 兩支手機用新網址重新安裝、**設定 → 同步** 用 Google 登入
+- [ ] 兩支手機用新網址重新安裝、**設定 → 同步** 用各自的初始密碼登入 → 立刻改成自己的密碼
 - [ ] （P1）D、E 只在要做手機 App 時進行
 
 ---

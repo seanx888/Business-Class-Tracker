@@ -177,15 +177,13 @@ Trackers saved in the app are written to the private repository variable `TRACKE
    - Token name：`aethersky-trackers`；Expiration：1 year（到期前記得更新）
    - Repository access：**Only select repositories** → `aethersky`
    - Permissions → Repository permissions → **Variables：Read and write**（其他都不用）→ **Generate token** → 複製
-2. **Google 登入**（Sean 與 Blue 各用自己的 Google 帳號，取代舊的共用通關密碼）：到 Google Cloud 建立 OAuth Client ID，
-   步驟見 [SECRETS.md 第 B2 節](SECRETS.md#b2-google-登入設定)。
-3. **Vercel 環境變數**：<https://vercel.com> → 專案 `aethersky` → **Settings → Environment Variables**
+2. **Vercel 環境變數**：<https://vercel.com> → 專案 `aethersky` → **Settings → Environment Variables**（Production）
    - `TRACKERS_GITHUB_TOKEN` = 第 1 步的權杖（勾選 Sensitive）
-   - `GOOGLE_CLIENT_ID` = 第 2 步的 Client ID；`ALLOWED_EMAILS` = `兩個Gmail用逗號隔開`；`SESSION_SECRET` = 隨機字串 ≥ 32 字元（`openssl rand -base64 48`）
-   - Environment 選 **Production** → Save → **Deployments → 最新一筆 ⋯ → Redeploy**（環境變數要重新部署才生效）
-   - 舊的 `APP_PASSCODE` 已不使用，可刪除。
-4. **兩支手機**：App → **設定 → 同步** → **Sign in with Google**。之後新增／修改／暫停／刪除都會自動同步。
-5. 驗證：GitHub → Settings → Secrets and variables → Actions → **Variables** 出現 `TRACKERS`。
+   - `PASSWORD_SEAN`、`PASSWORD_BLUE` = Sean、Blue 各自的**初始密碼**（≥ 12 字元、不可相同）；`SESSION_SECRET` = 隨機字串 ≥ 32 字元（`openssl rand -base64 48`）
+   - 存檔後**重新部署**（Deployments → 最新一筆 ⋯ → Redeploy）。舊的 `GOOGLE_CLIENT_ID`、`ALLOWED_EMAILS`、`APP_PASSCODE` 已不使用，可刪除。
+3. **兩支手機**：App → **設定 → 同步** → 輸入初始密碼登入（密碼會自動辨識是 Sean 或 Blue）→ App 會**立刻要求設定自己的新密碼**，改完才會開始同步。之後新增／修改／暫停／刪除都會自動同步。
+   詳細說明與忘記密碼的處理：[SECRETS.md 第 B 節](SECRETS.md#b-追蹤同步與登入vercel--github-權杖)。
+4. 驗證：GitHub → Settings → Secrets and variables → Actions → **Variables** 出現 `TRACKERS` 與 `AUTH`（只含密碼雜湊）。
 
 > 不想設定同步？在「即時追蹤」頁最下方 **複製 JSON** → 貼到 Variable `TRACKERS`（每次修改都要重貼）。
 > Without sync: copy the JSON at the bottom of the Real Tracker page into the `TRACKERS` variable by hand.
@@ -263,7 +261,7 @@ sean=sean的信箱#zh-TW,blue=blue的信箱#en
 | `TRACKERS` | Variable | Real Tracker 行程 JSON（App 同步自動寫入，第 8 步）|
 | `TRACKER_NOTIFICATIONS` | Variable | `paused` = 暫停追蹤通知（預設開啟）|
 | `MAIL_FROM` | Variable | 選用：寄件人名稱與地址 |
-| `GOOGLE_CLIENT_ID`, `ALLOWED_EMAILS`, `SESSION_SECRET`, `TRACKERS_GITHUB_TOKEN` | **Vercel** env | 追蹤同步與 Google 登入（第 8 步）|
+| `PASSWORD_SEAN`, `PASSWORD_BLUE`, `SESSION_SECRET`, `TRACKERS_GITHUB_TOKEN` | **Vercel** env | 追蹤同步與兩組密碼登入（第 8 步）|
 | `DEPLOY_TARGET` | Variable | `none`（預設，Vercel 讀 GitHub 資料）· `pages` · `vercel` · `pages,vercel` |
 | `SITE_URL` | Variable | 推播連結網址（預設 `config/routes.json` 的 `siteUrl` = Vercel 網址）|
 | `PRICE_ALERTS` | Variable | 個人目標價 JSON |
@@ -285,8 +283,8 @@ sean=sean的信箱#zh-TW,blue=blue的信箱#en
 | 沒收到推播 | 目前暫停中（Variable `NOTIFICATIONS=on` 才會開始）？主題名稱是否一致？今天沒有 ≥ 72 分的新好價？示範資料不推播 |
 | 每天沒有自動執行 | 預設分支必須是 `main`（第 1 步）|
 | App 資料沒更新 | 看 Actions 當天是否綠色 ✓；App 右上 ↻ 重新整理（GitHub 快取約 5 分鐘）|
-| 同步顯示「伺服器尚未設定」| Vercel 少了 `GOOGLE_CLIENT_ID` / `ALLOWED_EMAILS` / `SESSION_SECRET`（≥ 32 字元）/ `TRACKERS_GITHUB_TOKEN` 其中之一，或設定後沒 Redeploy |
-| 登入後顯示「沒有權限」| 該 Google 帳號不在 `ALLOWED_EMAILS`（要用 Google 登入的那個信箱），或 Google Cloud 的 Test users 沒加 |
-| Google 登入出現 `redirect_uri_mismatch` | OAuth Client 的 **Authorized redirect URIs** 必須是 `https://aethersky.bluechiou.com/api/auth`（SECRETS.md B2）|
+| 同步顯示「伺服器尚未設定」| 畫面會列出缺少或無效的變數（也可開 `/api/auth` 看 `problems`）：`PASSWORD_SEAN` / `PASSWORD_BLUE`（≥ 12 字元、不可相同）、`SESSION_SECRET`（≥ 32 字元）、`TRACKERS_GITHUB_TOKEN`；設定後要 Redeploy |
+| 登入顯示「密碼不正確」| 輸入的不是 Sean 或 Blue 目前的密碼；改過密碼後初始密碼就作廢。忘記了 → SECRETS.md 第 B 節「忘記密碼」|
+| 登入後一直要求更改密碼 | 還在用初始密碼；設定新密碼（≥ 12 字元）後才會開始同步 |
 | 同步失敗 | 權杖過期或沒有 **Variables: Read and write** 權限（第 8 步）|
 | 沒收到追蹤 Email | 還在 demo 資料？`ALERT_EMAILS` 名字和「通知誰」一致？Gmail 要用**應用程式密碼**；Summary 的 Real Tracker 列會顯示寄送結果；查垃圾郵件匣 |
