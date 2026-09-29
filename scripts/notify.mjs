@@ -1,7 +1,7 @@
 // Push notifications via ntfy (https://ntfy.sh) — free, no account needed, iOS + Android apps.
 //
 // Secret NTFY_TOPICS: comma-separated subscribers, each `name=topic@lang` (name and lang optional):
-//   sean=bct-sean-7Hq2xP9w@zh-TW,blue=bct-blue-Lm4vR8kz@en
+//   usera=bct-usera-7Hq2xP9w@zh-TW,userb=bct-userb-Lm4vR8kz@en
 // Everyone gets the daily digest in their own language; personal price targets
 // (config/routes.json → priceAlerts) go only to the named person.
 // Optional: NTFY_SERVER (self-hosted), NTFY_TOKEN (access token for protected topics).

@@ -101,17 +101,17 @@ test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pu
   const env = {
     SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '1', SCAN_DELAY_MS: '0',
     WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24', label: 'Paris' }]),
-    PRICE_ALERTS: JSON.stringify([{ who: 'blue', route: 'TPE-CDG', maxTWD: 130000 }]),
-    NTFY_TOPICS: 'sean=t-sean@zh-TW,blue=t-blue@en',
+    PRICE_ALERTS: JSON.stringify([{ who: 'userb', route: 'TPE-CDG', maxTWD: 130000 }]),
+    NTFY_TOPICS: 'usera=t-usera@zh-TW,userb=t-userb@en',
     NOTIFICATIONS: 'on', // repository variable overrides the paused default in config
   };
   const { out, alertHits } = await runScan({ root, outDir, env, fetchImpl, today: '2026-09-26', log: quiet });
   assert.equal(out.notifications, 'on');
   assert.ok(out.deals.every((d) => d.routeKey === 'TPE-CDG' && d.label === 'Paris'));
-  assert.equal(alertHits.get('blue')[0].deal.primaryCarrier, 'KE', 'cheapest China-free option (KE 112,000) — never CX/AF');
-  assert.ok(pushed.some((p) => p.topic === 't-blue' && /target NT\$130,000/.test(p.body)));
-  assert.ok(!pushed.some((p) => p.topic === 't-sean' && /target/.test(p.body)), 'Sean does not get Blue\'s personal alert');
-  assert.equal(JSON.stringify(out).includes('t-blue'), false, 'topics never published');
+  assert.equal(alertHits.get('userb')[0].deal.primaryCarrier, 'KE', 'cheapest China-free option (KE 112,000) — never CX/AF');
+  assert.ok(pushed.some((p) => p.topic === 't-userb' && /target NT\$130,000/.test(p.body)));
+  assert.ok(!pushed.some((p) => p.topic === 't-usera' && /target/.test(p.body)), 'USERA does not get USERB\'s personal alert');
+  assert.equal(JSON.stringify(out).includes('t-userb'), false, 'topics never published');
   assert.ok(pushed.every((p) => p.click === 'https://aethersky.bluechiou.com/'), 'push links open the Vercel app');
 });
 
@@ -126,9 +126,9 @@ test('notifications paused (config default): nothing is pushed even with NTFY_TO
     return Promise.reject(new Error('offline'));
   };
   const env = {
-    SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '1', SCAN_DELAY_MS: '0', NTFY_TOPICS: 'sean=t-sean@zh-TW',
+    SERPAPI_KEY: 'k', SEARCHES_PER_RUN: '1', SCAN_DELAY_MS: '0', NTFY_TOPICS: 'usera=t-usera@zh-TW',
     WATCH_TRIPS: JSON.stringify([{ o: 'TPE', d: 'CDG', depart: '2026-11-10', return: '2026-11-24' }]),
-    PRICE_ALERTS: JSON.stringify([{ who: 'sean', route: 'TPE-CDG', maxTWD: 999999 }]),
+    PRICE_ALERTS: JSON.stringify([{ who: 'usera', route: 'TPE-CDG', maxTWD: 999999 }]),
   };
   const logs = [];
   const { out, alertHits, sent } = await runScan({ root, outDir: path.join(root, 'out'), env, fetchImpl, today: '2026-09-26', log: (m) => logs.push(m) });

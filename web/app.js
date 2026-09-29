@@ -20,7 +20,7 @@ function loadPrefs() {
   try {
     const saved = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
     const p = { ...base, ...saved, filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) } };
-    delete p.syncKey; // the shared passcode was replaced by Google sign-in
+    delete p.syncKey; // the old shared passcode is gone (two passwords now, kept on the server)
     // Always open in Traditional Chinese unless someone explicitly picked another language in Settings.
     if (!p.langChosen) p.lang = 'zh-TW';
     return p;
@@ -42,7 +42,7 @@ const TABS = ['deals', 'special', 'routes', 'members', 'settings'];
 const state = {
   data: null, deals: [], history: null, tab: 'deals', special: 'ex', routesView: 'tracker', error: null, dropped: 0, limit: 40, installEvt: null, exOpen: new Set(), filtersOpen: false,
   trackerData: null, trackerForm: null, trackerErr: null, trkOpen: new Set(),
-  sync: { configured: null, status: 'idle', user: null, clientId: null },
+  sync: { configured: null, status: 'idle', user: null, problems: [], pwMsg: '' },
   memberForm: null, memberErr: null, memberReveal: new Set(), memberFilter: 'all',
 };
 
@@ -712,7 +712,9 @@ function renderRoutes() {
 // variable TRACKERS that the daily scanner reads. Results come from data/trackers.json.
 const todayTpe = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
 const people = () => (state.data?.people?.length ? state.data.people : []);
-const capName = (n) => String(n || '').replace(/^./, (c) => c.toUpperCase());
+const capName = (n) => (/^user[a-z]$/i.test(n) ? String(n).toUpperCase() : String(n || '').replace(/^./, (c) => c.toUpperCase()));
+// New trackers notify whoever is signed in (the password says who that is); otherwise everyone.
+const myNotify = () => (state.sync.user && people().includes(state.sync.user.name) ? [state.sync.user.name] : 'all');
 
 function apDatalist() {
   return `<datalist id="ap-list">${Object.entries(AIRPORTS).map(([c, a]) => `<option value="${c}">${esc(city(c))} · ${esc(a.en)}</option>`).join('')}</datalist>`;
@@ -729,7 +731,7 @@ function trackerList() {
   return [...local, ...remote];
 }
 
-const syncReady = () => !!(state.sync.configured && state.sync.user && state.sync.status !== 'auth');
+const syncReady = () => !!(state.sync.configured && state.sync.user && !state.sync.user.mustChange && state.sync.status !== 'auth');
 
 function trackerStatus(tr, st, local) {
   if (tr.paused) return 'paused';
@@ -819,7 +821,7 @@ function defaultTrackerForm() {
   const today = todayTpe();
   const dep = new Date(Date.parse(today) + 60 * 86400000).toISOString().slice(0, 10);
   const ret = new Date(Date.parse(today) + 70 * 86400000).toISOString().slice(0, 10);
-  return { o: 'TPE', d: '', trip: 'rt', mode: 'fixed', depart: dep, return: ret, flex: 3, cabin: 'business', maxStops: null, target: '', alertOn: 'drop', notify: 'all', label: '' };
+  return { o: 'TPE', d: '', trip: 'rt', mode: 'fixed', depart: dep, return: ret, flex: 3, cabin: 'business', maxStops: null, target: '', alertOn: 'drop', notify: myNotify(), label: '' };
 }
 
 function trackerFormHtml(f) {
@@ -882,9 +884,11 @@ function trackerHtml() {
 }
 
 // ── Sync with the server (Vercel function → GitHub variable TRACKERS) ──
-// Access: Google sign-in for the two owners; the server keeps a signed HttpOnly cookie (nothing readable here).
+// Access: one password each for USERA and USERB (the password says who is who). The server keeps a signed HttpOnly
+// cookie; nothing secret is readable here. Only the sync — what spends SerpApi quota — sits behind the password.
 const SYNC_API = 'api/trackers';
 const AUTH_API = 'api/auth';
+let lastLoginPassword = ''; // kept in memory only, so the forced first password change does not ask for it twice
 
 async function syncPing() {
   try {
@@ -892,8 +896,8 @@ async function syncPing() {
     const ok = res.ok && (res.headers.get('content-type') || '').includes('json');
     const info = ok ? await res.json() : {};
     state.sync.configured = !!info.configured;
-    state.sync.clientId = info.clientId || null;
     state.sync.user = info.user || null;
+    state.sync.problems = Array.isArray(info.problems) ? info.problems : [];
   } catch {
     state.sync.configured = false;
   }
@@ -906,13 +910,19 @@ async function syncCall(method, body) {
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     state.sync.user = null;
     throw Object.assign(new Error('auth'), { code: 'auth' });
+  }
+  if (res.status === 403) {
+    if (state.sync.user) state.sync.user.mustChange = true;
+    throw Object.assign(new Error('mustchange'), { code: 'mustchange' });
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+const syncFailure = (e) => (e.code === 'auth' || e.code === 'mustchange' ? e.code : 'error');
 
 function syncDone() {
   state.sync.status = 'ok';
@@ -922,7 +932,7 @@ function syncDone() {
 }
 
 async function pullTrackers() {
-  if (!state.sync.configured || !state.sync.user) return;
+  if (!syncReady()) return;
   state.sync.status = 'busy';
   try {
     const { trackers } = await syncCall('GET');
@@ -937,62 +947,126 @@ async function pullTrackers() {
     }
     syncDone();
   } catch (e) {
-    state.sync.status = e.code === 'auth' ? 'auth' : 'error';
+    state.sync.status = syncFailure(e);
   }
 }
 
 async function pushTrackers() {
   savePrefs();
-  if (!state.sync.configured || !state.sync.user) return false;
+  if (!syncReady()) return false;
   state.sync.status = 'busy';
   try {
     await syncCall('PUT', { trackers: prefs.trackers });
     syncDone();
     return true;
   } catch (e) {
-    state.sync.status = e.code === 'auth' ? 'auth' : 'error';
+    state.sync.status = syncFailure(e);
     return false;
   }
 }
 
 function syncStatusText() {
   const s = state.sync;
-  if (s.configured === false) return t('syncStatus_off');
+  if (s.configured === false) return s.problems.length ? `${t('syncStatus_off')} ${t('syncMissing', { list: s.problems.join(', ') })}` : t('syncStatus_off');
   if (s.configured == null) return t('syncStatus_busy');
-  if (!state.sync.user) return s.status === 'auth' ? t('syncStatus_auth') : t('syncStatus_nokey');
+  if (!s.user) return s.status === 'wrong' ? t('syncStatus_wrong') : s.status === 'auth' ? t('syncStatus_auth') : t('syncStatus_nokey');
+  if (s.user.mustChange || s.status === 'mustchange') return t('syncStatus_change');
   if (s.status === 'ok') return t('syncStatus_ok', { t: fmtWhen(prefs.syncedAt) });
   if (s.status === 'auth' || s.status === 'error' || s.status === 'busy') return t('syncStatus_' + s.status);
   return '';
 }
 
-let googleScript;
-function loadGoogle() {
-  googleScript ||= new Promise((resolve, reject) => {
-    const el = document.createElement('script');
-    el.src = 'https://accounts.google.com/gsi/client';
-    el.async = true;
-    el.onload = () => resolve(window.google);
-    el.onerror = () => {
-      googleScript = null; // let the next visit retry
-      reject(new Error('Google sign-in unavailable'));
-    };
-    document.head.append(el);
-  });
-  return googleScript;
+// Sign in with the password; the server answers with who it belongs to.
+async function syncLogin(password) {
+  if (!password) return;
+  state.sync.status = 'busy';
+  state.sync.pwMsg = '';
+  renderSettings();
+  try {
+    const res = await fetch(AUTH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+    if (res.status === 401) state.sync.status = 'wrong';
+    else if (!res.ok) state.sync.status = 'error';
+    else {
+      state.sync.user = (await res.json()).user;
+      state.sync.status = 'idle';
+      prefs.synced = false;
+      lastLoginPassword = password;
+      if (!state.sync.user.mustChange) {
+        await pullTrackers();
+        savePrefs();
+      }
+    }
+  } catch {
+    state.sync.status = 'error';
+  }
+  renderSettings();
+  if (state.sync.user?.mustChange) focusPasswordChange();
 }
 
-// Full-page redirect flow (ux_mode=redirect): works in installed home-screen apps, where pop-ups are unreliable.
-async function mountGoogleButton() {
-  const el = $('#g-signin');
-  if (!el || !state.sync.clientId) return;
-  try {
-    const { accounts } = await loadGoogle();
-    accounts.id.initialize({ client_id: state.sync.clientId, ux_mode: 'redirect', login_uri: `${location.origin}/api/auth`, auto_select: false });
-    el.textContent = '';
-    accounts.id.renderButton(el, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: prefs.lang });
-  } catch {
-    el.textContent = t('syncStatus_error');
+const PW_ERRORS = { 'too-short': 'pwShort', 'too-long': 'pwShort', 'same-as-current': 'pwSame', 'same-as-initial': 'pwSame', taken: 'pwTaken' };
+
+async function changePassword(current, next, confirm) {
+  const s = state.sync;
+  s.pwMsg = '';
+  if (next !== confirm) s.pwMsg = 'pwMismatch';
+  else if (next.length < 12) s.pwMsg = 'pwShort';
+  else if (!current) s.pwMsg = 'pwWrong';
+  if (!s.pwMsg) {
+    try {
+      const res = await fetch(AUTH_API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current, next }) });
+      if (res.ok) {
+        s.user = (await res.json()).user;
+        s.status = 'idle';
+        lastLoginPassword = '';
+        toast(t('pwDone'));
+        await pullTrackers();
+        savePrefs();
+      } else {
+        const { error } = await res.json().catch(() => ({}));
+        s.pwMsg = res.status === 401 ? 'pwWrong' : PW_ERRORS[error] || 'pwError';
+      }
+    } catch {
+      s.pwMsg = 'pwError';
+    }
   }
+  renderSettings();
+  if (s.pwMsg) focusPasswordChange();
+}
+
+// Right after the first sign-in: bring the "choose your own password" form into view.
+function focusPasswordChange() {
+  requestAnimationFrame(() => {
+    const el = $('#pw-new');
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el?.focus({ preventScroll: true });
+  });
+}
+
+function syncBoxHtml() {
+  const s = state.sync;
+  const off = s.configured === false;
+  if (!s.user) {
+    return `<div class="sync-row">
+        <input type="password" id="sync-pass" autocomplete="current-password" placeholder="${esc(t('syncPassword'))}" aria-label="${esc(t('syncPassword'))}" ${off ? 'disabled' : ''}>
+        <button class="btn" data-act="sync-login" ${off ? 'disabled' : ''}>${icon('cloud-check')}${esc(t('syncLogin'))}</button>
+      </div>`;
+  }
+  const must = s.user.mustChange;
+  const needCurrent = !(must && lastLoginPassword);
+  return `
+    <div class="sync-row"><span class="small">${icon('cloud-check')} ${esc(t('syncSignedInAs', { who: capName(s.user.name) }))}</span>
+      <button class="btn quiet" data-act="sync-signout">${esc(t('syncSignOut'))}</button></div>
+    ${must ? notice(t('pwMustChange'), true) : ''}
+    <details class="pw-box" ${must ? 'open' : ''}>
+      <summary>${esc(t('pwTitle'))}</summary>
+      <div class="pw-fields">
+        ${needCurrent ? `<input type="password" id="pw-current" autocomplete="current-password" placeholder="${esc(t('pwCurrent'))}" aria-label="${esc(t('pwCurrent'))}">` : ''}
+        <input type="password" id="pw-new" autocomplete="new-password" minlength="12" placeholder="${esc(t('pwNew'))}" aria-label="${esc(t('pwNew'))}">
+        <input type="password" id="pw-confirm" autocomplete="new-password" placeholder="${esc(t('pwConfirm'))}" aria-label="${esc(t('pwConfirm'))}">
+        <button class="btn primary" data-act="pw-save">${esc(t('pwSave'))}</button>
+        ${s.pwMsg ? `<span class="help warn-text">${esc(t(s.pwMsg))}</span>` : ''}
+      </div>
+    </details>`;
 }
 
 async function saveTrackerForm() {
@@ -1233,11 +1307,8 @@ function renderSettings() {
     <div class="group-title">${esc(t('grpSync'))}</div>
     <section class="panel">
       ${setting(t('rtTracker'), `
-        ${state.sync.user
-    ? `<div class="sync-row"><span class="small">${icon('cloud-check')} ${esc(t('syncSignedInAs', { who: state.sync.user.email }))}</span>
-          <button class="btn quiet" data-act="sync-signout">${esc(t('syncSignOut'))}</button></div>`
-    : state.sync.configured && state.sync.clientId ? '<div id="g-signin" class="sync-row" style="min-height:44px"></div>' : ''}
-        <span class="help${state.sync.status === 'auth' || state.sync.status === 'error' ? ' warn-text' : ''}">${esc(syncStatusText())}</span>`, t('syncHelp'))}
+        ${syncBoxHtml()}
+        ${state.sync.user?.mustChange ? '' : `<span class="help${['auth', 'error', 'wrong'].includes(state.sync.status) ? ' warn-text' : ''}">${esc(syncStatusText())}</span>`}`, t('syncHelp'))}
     </section>
 
     <div class="group-title">${esc(t('notifications'))}</div>
@@ -1264,7 +1335,6 @@ function renderSettings() {
     </section>
     <p class="small muted" style="text-align:center;margin:20px 0">${Object.keys(AIRLINES).length} airlines · SkyTeam first</p>
   `;
-  mountGoogleButton();
 }
 
 // ───────────────────────── alerts ─────────────────────────
@@ -1449,10 +1519,18 @@ document.addEventListener('click', async (e) => {
       renderRoutes();
       return;
     // Sync
+    case 'sync-login':
+      await syncLogin($('#sync-pass')?.value || '');
+      return;
+    case 'pw-save':
+      await changePassword(lastLoginPassword && !$('#pw-current') ? lastLoginPassword : $('#pw-current')?.value || '', $('#pw-new')?.value || '', $('#pw-confirm')?.value || '');
+      return;
     case 'sync-signout':
       await fetch(AUTH_API, { method: 'DELETE' }).catch(() => {});
       state.sync.user = null;
       state.sync.status = 'idle';
+      state.sync.pwMsg = '';
+      lastLoginPassword = '';
       prefs.synced = false;
       break;
     // Member wallet
@@ -1623,14 +1701,11 @@ setLang(prefs.lang);
 readHash();
 render();
 loadData();
-{
-  const result = new URLSearchParams(location.search).get('signin');
-  if (result) {
-    history.replaceState(null, '', `${location.pathname}#/settings`); // back from Google: drop ?signin=…
-    readHash();
-    setTimeout(() => toast(t(result === 'denied' ? 'signinDenied' : 'signinError'), 6000), 300);
-  }
-}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const act = { 'sync-pass': 'sync-login', 'pw-confirm': 'pw-save' }[e.target?.id];
+  if (act) document.querySelector(`[data-act="${act}"]`)?.click();
+});
 syncPing().then(pullTrackers).then(() => {
   savePrefs();
   if (state.tab === 'routes' || state.tab === 'settings') render();

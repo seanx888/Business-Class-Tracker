@@ -29,14 +29,14 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 | 📈 | 航線價格歷史、30 天／歷史最低、目標價提醒 | Per-route price history, 30-day/all-time lows, target-price alerts |
 | 🔗 | 一鍵開啟 Google Flights / Skyscanner / KAYAK / 航空公司官網（商務艙預設）| One-tap deep links, business cabin pre-selected |
 | ☁️ | Vercel 託管，資料每天由 GitHub Actions 更新、App 直接讀取 | Hosted on Vercel; data refreshed daily from the repo |
-| 🔔 | （目前暫停）ntfy 每日推播：Sean、Blue 各自的語言；個人目標價只推給本人 | ntfy daily push per person, in each person's language; personal price targets |
+| 🔔 | （目前暫停）ntfy 每日推播：USERA、USERB 各自的語言；個人目標價只推給本人 | ntfy daily push per person, in each person's language; personal price targets |
 | 🌏 | 預設繁體中文（可切換 English / 한국어），深色／淺色，離線可用 | Defaults to zh-TW (EN / KO selectable), dark/light, offline |
 
 ---
 
 ## 快速開始 Quick start
 
-👉 **全部金鑰／Secrets 一覽與重設步驟：[docs/SECRETS.md](docs/SECRETS.md)**；各功能詳細說明：**[docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 Sean & Blue）。 Full step-by-step guide.
+👉 **全部金鑰／Secrets 一覽與重設步驟：[docs/SECRETS.md](docs/SECRETS.md)**；各功能詳細說明：**[docs/SETUP.md](docs/SETUP.md)**（繁中 + English，給 USERA & USERB）。 Full step-by-step guide.
 
 **App：https://aethersky.bluechiou.com**（Vercel 託管；每日資料直接從本 repo 讀取，不需重新部署）
 
@@ -67,7 +67,7 @@ China Airlines (CI, 中華航空) is Taiwanese and fully supported.
 
 完整清單見 [docs/SETUP.md](docs/SETUP.md)。主要項目：
 `SERPAPI_KEY` · `SERPAPI_KEY_2` · `NTFY_TOPICS` · `NOTIFICATIONS` · `DEPLOY_TARGET` · `VERCEL_TOKEN` · `PRICE_ALERTS` · `WATCH_TRIPS` · `SEARCHES_PER_RUN` · `NOTIFY_MIN_SCORE`
-· Real Tracker：`TRACKERS` · `ALERT_EMAILS` · `SMTP_URL` / `RESEND_API_KEY` · `TRACKER_NOTIFICATIONS`（Vercel：`GOOGLE_CLIENT_ID` · `ALLOWED_EMAILS` · `SESSION_SECRET` · `TRACKERS_GITHUB_TOKEN`）
+· Real Tracker：`TRACKERS` · `ALERT_EMAILS` · `SMTP_URL` / `RESEND_API_KEY` · `TRACKER_NOTIFICATIONS`（Vercel：`PASSWORD_USERA` · `PASSWORD_USERB` · `SESSION_SECRET` · `TRACKERS_GITHUB_TOKEN`）
 
 ---
 
@@ -135,7 +135,7 @@ backend/        Supabase schema + Edge Functions for the mobile app
 config/         routes.json · airport-countries.json
 test/           node:test suites + fixtures
 .github/        daily-scan.yml (cron 05:40 Taipei → scan → commit web/data) · ci.yml
-docs/SETUP.md   step-by-step setup for Sean & Blue
+docs/SETUP.md   step-by-step setup for USERA & USERB
 design-system/  UI rules (Minimal Swiss, tokens, a11y) from the ui-ux-pro-max skill in .claude/skills/
 ```
 

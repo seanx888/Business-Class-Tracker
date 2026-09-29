@@ -9,12 +9,12 @@ const deal = (over = {}) => ({
 });
 
 test('parseSubscribers: names, languages, defaults, invalid topics dropped', () => {
-  assert.deepEqual(parseSubscribers('sean=bct-sean-7Hq2@zh-TW, blue=bct-blue-Lm4v@en'), [
-    { name: 'sean', topic: 'bct-sean-7Hq2', lang: 'zh-TW' },
-    { name: 'blue', topic: 'bct-blue-Lm4v', lang: 'en' },
+  assert.deepEqual(parseSubscribers('usera=bct-usera-7Hq2@zh-TW, userb=bct-userb-Lm4v@en'), [
+    { name: 'usera', topic: 'bct-usera-7Hq2', lang: 'zh-TW' },
+    { name: 'userb', topic: 'bct-userb-Lm4v', lang: 'en' },
   ]);
   assert.deepEqual(parseSubscribers('only-topic'), [{ name: 'subscriber1', topic: 'only-topic', lang: 'zh-TW' }]);
-  assert.equal(parseSubscribers('Sean=abc@ko')[0].name, 'sean');
+  assert.equal(parseSubscribers('USERA=abc@ko')[0].name, 'usera');
   assert.equal(parseSubscribers('x=abc@ko')[0].lang, 'ko');
   assert.equal(parseSubscribers('bad topic!,https://evil/x').length, 0);
   assert.deepEqual(parseSubscribers(''), []);
@@ -42,23 +42,23 @@ test('sendNotifications: digest to everyone, personal alerts only to that person
     calls.push({ url, ...init });
     return new Response('ok', { status: 200 });
   };
-  const env = { NTFY_TOPICS: 'sean=topic-sean@zh-TW,blue=topic-blue@en', NTFY_TOKEN: 'tk_abc' };
-  const alerts = new Map([['blue', [{ deal: deal(), maxTWD: 110000 }]]]);
+  const env = { NTFY_TOPICS: 'usera=topic-usera@zh-TW,userb=topic-userb@en', NTFY_TOKEN: 'tk_abc' };
+  const alerts = new Map([['userb', [{ deal: deal(), maxTWD: 110000 }]]]);
   const sent = await sendNotifications([deal()], alerts, { env, siteUrl: 'https://s/', fetchImpl });
-  assert.deepEqual(sent, ['sean:200', 'blue:200', 'blue:200']);
-  const toSean = calls.filter((c) => c.url.endsWith('/topic-sean'));
-  const toBlue = calls.filter((c) => c.url.endsWith('/topic-blue'));
-  assert.equal(toSean.length, 1, 'Sean gets only the digest');
-  assert.equal(toBlue.length, 2, 'Blue gets the personal alert + the digest');
-  assert.match(toSean[0].body, /中華航空/);
-  assert.match(toBlue[1].body, /China Airlines/);
+  assert.deepEqual(sent, ['usera:200', 'userb:200', 'userb:200']);
+  const toUSERA = calls.filter((c) => c.url.endsWith('/topic-usera'));
+  const toUSERB = calls.filter((c) => c.url.endsWith('/topic-userb'));
+  assert.equal(toUSERA.length, 1, 'USERA gets only the digest');
+  assert.equal(toUSERB.length, 2, 'USERB gets the personal alert + the digest');
+  assert.match(toUSERA[0].body, /中華航空/);
+  assert.match(toUSERB[1].body, /China Airlines/);
   const decode = (h) => Buffer.from(/=\?UTF-8\?B\?(.*)\?=/.exec(h)[1], 'base64').toString('utf8');
-  assert.equal(decode(toSean[0].headers.Title), '商務艙好價');
-  assert.equal(decode(toBlue[0].headers.Title), 'Price target hit');
-  assert.equal(toBlue[0].headers.Priority, 'high');
-  assert.equal(toSean[0].headers.Click, 'https://s/');
-  assert.equal(decode(toSean[0].headers.Actions), 'view, 開啟 App, https://s/');
-  assert.equal(toSean[0].headers.Authorization, 'Bearer tk_abc');
+  assert.equal(decode(toUSERA[0].headers.Title), '商務艙好價');
+  assert.equal(decode(toUSERB[0].headers.Title), 'Price target hit');
+  assert.equal(toUSERB[0].headers.Priority, 'high');
+  assert.equal(toUSERA[0].headers.Click, 'https://s/');
+  assert.equal(decode(toUSERA[0].headers.Actions), 'view, 開啟 App, https://s/');
+  assert.equal(toUSERA[0].headers.Authorization, 'Bearer tk_abc');
   assert.ok(calls.every((c) => c.url.startsWith('https://ntfy.sh/')));
 });
 
@@ -71,16 +71,16 @@ test('sendNotifications: nothing configured → nothing sent; custom server hono
 
 test('price alerts: fire once, again only when cheaper or after 7 days', () => {
   const history = {};
-  const alerts = [{ who: 'Blue', route: 'tpe-cdg', maxTWD: 110000 }, { who: ['sean', 'blue'], route: 'TPE-NRT', maxTWD: 20000 }];
+  const alerts = [{ who: 'USERB', route: 'tpe-cdg', maxTWD: 110000 }, { who: ['usera', 'userb'], route: 'TPE-NRT', maxTWD: 20000 }];
   let hits = evaluatePriceAlerts(alerts, [deal()], history, '2026-09-26');
-  assert.deepEqual([...hits.keys()], ['blue']);
-  assert.equal(hits.get('blue')[0].deal.priceTWD, 98500);
+  assert.deepEqual([...hits.keys()], ['userb']);
+  assert.equal(hits.get('userb')[0].deal.priceTWD, 98500);
 
   hits = evaluatePriceAlerts(alerts, [deal({ lastSeen: '2026-09-27' })], history, '2026-09-27');
   assert.equal(hits.size, 0, 'same price next day → no repeat');
 
   hits = evaluatePriceAlerts(alerts, [deal({ id: 'd2', priceTWD: 95000, lastSeen: '2026-09-28' })], history, '2026-09-28');
-  assert.equal(hits.get('blue')[0].deal.priceTWD, 95000, 'cheaper → alert again');
+  assert.equal(hits.get('userb')[0].deal.priceTWD, 95000, 'cheaper → alert again');
 
   hits = evaluatePriceAlerts(alerts, [deal({ id: 'd3', priceTWD: 99000, lastSeen: '2026-10-06' })], history, '2026-10-06');
   assert.equal(hits.size, 1, 'still under target after 7 days → reminder');

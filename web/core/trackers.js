@@ -2,7 +2,7 @@
 // A tracker is one trip someone wants watched every day: fixed dates, or ±N flexible days around them.
 //
 //   { id, o, d, trip: 'rt'|'ow', mode: 'fixed'|'flex', depart, return, flex: 0-7, cabin, maxStops,
-//     target, alertOn: 'drop'|'any', notify: 'all'|['sean', …], label, paused, created }
+//     target, alertOn: 'drop'|'any', notify: 'all'|['usera', …], label, paused, created }
 //
 // Flexible trackers can't search every date combination every day on a small API budget, so each day
 // they re-check the current cheapest dates (to catch price changes) and explore a few more combinations.

@@ -12,7 +12,7 @@ supabase/
   functions/aeroapi-webhook/      POST from AeroAPI alerts → update flight, append flight_events (Realtime → app)
 ```
 
-## 建立 Setup（Sean）
+## 建立 Setup（USERA）
 
 1. <https://supabase.com> 建立專案，區域 **Tokyo (ap-northeast-1)**（台灣／韓國延遲最低）。
 2. 安裝 CLI 後：

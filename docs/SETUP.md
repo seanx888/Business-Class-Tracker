@@ -1,4 +1,4 @@
-# ÆtherSky 設定指南 · Setup guide（Sean & Blue）
+# ÆtherSky 設定指南 · Setup guide（USERA & USERB）
 
 > 本 App 只追蹤**機票**（商務艙），不含火車。 This app tracks **flight tickets only** (business class) — no trains.
 
@@ -36,7 +36,7 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
 
 ## 2. 網站：Vercel · The app on Vercel — ✅ Claude 已完成 Done by Claude
 
-- 網址 URL：**https://aethersky.bluechiou.com**（公開，Blue 不需要 Vercel 帳號）
+- 網址 URL：**https://aethersky.bluechiou.com**（公開，USERB 不需要 Vercel 帳號）
 - Vercel 帳號：**seanx888**（與 GitHub 同一個），專案 `aethersky`（舊名 `business-class-tracker`，到 Vercel → Settings → General → Project Name 改名），已**連結 GitHub repo** `seanx888/aethersky`：
   - `main` 有程式碼更新 → **自動部署**正式網站；其他分支 / PR → 自動產生預覽網址。
   - 只有 `web/data/` 變動（每天的票價資料）時**略過部署**（Ignored Build Step），不浪費額度。
@@ -45,7 +45,7 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
   The app reads fare data straight from GitHub, so the site never needs a redeploy for new fares.
 
 > 自訂網域 `aethersky.bluechiou.com` 由 Cloudflare DNS 指向 Vercel（CNAME `aethersky` → Vercel 在 Domains 頁顯示的目標，通常是 `cname.vercel-dns-0.com`，**DNS only 灰色雲**；
-> 若 Vercel 要求 TXT `_vercel` 驗證，照它顯示的值新增，與 aeonracle 的那筆並存，兩筆都不要刪）。舊網域 `jcd-class.bluechiou.com` 已停用，
+> 若 Vercel 要求 TXT `_vercel` 驗證，照它顯示的值新增，與同一網域下其他專案的那筆並存，兩筆都不要刪）。舊網域 `jcd-class.bluechiou.com` 已停用，
 > 可在 Vercel Domains 與 Cloudflare DNS 刪除（或先設成導向新網域）。逐步操作見 [SECRETS.md 第 0 節](SECRETS.md#0-改名與網域--rename--domain)。
 > Custom domain via Cloudflare DNS (CNAME, DNS only). The old `jcd-class` domain is retired.
 
@@ -86,12 +86,12 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
 **兩個帳號合併成 500 次/月？ · Two free accounts combined?**
 技術上可以：第二個金鑰放 Secret **`SERPAPI_KEY_2`**，第一個用完會自動切換，每日配額會把兩個帳號的剩餘次數加總。
 但 SerpApi 免費方案原意是「一人一個帳號」，一人開多個免費帳號可能被視為規避額度、帳號被停用。
-Blue 用自己的 email 註冊自己的帳號、把金鑰給這個共用專案，屬灰色地帶——**最保險**是升級付費方案，或先寫信問 <support@serpapi.com>。
+第二位使用者用自己的 email 註冊自己的帳號、把金鑰給這個共用專案，屬灰色地帶——**最保險**是升級付費方案，或先寫信問 <support@serpapi.com>。
 Technically supported (`SERPAPI_KEY_2`, automatic failover), but stacking free accounts may breach the spirit of the free tier — safest is a paid plan or asking SerpApi first.
 
 ---
 
-## 4. ntfy 推播 — Sean & Blue 共用一個主題 · One shared ntfy topic
+## 4. ntfy 推播 — USERA & USERB 共用一個主題 · One shared ntfy topic
 
 > ⏸ **目前暫停中 Currently paused**（`config/routes.json` → `"notifications": "paused"`）。
 > 主題可以先設好；要開始推播時，在 GitHub **Variables** 新增 `NOTIFICATIONS` = `on`（刪除或設 `paused` 即再暫停）。
@@ -112,7 +112,7 @@ ntfy 免費、免註冊。ntfy.sh 上的主題是公開的，**知道主題名�
 - `PRICE_ALERTS` 目標價達成時（第 5 步，`who` 用 `family` 或 `all`）：高優先通知。
 - 示範資料 (demo) 不會推播。
 
-> 之後想各自分開？改成 `sean=<主題A>@zh-TW,blue=<主題B>@en`，各自訂閱自己的主題。
+> 之後想各自分開？改成 `usera=<主題A>@zh-TW,userb=<主題B>@en`，各自訂閱自己的主題。
 > 用自架 ntfy 或保留主題（ntfy Pro）：Variable `NTFY_SERVER`、Secret `NTFY_TOKEN`（access token）。
 
 ---
@@ -153,7 +153,7 @@ App 一律以**繁體中文、新台幣**開啟（可在設定改語言／幣別
 頂端「傳統航空｜LCC｜全部」一鍵切換。「特殊票價」分頁有 **外站出發** 與 **外國站結帳** 兩種省錢方式。
 The app always opens in Traditional Chinese with NT$; full-service airlines by default; the *Special fares* tab covers ex-station and foreign-site checkout.
 
-每支手機的設定是**各自獨立**的：語言（Sean 繁中／한국어、Blue English）、幣別、天合加權、外站定位成本、App 內目標價。
+每支手機的設定是**各自獨立**的：語言（USERA 繁中／한국어、USERB English）、幣別、天合加權、外站定位成本、App 內目標價。
 Each phone keeps its own language, currency, SkyTeam preference, positioning costs and in-app targets.
 
 ---
@@ -177,15 +177,13 @@ Trackers saved in the app are written to the private repository variable `TRACKE
    - Token name：`aethersky-trackers`；Expiration：1 year（到期前記得更新）
    - Repository access：**Only select repositories** → `aethersky`
    - Permissions → Repository permissions → **Variables：Read and write**（其他都不用）→ **Generate token** → 複製
-2. **Google 登入**（Sean 與 Blue 各用自己的 Google 帳號，取代舊的共用通關密碼）：到 Google Cloud 建立 OAuth Client ID，
-   步驟見 [SECRETS.md 第 B2 節](SECRETS.md#b2-google-登入設定)。
-3. **Vercel 環境變數**：<https://vercel.com> → 專案 `aethersky` → **Settings → Environment Variables**
+2. **Vercel 環境變數**：<https://vercel.com> → 專案 `aethersky` → **Settings → Environment Variables**（Production）
    - `TRACKERS_GITHUB_TOKEN` = 第 1 步的權杖（勾選 Sensitive）
-   - `GOOGLE_CLIENT_ID` = 第 2 步的 Client ID；`ALLOWED_EMAILS` = `兩個Gmail用逗號隔開`；`SESSION_SECRET` = 隨機字串 ≥ 32 字元（`openssl rand -base64 48`）
-   - Environment 選 **Production** → Save → **Deployments → 最新一筆 ⋯ → Redeploy**（環境變數要重新部署才生效）
-   - 舊的 `APP_PASSCODE` 已不使用，可刪除。
-4. **兩支手機**：App → **設定 → 同步** → **Sign in with Google**。之後新增／修改／暫停／刪除都會自動同步。
-5. 驗證：GitHub → Settings → Secrets and variables → Actions → **Variables** 出現 `TRACKERS`。
+   - `PASSWORD_USERA`、`PASSWORD_USERB` = USERA、USERB 各自的**初始密碼**（≥ 12 字元、不可相同）；`SESSION_SECRET` = 隨機字串 ≥ 32 字元（`openssl rand -base64 48`）
+   - 存檔後**重新部署**（Deployments → 最新一筆 ⋯ → Redeploy）。舊的 `GOOGLE_CLIENT_ID`、`ALLOWED_EMAILS`、`APP_PASSCODE` 已不使用，可刪除。
+3. **兩支手機**：App → **設定 → 同步** → 輸入初始密碼登入（密碼會自動辨識是 USERA 或 USERB）→ App 會**立刻要求設定自己的新密碼**，改完才會開始同步。之後新增／修改／暫停／刪除都會自動同步。
+   詳細說明與忘記密碼的處理：[SECRETS.md 第 B 節](SECRETS.md#b-追蹤同步與登入vercel--github-權杖)。
+4. 驗證：GitHub → Settings → Secrets and variables → Actions → **Variables** 出現 `TRACKERS` 與 `AUTH`（只含密碼雜湊）。
 
 > 不想設定同步？在「即時追蹤」頁最下方 **複製 JSON** → 貼到 Variable `TRACKERS`（每次修改都要重貼）。
 > Without sync: copy the JSON at the bottom of the Real Tracker page into the `TRACKERS` variable by hand.
@@ -207,20 +205,20 @@ Trackers saved in the app are written to the private repository variable `TRACKE
 2. GitHub **Secret** `SMTP_URL` = `smtps://你的帳號%40gmail.com:16碼密碼不含空白@smtp.gmail.com:465`
    （帳號裡的 `@` 要寫成 `%40`）
 
-**B. 用 Naver 寄信（Sean）**
+**B. 用 Naver 寄信（USERA）**
 1. Naver 메일 → 환경설정 → **POP3/IMAP 설정** → IMAP/SMTP 사용 **사용함**；若開了 2단계 인증，到 네이버 보안설정建立 **애플리케이션 비밀번호**
 2. `SMTP_URL` = `smtps://아이디%40naver.com:앱비밀번호@smtp.naver.com:465`
 
 **收件人 Recipients** — GitHub **Secret** `ALERT_EMAILS`（Email 是個資，務必放 Secrets）：
 ```
-sean=sean的信箱#zh-TW,blue=blue的信箱#en
+usera=USERA的信箱#zh-TW,userb=USERB的信箱#en
 ```
 名字要和 App「通知誰」的選項一致（`config/routes.json` → `people`）；`#ko` = 韓文信件。
 
 選用 Optional：Variable `MAIL_FROM` = `ÆtherSky <你的帳號@gmail.com>`；Variable `TRACKER_NOTIFICATIONS` = `paused` 暫停所有追蹤通知。
 也可改用 [Resend](https://resend.com)（Secret `RESEND_API_KEY`，需驗證自己的網域才能寄給別人）。
 
-**測試 Test**：Actions → Run workflow → 跑完看 Summary 的 **Real Tracker** 一列，例如 `sent: mail:sean, mail:blue`。
+**測試 Test**：Actions → Run workflow → 跑完看 Summary 的 **Real Tracker** 一列，例如 `sent: mail:usera, mail:userb`。
 
 ---
 
@@ -253,17 +251,17 @@ sean=sean的信箱#zh-TW,blue=blue的信箱#en
 |---|---|---|
 | `SERPAPI_KEY` | Secret | SerpApi 金鑰（Google Flights）|
 | `SERPAPI_KEY_2` | Secret | 選用：第二個 SerpApi 金鑰，第一個額度用完自動切換（見第 3 步注意事項）|
-| `NTFY_TOPICS` | Secret | `family=<共用主題>@zh-TW`（或各自 `sean=…@zh-TW,blue=…@en`）|
+| `NTFY_TOPICS` | Secret | `family=<共用主題>@zh-TW`（或各自 `usera=…@zh-TW,userb=…@en`）|
 | `VERCEL_TOKEN` | Secret | 不需要（只有 `DEPLOY_TARGET=vercel` 的進階用法才需要）|
 | `DUFFEL_ACCESS_TOKEN` | Secret | 選用 |
 | `NTFY_TOKEN` | Secret | 選用：受保護主題 |
-| `ALERT_EMAILS` | Secret | 追蹤 Email 收件人 `sean=信箱#zh-TW,blue=信箱#en`（第 9 步）|
+| `ALERT_EMAILS` | Secret | 追蹤 Email 收件人 `usera=信箱#zh-TW,userb=信箱#en`（第 9 步）|
 | `SMTP_URL` | Secret | 寄信伺服器 `smtps://帳號%40gmail.com:應用程式密碼@smtp.gmail.com:465`（第 9 步）|
 | `RESEND_API_KEY` | Secret | 選用：用 Resend 取代 SMTP |
 | `TRACKERS` | Variable | Real Tracker 行程 JSON（App 同步自動寫入，第 8 步）|
 | `TRACKER_NOTIFICATIONS` | Variable | `paused` = 暫停追蹤通知（預設開啟）|
 | `MAIL_FROM` | Variable | 選用：寄件人名稱與地址 |
-| `GOOGLE_CLIENT_ID`, `ALLOWED_EMAILS`, `SESSION_SECRET`, `TRACKERS_GITHUB_TOKEN` | **Vercel** env | 追蹤同步與 Google 登入（第 8 步）|
+| `PASSWORD_USERA`, `PASSWORD_USERB`, `SESSION_SECRET`, `TRACKERS_GITHUB_TOKEN` | **Vercel** env | 追蹤同步與兩組密碼登入（第 8 步）|
 | `DEPLOY_TARGET` | Variable | `none`（預設，Vercel 讀 GitHub 資料）· `pages` · `vercel` · `pages,vercel` |
 | `SITE_URL` | Variable | 推播連結網址（預設 `config/routes.json` 的 `siteUrl` = Vercel 網址）|
 | `PRICE_ALERTS` | Variable | 個人目標價 JSON |
@@ -285,8 +283,8 @@ sean=sean的信箱#zh-TW,blue=blue的信箱#en
 | 沒收到推播 | 目前暫停中（Variable `NOTIFICATIONS=on` 才會開始）？主題名稱是否一致？今天沒有 ≥ 72 分的新好價？示範資料不推播 |
 | 每天沒有自動執行 | 預設分支必須是 `main`（第 1 步）|
 | App 資料沒更新 | 看 Actions 當天是否綠色 ✓；App 右上 ↻ 重新整理（GitHub 快取約 5 分鐘）|
-| 同步顯示「伺服器尚未設定」| Vercel 少了 `GOOGLE_CLIENT_ID` / `ALLOWED_EMAILS` / `SESSION_SECRET`（≥ 32 字元）/ `TRACKERS_GITHUB_TOKEN` 其中之一，或設定後沒 Redeploy |
-| 登入後顯示「沒有權限」| 該 Google 帳號不在 `ALLOWED_EMAILS`（要用 Google 登入的那個信箱），或 Google Cloud 的 Test users 沒加 |
-| Google 登入出現 `redirect_uri_mismatch` | OAuth Client 的 **Authorized redirect URIs** 必須是 `https://aethersky.bluechiou.com/api/auth`（SECRETS.md B2）|
+| 同步顯示「伺服器尚未設定」| 畫面會列出缺少或無效的變數（也可開 `/api/auth` 看 `problems`）：`PASSWORD_USERA` / `PASSWORD_USERB`（≥ 12 字元、不可相同）、`SESSION_SECRET`（≥ 32 字元）、`TRACKERS_GITHUB_TOKEN`；設定後要 Redeploy |
+| 登入顯示「密碼不正確」| 輸入的不是 USERA 或 USERB 目前的密碼；改過密碼後初始密碼就作廢。忘記了 → SECRETS.md 第 B 節「忘記密碼」|
+| 登入後一直要求更改密碼 | 還在用初始密碼；設定新密碼（≥ 12 字元）後才會開始同步 |
 | 同步失敗 | 權杖過期或沒有 **Variables: Read and write** 權限（第 8 步）|
 | 沒收到追蹤 Email | 還在 demo 資料？`ALERT_EMAILS` 名字和「通知誰」一致？Gmail 要用**應用程式密碼**；Summary 的 Real Tracker 列會顯示寄送結果；查垃圾郵件匣 |

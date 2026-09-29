@@ -5,7 +5,7 @@
   "notifications": "paused",
   "trackerNotifications": "on",
   "trackerShare": 0.75,
-  "people": ["sean", "blue"],
+  "people": ["usera", "userb"],
   "homeAirports": ["TPE", "TSA", "KHH"],
   "searchesPerRun": { "serpapi": 20, "duffel": 30, "demo": 999 },
   "dealTtlDays": 4,
