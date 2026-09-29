@@ -133,6 +133,17 @@ class S {
   String get shareFlight => _t('分享航班', 'Share flight', '항공편 공유');
   String get addToCalendar => _t('加入行事曆', 'Add to calendar', '캘린더에 추가');
 
+  String get importItinerary => _t('貼上訂位確認信', 'Paste booking e-mail', '예약 확인 메일 붙여넣기');
+  String get importHint => _t('把航空公司或旅行社的確認信／行程內容貼上，自動找出所有航班。', 'Paste an airline or travel-agent confirmation — every flight in it is picked up.', '항공사·여행사 확인 메일을 붙여넣으면 모든 항공편을 찾아 드립니다.');
+  String get pasteClipboard => _t('從剪貼簿貼上', 'Paste', '붙여넣기');
+  String get analyze => _t('找出航班', 'Find flights', '항공편 찾기');
+  String get noneFound => _t('沒有找到航班號碼（需要航空公司代碼＋數字，例如 BR198）', 'No flight numbers found (airline code + number, e.g. BR198)', '편명을 찾지 못했습니다 (항공사 코드+번호, 예: BR198)');
+  String get pickDate => _t('選擇日期', 'Pick date', '날짜 선택');
+  String get alreadyTracked => _t('已在追蹤', 'Already tracked', '이미 추적 중');
+  String get searching => _t('查詢中…', 'Looking up…', '조회 중…');
+  String addCount(int n) => _t('加入 $n 個航班', 'Add $n flight${n == 1 ? '' : 's'}', '항공편 $n개 추가');
+  String get orPaste => _t('或貼上訂位確認信', 'or paste a booking e-mail', '또는 예약 확인 메일 붙여넣기');
+
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
   String get openFail => _t('無法開啟連結', 'Could not open the link', '링크를 열 수 없습니다');

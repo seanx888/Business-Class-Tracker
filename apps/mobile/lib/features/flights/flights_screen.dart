@@ -10,6 +10,7 @@ import '../../data/flight_repository.dart';
 import '../../data/stores.dart';
 import '../../domain/flight.dart';
 import '../../domain/schedule.dart';
+import 'import_sheet.dart';
 import 'widgets.dart';
 
 class FlightsScreen extends ConsumerStatefulWidget {
@@ -125,7 +126,10 @@ class _EmptyFlights extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(s.noFlightsHint, style: t.bodyMedium),
           const SizedBox(height: 12),
-          FilledButton.icon(onPressed: () => showAddFlightSheet(context), icon: const Icon(Icons.add), label: Text(s.addFlight)),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FilledButton.icon(onPressed: () => showAddFlightSheet(context), icon: const Icon(Icons.add), label: Text(s.addFlight)),
+            OutlinedButton.icon(onPressed: () => showImportSheet(context), icon: const Icon(Icons.content_paste), label: Text(s.importItinerary)),
+          ]),
           if (!AppConfig.hasApi) ...[
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -231,6 +235,17 @@ class _AddFlightSheetState extends ConsumerState<AddFlightSheet> {
         ),
         const SizedBox(height: 12),
         FilledButton(onPressed: _busy ? null : _find, child: _busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(s.find)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.content_paste, size: 18),
+            label: Text(s.orPaste),
+            onPressed: () {
+              Navigator.of(context).pop();
+              showImportSheet(context);
+            },
+          ),
+        ),
         if (_found != null) ...[
           const SizedBox(height: 16),
           FlightCard(flight: _found!, now: DateTime.now().toUtc()),
