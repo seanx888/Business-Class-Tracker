@@ -130,6 +130,9 @@ class S {
         Cabin.first => _t('頭等艙', 'First', '퍼스트'),
       };
 
+  String get shareFlight => _t('分享航班', 'Share flight', '항공편 공유');
+  String get addToCalendar => _t('加入行事曆', 'Add to calendar', '캘린더에 추가');
+
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
   String get openFail => _t('無法開啟連結', 'Could not open the link', '링크를 열 수 없습니다');

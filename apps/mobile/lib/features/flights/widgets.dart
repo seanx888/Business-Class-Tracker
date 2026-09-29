@@ -99,8 +99,8 @@ class FlightCard extends StatelessWidget {
             Row(children: [
               Text(f.ident, style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(width: 8),
-              Text(shortDay(dep, f.origin.timeZone, s.locale), style: t.bodySmall?.copyWith(color: muted)),
-              const Spacer(),
+              Expanded(child: Text(shortDay(dep, f.origin.timeZone, s.locale), style: t.bodySmall?.copyWith(color: muted), overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 8),
               StatusChip(f),
             ]),
             const SizedBox(height: 12),

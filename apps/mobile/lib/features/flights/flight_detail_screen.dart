@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/share_text.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
+import '../../data/external.dart';
 import '../../data/stores.dart';
 import '../../domain/flight.dart';
+import '../../domain/ics.dart';
 import 'trip_info_card.dart';
 import 'widgets.dart';
 
@@ -26,7 +29,21 @@ class FlightDetailScreen extends ConsumerWidget {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final now = ref.watch(clockProvider)().toUtc();
     return Scaffold(
-      appBar: AppBar(title: Text(flight.ident)),
+      appBar: AppBar(
+        title: Text(flight.ident),
+        actions: [
+          IconButton(
+            tooltip: s.shareFlight,
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => ref.read(externalActionsProvider).share(text: flightShareText(s, flight), subject: _title(flight)),
+          ),
+          IconButton(
+            tooltip: s.addToCalendar,
+            icon: const Icon(Icons.event_available_outlined),
+            onPressed: () => _addToCalendar(ref, s, flight),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(force: true),
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
@@ -65,6 +82,17 @@ class FlightDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _title(Flight f) => '${f.ident} ${f.origin.iata} → ${f.destination.iata}';
+
+/// Hands a .ics file to the share sheet — pick Calendar (iOS) / Google Calendar (Android) to save the entry.
+void _addToCalendar(WidgetRef ref, S s, Flight flight) {
+  final now = ref.read(clockProvider)();
+  final ics = flightIcs(flight, now: now, description: flightCalendarDescription(s, flight, ref.read(tripInfosProvider)[flight.id]));
+  if (ics == null) return;
+  final day = (flight.gateOut.best ?? now).toUtc().toIso8601String().substring(0, 10);
+  ref.read(externalActionsProvider).share(text: _title(flight), subject: flight.ident, fileName: '${flight.ident}-$day.ics', fileText: ics, fileMime: 'text/calendar');
 }
 
 Widget _kv(BuildContext context, String k, String v) => Padding(
