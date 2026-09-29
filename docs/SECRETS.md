@@ -130,6 +130,13 @@ App 內新增的 Real Tracker → Vercel Function → 寫入 GitHub Variable `TR
 1. Google 帳戶開啟 **兩步驟驗證** → <https://myaccount.google.com/apppasswords> → 建立應用程式密碼（名稱 `ÆtherSky`）→ 16 碼。
 2. Secret `SMTP_URL` = `smtps://你的帳號%40gmail.com:16碼密碼不含空白@smtp.gmail.com:465`（帳號裡的 `@` 寫成 `%40`）
 
+**兩個寄信帳號（選用）**：`SMTP_URL` 可放多組，用逗號隔開，第一組失敗（密碼錯、被 Google 暫停）會自動改用下一組：
+```
+smtps://a%40gmail.com:第一個帳號的16碼@smtp.gmail.com:465,smtps://b%40gmail.com:第二個帳號的16碼@smtp.gmail.com:465
+```
+⚠️ **每個 Google 帳號的應用程式密碼都不同**（Google 隨機產生、各帳號獨立）；兩組 16 碼一模一樣，其中一組必定是錯的。
+Actions 紀錄是公開的，失敗訊息只會寫「account #1 / #2」，不會印出信箱。
+
 **方案 B — Naver 寄信（Sean）**
 1. Naver 메일 → 환경설정 → **POP3/IMAP 설정** → IMAP/SMTP **사용함**；有 2단계 인증 → 네이버 보안설정建立 **애플리케이션 비밀번호**。
 2. Secret `SMTP_URL` = `smtps://아이디%40naver.com:앱비밀번호@smtp.naver.com:465`

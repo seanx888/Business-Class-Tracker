@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { parseRecipients, parseAddress, buildMime, smtpSend, mailTransport } from '../scripts/lib/mail.mjs';
+import { parseRecipients, parseAddress, buildMime, smtpSend, mailTransport, parseSmtpUrls } from '../scripts/lib/mail.mjs';
 
 test('parseRecipients: names, languages, bare addresses, junk dropped', () => {
   assert.deepEqual(parseRecipients('sean=me@naver.com#zh-TW, Blue=blue@gmail.com#en'), [
@@ -96,4 +96,35 @@ test('mailTransport: SMTP first, then Resend, otherwise none', () => {
   assert.equal(mailTransport({ SMTP_URL: 'smtps://a%40b.com:x@smtp.gmail.com:465', RESEND_API_KEY: 'r' }).name, 'smtp');
   assert.equal(mailTransport({ RESEND_API_KEY: 'r' }).name, 'resend');
   assert.equal(mailTransport({}), null);
+});
+
+test('parseSmtpUrls: several comma / newline separated accounts, junk dropped', () => {
+  const a = 'smtps://a%40gmail.com:pw1@smtp.gmail.com:465';
+  const b = 'smtps://b%40gmail.com:pw2@smtp.gmail.com:465';
+  assert.deepEqual(parseSmtpUrls(`${a},${b}`), [a, b]);
+  assert.deepEqual(parseSmtpUrls(` ${a} ,\n${b} `), [a, b]);
+  assert.deepEqual(parseSmtpUrls('not-a-url'), []);
+  assert.deepEqual(parseSmtpUrls(''), []);
+});
+
+test('mailTransport: comma-separated SMTP_URL fails over to the next account', async () => {
+  const good = await fakeSmtp();
+  const bad = await fakeSmtp({ failRcpt: true });
+  try {
+    const env = { SMTP_URL: `smtp://a%40x.com:p1@127.0.0.1:${bad.port},smtp://b%40x.com:p2@127.0.0.1:${good.port}` };
+    const t = mailTransport(env);
+    assert.equal(t.name, 'smtp');
+    await t.send({ to: 'sean@x.com', subject: 's', text: 't' });
+    assert.ok(good.log.commands.includes('MAIL FROM:<b@x.com>'), 'second account delivered');
+    assert.match(good.log.data, /From: .*<b@x\.com>/);
+
+    // Both failing → one error naming accounts by position, never by address.
+    await assert.rejects(
+      mailTransport({ SMTP_URL: `smtp://a%40x.com:p@127.0.0.1:${bad.port},smtp://b%40x.com:p@127.0.0.1:${bad.port}` }).send({ to: 'nobody@x.com', subject: 's', text: 't' }),
+      (e) => /account #1/.test(e.message) && /account #2/.test(e.message) && !/@x\.com:/.test(e.message),
+    );
+  } finally {
+    good.server.close();
+    bad.server.close();
+  }
 });
