@@ -3,15 +3,15 @@
 // so nothing personal lands in the public repo and no database is needed.
 //
 // Vercel → Project → Settings → Environment Variables:
-//   APP_PASSCODE            shared passcode typed once in the app (≥ 8 characters)
+//   GOOGLE_CLIENT_ID, ALLOWED_EMAILS, SESSION_SECRET   Google sign-in for Sean & Blue (see api/_lib/auth.mjs)
 //   TRACKERS_GITHUB_TOKEN   fine-grained GitHub token, this repo only, permission "Variables: Read and write"
 //   TRACKERS_REPO           optional, default seanx888/aethersky
 //
-//   GET  /api/trackers?ping=1   → { configured }                         (no passcode)
-//   GET  /api/trackers          → { trackers }                           (Authorization: Bearer <passcode>)
-//   PUT  /api/trackers          { trackers: [...] } → { trackers, saved }
+//   GET  /api/trackers?ping=1   → { configured }                         (public)
+//   GET  /api/trackers          → { trackers }                           (signed-in session cookie)
+//   PUT  /api/trackers          { trackers: [...] } → { trackers, saved }  (session cookie, same origin, JSON)
 // The scanner re-validates every trip (web/core/trackers.js); this layer only bounds shape and size.
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { currentUser, sameOrigin, syncConfigured } from './_lib/auth.mjs';
 
 const VAR = 'TRACKERS';
 const MAX_TRACKERS = 50;
@@ -26,13 +26,6 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
 });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const digest = (s) => createHash('sha256').update(String(s)).digest();
-
-function authorized(request, passcode) {
-  const got = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  return !!got && timingSafeEqual(digest(got), digest(passcode));
-}
 
 /** Keep known fields with the right types and sane lengths; drop everything else. */
 export function sanitize(list) {
@@ -92,15 +85,15 @@ function github(env, fetchImpl) {
   };
 }
 
-export async function handle(request, { env = process.env, fetchImpl = fetch } = {}) {
+export async function handle(request, { env = process.env, fetchImpl = fetch, now = Date.now() } = {}) {
   const url = new URL(request.url);
-  const configured = !!(env.APP_PASSCODE && env.APP_PASSCODE.length >= 8 && env.TRACKERS_GITHUB_TOKEN);
+  const configured = syncConfigured(env);
   if (request.method === 'GET' && url.searchParams.has('ping')) return json({ configured });
   if (!configured) return json({ error: 'sync-not-configured' }, 501);
   if (!['GET', 'PUT'].includes(request.method)) return json({ error: 'method-not-allowed' }, 405);
-  if (!authorized(request, env.APP_PASSCODE)) {
-    await sleep(700); // slow down guessing
-    return json({ error: 'wrong-passcode' }, 401);
+  if (!currentUser(request, env, now)) return json({ error: 'sign-in-required' }, 401);
+  if (request.method === 'PUT' && (!sameOrigin(request) || !/^application\/json\b/i.test(request.headers.get('content-type') || ''))) {
+    return json({ error: 'bad-origin' }, 403); // the cookie is sent automatically — only our own page may write
   }
   const gh = github(env, fetchImpl);
   try {
