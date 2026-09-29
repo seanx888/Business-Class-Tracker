@@ -123,7 +123,7 @@ jobs:
         if: contains(env.DEPLOY_TARGET, 'vercel')
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT || 'business-class-tracker' }}
+          VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT || 'aethersky' }}
           VERCEL_SCOPE: ${{ vars.VERCEL_SCOPE }}
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then echo "::error::DEPLOY_TARGET includes vercel but secret VERCEL_TOKEN is missing"; exit 1; fi

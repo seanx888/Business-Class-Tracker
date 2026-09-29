@@ -5,7 +5,7 @@
 // Vercel → Project → Settings → Environment Variables:
 //   APP_PASSCODE            shared passcode typed once in the app (≥ 8 characters)
 //   TRACKERS_GITHUB_TOKEN   fine-grained GitHub token, this repo only, permission "Variables: Read and write"
-//   TRACKERS_REPO           optional, default seanx888/Business-Class-Tracker
+//   TRACKERS_REPO           optional, default seanx888/aethersky
 //
 //   GET  /api/trackers?ping=1   → { configured }                         (no passcode)
 //   GET  /api/trackers          → { trackers }                           (Authorization: Bearer <passcode>)
@@ -57,7 +57,7 @@ export function sanitize(list) {
 }
 
 function github(env, fetchImpl) {
-  const repo = env.TRACKERS_REPO || 'seanx888/Business-Class-Tracker';
+  const repo = env.TRACKERS_REPO || 'seanx888/aethersky';
   const base = `https://api.github.com/repos/${repo}/actions/variables`;
   const headers = {
     Authorization: `Bearer ${env.TRACKERS_GITHUB_TOKEN}`,

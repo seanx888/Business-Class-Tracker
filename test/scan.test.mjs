@@ -112,7 +112,7 @@ test('WATCH_TRIPS / PRICE_ALERTS repository variables drive searches and ntfy pu
   assert.ok(pushed.some((p) => p.topic === 't-blue' && /target NT\$130,000/.test(p.body)));
   assert.ok(!pushed.some((p) => p.topic === 't-sean' && /target/.test(p.body)), 'Sean does not get Blue\'s personal alert');
   assert.equal(JSON.stringify(out).includes('t-blue'), false, 'topics never published');
-  assert.ok(pushed.every((p) => p.click === 'https://jcd-class.bluechiou.com/'), 'push links open the Vercel app');
+  assert.ok(pushed.every((p) => p.click === 'https://aethersky.bluechiou.com/'), 'push links open the Vercel app');
 });
 
 test('notifications paused (config default): nothing is pushed even with NTFY_TOPICS set', async () => {

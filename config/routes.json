@@ -1,7 +1,7 @@
 {
   "$comment": "Edit this file to change what the daily scanner watches. Personal trips / price targets are better kept in the WATCH_TRIPS / PRICE_ALERTS repository variables (see docs/SETUP.md) because this repo is public. Prices are ROUND-TRIP business class in TWD. 'typical' = normal fare, 'deal' = what a seasoned flyer would call a good buy. priority: 1 = scanned most often, 3 = least.",
   "currency": "TWD",
-  "siteUrl": "https://jcd-class.bluechiou.com/",
+  "siteUrl": "https://aethersky.bluechiou.com/",
   "notifications": "paused",
   "trackerNotifications": "on",
   "trackerShare": 0.75,

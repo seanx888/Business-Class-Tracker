@@ -2,7 +2,10 @@
 
 > 本 App 只追蹤**機票**（商務艙），不含火車。 This app tracks **flight tickets only** (business class) — no trains.
 
-App 網址 App URL：**https://jcd-class.bluechiou.com**
+App 網址 App URL：**https://aethersky.bluechiou.com**
+
+> 📋 **重新設定所有金鑰？** 直接照 [docs/SECRETS.md](SECRETS.md)（全部 Secrets 一覽 + 逐步操作 + 檢查清單）。本檔保留各功能的詳細說明。
+> Re-doing all keys? Follow [docs/SECRETS.md](SECRETS.md) — one master list, steps and checklist.
 
 | # | 步驟 Step | 狀態 Status | 費用 Cost | 時間 Time |
 |---|---|---|---|---|
@@ -33,23 +36,24 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
 
 ## 2. 網站：Vercel · The app on Vercel — ✅ Claude 已完成 Done by Claude
 
-- 網址 URL：**https://jcd-class.bluechiou.com**（公開，Blue 不需要 Vercel 帳號）
-- Vercel 帳號：**seanx888**（與 GitHub 同一個），專案 `business-class-tracker`，已**連結 GitHub repo**：
+- 網址 URL：**https://aethersky.bluechiou.com**（公開，Blue 不需要 Vercel 帳號）
+- Vercel 帳號：**seanx888**（與 GitHub 同一個），專案 `aethersky`（舊名 `business-class-tracker`，到 Vercel → Settings → General → Project Name 改名），已**連結 GitHub repo** `seanx888/aethersky`：
   - `main` 有程式碼更新 → **自動部署**正式網站；其他分支 / PR → 自動產生預覽網址。
   - 只有 `web/data/` 變動（每天的票價資料）時**略過部署**（Ignored Build Step），不浪費額度。
 - **資料怎麼每天更新**：GitHub Actions 每天把票價寫進 repo 的 `web/data/`，App 直接從 GitHub 讀取最新資料
   （約 5 分鐘快取）→ **不需要**重新部署、**不需要** Vercel token。
   The app reads fare data straight from GitHub, so the site never needs a redeploy for new fares.
 
-> 自訂網域 `jcd-class.bluechiou.com` 由 Cloudflare DNS 指向 Vercel（CNAME `jcd-class` → `cname.vercel-dns-0.com`，**DNS only 灰色雲**；
-> TXT `_vercel` 為網域驗證用，與 aeonracle 的那筆並存，兩筆都不要刪）。備用網址 https://business-class-tracker-lime.vercel.app 也一直可用。
-> Custom domain via Cloudflare DNS (CNAME, DNS only). The vercel.app address keeps working as a backup.
+> 自訂網域 `aethersky.bluechiou.com` 由 Cloudflare DNS 指向 Vercel（CNAME `aethersky` → Vercel 在 Domains 頁顯示的目標，通常是 `cname.vercel-dns-0.com`，**DNS only 灰色雲**；
+> 若 Vercel 要求 TXT `_vercel` 驗證，照它顯示的值新增，與 aeonracle 的那筆並存，兩筆都不要刪）。舊網域 `jcd-class.bluechiou.com` 已停用，
+> 可在 Vercel Domains 與 Cloudflare DNS 刪除（或先設成導向新網域）。逐步操作見 [SECRETS.md 第 0 節](SECRETS.md#0-改名與網域--rename--domain)。
+> Custom domain via Cloudflare DNS (CNAME, DNS only). The old `jcd-class` domain is retired.
 
 <details>
 <summary>替代方案：GitHub Pages · Alternative: GitHub Pages</summary>
 
 **Settings → Pages → Source: GitHub Actions**（下方 *Visibility — start free for 30 days* 是企業版「私人網站」功能，**不需要**，忽略即可），
-再新增 Variable `DEPLOY_TARGET` = `pages`。網址：`https://seanx888.github.io/Business-Class-Tracker/`
+再新增 Variable `DEPLOY_TARGET` = `pages`。網址：`https://seanx888.github.io/aethersky/`
 </details>
 
 ---
@@ -61,7 +65,7 @@ PR #1 已合併，預設分支已是 `main`。GitHub 的排程（每天 05:40 �
 
 1. 註冊 Sign up：<https://serpapi.com/users/sign_up>（完成 email 驗證）
 2. 複製金鑰 Copy key：<https://serpapi.com/manage-api-key> → **Your Private API Key**（64 個英數字）
-3. 打開 <https://github.com/seanx888/Business-Class-Tracker/settings/secrets/actions>
+3. 打開 <https://github.com/seanx888/aethersky/settings/secrets/actions>
    （= repo **Settings → Secrets and variables → Actions**）
 4. 確認上方停在 **Secrets** 分頁（不是 *Variables*）→ 在 **Repository secrets** 區塊按 **New repository secret**
    - **Name**：`SERPAPI_KEY`（全大寫、底線，前後不要有空格）
@@ -98,7 +102,7 @@ ntfy 免費、免註冊。ntfy.sh 上的主題是公開的，**知道主題名�
 
 1. **兩人都安裝 ntfy App** — iPhone：App Store「ntfy」；Android：Google Play / F-Droid「ntfy」。允許通知。
 2. **兩人都訂閱同一個主題**：App 內 **＋** → *Subscribe to topic* → 輸入你們的共用主題 → Server 用預設 `ntfy.sh` → **Subscribe**。
-3. **GitHub Secret**：<https://github.com/seanx888/Business-Class-Tracker/settings/secrets/actions> → **Secrets** 分頁 → **New repository secret**
+3. **GitHub Secret**：<https://github.com/seanx888/aethersky/settings/secrets/actions> → **Secrets** 分頁 → **New repository secret**
    - **Name**：`NTFY_TOPICS`
    - **Secret**：`family=<你們的主題>@zh-TW`（`family` 是名字，`@zh-TW` = 繁體中文；只填主題本身也可以，預設就是繁中）
 4. **測試 Test**：瀏覽器打開 `https://ntfy.sh/<你們的主題>` → 在下方輸入框送一則測試訊息，兩支手機應該同時收到。
@@ -143,7 +147,7 @@ ntfy 免費、免註冊。ntfy.sh 上的主題是公開的，**知道主題名�
 
 ## 6. 兩支手機安裝 App · Install on both phones
 
-打開 **https://jcd-class.bluechiou.com** → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
+打開 **https://aethersky.bluechiou.com** → iPhone：Safari **分享 → 加入主畫面**；Android：Chrome **⋮ → 安裝應用程式**。
 
 App 一律以**繁體中文、新台幣**開啟（可在設定改語言／幣別，只影響那支手機）。票價預設只顯示**傳統航空**，
 頂端「傳統航空｜LCC｜全部」一鍵切換。「特殊票價」分頁有 **外站出發** 與 **外國站結帳** 兩種省錢方式。
@@ -158,7 +162,7 @@ Each phone keeps its own language, currency, SkyTeam preference, positioning cos
 
 1. **Actions → Daily fare scan & deploy → Run workflow**（provider 留空）→ **Run workflow**。
 2. 約 2–5 分鐘後應為綠色 ✓。
-3. 打開 https://jcd-class.bluechiou.com ：「示範資料」提示消失；**設定 → 資料** 顯示 `serpapi` 與本月剩餘次數。
+3. 打開 https://aethersky.bluechiou.com ：「示範資料」提示消失；**設定 → 資料** 顯示 `serpapi` 與本月剩餘次數。
 4. 之後每天 **台北時間 05:40** 自動執行，不用再手動。
 
 ---
@@ -171,9 +175,9 @@ Trackers saved in the app are written to the private repository variable `TRACKE
 
 1. **建立 GitHub 權杖 Fine-grained token**：<https://github.com/settings/personal-access-tokens/new>
    - Token name：`aethersky-trackers`；Expiration：1 year（到期前記得更新）
-   - Repository access：**Only select repositories** → `Business-Class-Tracker`
+   - Repository access：**Only select repositories** → `aethersky`
    - Permissions → Repository permissions → **Variables：Read and write**（其他都不用）→ **Generate token** → 複製
-2. **Vercel 環境變數**：<https://vercel.com> → 專案 `business-class-tracker` → **Settings → Environment Variables**
+2. **Vercel 環境變數**：<https://vercel.com> → 專案 `aethersky` → **Settings → Environment Variables**
    - `TRACKERS_GITHUB_TOKEN` = 上一步的權杖（勾選 Sensitive）
    - `APP_PASSCODE` = 自訂通關密碼，**至少 12 個字元**（Sean 與 Blue 共用；不要用生日）
    - Environment 選 **Production** → Save → **Deployments → 最新一筆 ⋯ → Redeploy**（環境變數要重新部署才生效）

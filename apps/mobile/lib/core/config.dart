@@ -11,7 +11,7 @@ class AppConfig {
   /// Daily fare data published by the scanner (same files the PWA reads).
   static const dataBase = String.fromEnvironment(
     'AETHER_DATA_BASE',
-    defaultValue: 'https://raw.githubusercontent.com/seanx888/Business-Class-Tracker/main/web/data/',
+    defaultValue: 'https://raw.githubusercontent.com/seanx888/aethersky/main/web/data/',
   );
 
   static bool get hasApi => apiBase.isNotEmpty;
