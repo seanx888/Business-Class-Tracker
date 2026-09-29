@@ -29,6 +29,18 @@ export const authConfigured = (env) =>
 /** Whole tracker sync works only when sign-in AND the GitHub token are set. */
 export const syncConfigured = (env) => authConfigured(env) && !!env.TRACKERS_GITHUB_TOKEN;
 
+/** Which variables are missing or unusable — names only, never values — so a bad setup can be diagnosed from /api/auth. */
+export function syncProblems(env) {
+  const problems = [];
+  if (!env.GOOGLE_CLIENT_ID) problems.push('GOOGLE_CLIENT_ID');
+  if (!env.SESSION_SECRET) problems.push('SESSION_SECRET');
+  else if (String(env.SESSION_SECRET).length < 32) problems.push('SESSION_SECRET (needs at least 32 characters)');
+  if (!env.ALLOWED_EMAILS) problems.push('ALLOWED_EMAILS');
+  else if (!allowedEmails(env).size) problems.push('ALLOWED_EMAILS (no valid e-mail address found)');
+  if (!env.TRACKERS_GITHUB_TOKEN) problems.push('TRACKERS_GITHUB_TOKEN');
+  return problems;
+}
+
 // ── Google ID token ─────────────────────────────────────────────────────────
 const certCaches = new WeakMap(); // per fetch implementation, so tests never see production keys
 

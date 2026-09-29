@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, createSign } from 'node:crypto';
-import { verifyGoogleIdToken, signSession, readSession, currentUser, sameOrigin, allowedEmails, authConfigured, syncConfigured, COOKIE } from '../web/api/_lib/auth.mjs';
+import { verifyGoogleIdToken, signSession, readSession, currentUser, sameOrigin, allowedEmails, authConfigured, syncConfigured, syncProblems, COOKIE } from '../web/api/_lib/auth.mjs';
 import { handle } from '../web/api/auth.mjs';
 
 const CLIENT = '1234-abc.apps.googleusercontent.com';
@@ -95,7 +95,7 @@ test('POST /api/auth: allowed Google account gets an HttpOnly session and lands 
   assert.match(cookie, /Secure/);
   assert.match(cookie, /SameSite=Lax/);
   const who = await handle(new Request('https://app.example/api/auth', { headers: { cookie: cookie.split(';')[0] } }), opts);
-  assert.deepEqual(await who.json(), { configured: true, clientId: CLIENT, user: { email: 'sean@gmail.com', name: 'Sean' } });
+  assert.deepEqual(await who.json(), { configured: true, clientId: CLIENT, user: { email: 'sean@gmail.com', name: 'Sean' }, problems: [] });
 });
 
 test('POST /api/auth: strangers, missing/mismatched CSRF and bad tokens never get a cookie', async () => {
@@ -114,9 +114,9 @@ test('POST /api/auth: strangers, missing/mismatched CSRF and bad tokens never ge
 
 test('GET /api/auth is public and reveals nothing when signed out; unconfigured servers say so', async () => {
   const out = await (await handle(new Request('https://app.example/api/auth'), opts)).json();
-  assert.deepEqual(out, { configured: true, clientId: CLIENT, user: null });
+  assert.deepEqual(out, { configured: true, clientId: CLIENT, user: null, problems: [] });
   const off = await (await handle(new Request('https://app.example/api/auth'), { ...opts, env: {} })).json();
-  assert.deepEqual(off, { configured: false, clientId: null, user: null });
+  assert.deepEqual(off, { configured: false, clientId: null, user: null, problems: ['GOOGLE_CLIENT_ID', 'SESSION_SECRET', 'ALLOWED_EMAILS', 'TRACKERS_GITHUB_TOKEN'] });
   assert.equal((await handle(post({}), { ...opts, env: {} })).status, 501);
 });
 
@@ -126,4 +126,16 @@ test('DELETE /api/auth signs out, but only from our own origin', async () => {
   const ok = await handle(new Request('https://app.example/api/auth', { method: 'DELETE', headers: { origin: 'https://app.example', host: 'app.example' } }), opts);
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie'), /Max-Age=0/);
+});
+
+test('syncProblems names what is wrong without ever echoing a value', async () => {
+  assert.deepEqual(syncProblems(env), []);
+  const bad = { ...env, SESSION_SECRET: 'tooshort-but-secret', ALLOWED_EMAILS: 'not an address', GOOGLE_CLIENT_ID: '' };
+  const problems = syncProblems(bad);
+  assert.deepEqual(problems, ['GOOGLE_CLIENT_ID', 'SESSION_SECRET (needs at least 32 characters)', 'ALLOWED_EMAILS (no valid e-mail address found)']);
+  const body = await (await handle(new Request('https://app.example/api/auth'), { ...opts, env: bad })).json();
+  assert.equal(body.configured, false);
+  assert.deepEqual(body.problems, problems);
+  const text = JSON.stringify(body);
+  assert.ok(!text.includes('tooshort-but-secret') && !text.includes('not an address') && !text.includes('ghp_x'));
 });

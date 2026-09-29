@@ -42,7 +42,7 @@ const TABS = ['deals', 'special', 'routes', 'members', 'settings'];
 const state = {
   data: null, deals: [], history: null, tab: 'deals', special: 'ex', routesView: 'tracker', error: null, dropped: 0, limit: 40, installEvt: null, exOpen: new Set(), filtersOpen: false,
   trackerData: null, trackerForm: null, trackerErr: null, trkOpen: new Set(),
-  sync: { configured: null, status: 'idle', user: null, clientId: null },
+  sync: { configured: null, status: 'idle', user: null, clientId: null, problems: [] },
   memberForm: null, memberErr: null, memberReveal: new Set(), memberFilter: 'all',
 };
 
@@ -894,6 +894,7 @@ async function syncPing() {
     state.sync.configured = !!info.configured;
     state.sync.clientId = info.clientId || null;
     state.sync.user = info.user || null;
+    state.sync.problems = Array.isArray(info.problems) ? info.problems : [];
   } catch {
     state.sync.configured = false;
   }
@@ -957,7 +958,7 @@ async function pushTrackers() {
 
 function syncStatusText() {
   const s = state.sync;
-  if (s.configured === false) return t('syncStatus_off');
+  if (s.configured === false) return s.problems.length ? `${t('syncStatus_off')} ${t('syncMissing', { list: s.problems.join(', ') })}` : t('syncStatus_off');
   if (s.configured == null) return t('syncStatus_busy');
   if (!state.sync.user) return s.status === 'auth' ? t('syncStatus_auth') : t('syncStatus_nokey');
   if (s.status === 'ok') return t('syncStatus_ok', { t: fmtWhen(prefs.syncedAt) });

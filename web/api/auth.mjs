@@ -1,11 +1,12 @@
 // Vercel Function: Google sign-in for Sean & Blue (see _lib/auth.mjs for the env vars).
 //
-//   GET    /api/auth   → { configured, clientId, user }        the page asks who is signed in
+//   GET    /api/auth   → { configured, clientId, user, problems }   the page asks who is signed in;
+//                      `problems` names the env vars that are missing / unusable (never their values)
 //   POST   /api/auth   form post from Google (ux_mode=redirect): credential + g_csrf_token
 //                      → 303 to the app with a session cookie, or to /?signin=denied|error
 //   DELETE /api/auth   → sign out (clears the cookie)
 import {
-  authConfigured, syncConfigured, allowedEmails, currentUser, verifyGoogleIdToken, signSession,
+  authConfigured, syncConfigured, syncProblems, allowedEmails, currentUser, verifyGoogleIdToken, signSession,
   sessionCookie, clearCookie, cookieValue, sameOrigin, safeEqual,
 } from './_lib/auth.mjs';
 
@@ -21,7 +22,12 @@ export async function handle(request, { env = process.env, fetchImpl = fetch, no
 
   if (request.method === 'GET') {
     const user = currentUser(request, env, now);
-    return json({ configured: syncConfigured(env), clientId: ready ? env.GOOGLE_CLIENT_ID : null, user: user && { email: user.email, name: user.name } });
+    return json({
+      configured: syncConfigured(env),
+      clientId: ready ? env.GOOGLE_CLIENT_ID : null,
+      user: user && { email: user.email, name: user.name },
+      problems: syncProblems(env),
+    });
   }
   if (!ready) return json({ error: 'auth-not-configured' }, 501);
 
