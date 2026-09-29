@@ -2,13 +2,15 @@
 //
 //   GET    /api/auth   → { configured, user, problems }
 //                        user = { name, mustChange } when signed in; `problems` names the env vars that are missing /
-//                        unusable, or says GitHub cannot be reached (never any values)
-//   POST   /api/auth   { password } → { user } + session cookie         (401 when it matches nobody)
-//   PUT    /api/auth   { current, next } → { user } + new session cookie (change your own password)
+//                        unusable, or says GitHub cannot be reached (never any values). A remembered sign-in that is
+//                        past the halfway mark gets a fresh cookie, so it keeps going as long as the app is used.
+//   POST   /api/auth   { password, remember } → { user } + session cookie  (401 when it matches nobody)
+//                        remember: true → 90-day cookie; otherwise it ends when the browser closes (24 h at most)
+//   PUT    /api/auth   { current, next } → { user } + new session cookie (change your own password; keeps remember)
 //   DELETE /api/auth   → sign out (clears the cookie)
 import {
   authConfigured, syncConfigured, syncProblems, authStore, currentUser, whoIs, matches, passwordProblem, hashPassword,
-  signSession, sessionCookie, clearCookie, sameOrigin,
+  signSession, sessionCookie, clearCookie, sameOrigin, REMEMBER_DAYS,
 } from './_lib/auth.mjs';
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
@@ -25,14 +27,20 @@ export async function handle(request, { env = process.env, fetchImpl = fetch, no
   if (request.method === 'GET') {
     const problems = syncProblems(env);
     let user = null;
+    let headers = {};
     if (authConfigured(env) && env.TRACKERS_GITHUB_TOKEN) {
       try {
-        user = currentUser(request, env, await store.load(), now);
+        const own = await store.load();
+        user = currentUser(request, env, own, now);
+        if (user?.remember && user.exp * 1000 - now < (REMEMBER_DAYS / 2) * 86400 * 1000) {
+          headers = { 'Set-Cookie': sessionCookie(signSession(user.name, env, own, { now, remember: true }), { remember: true }) };
+        }
       } catch {
         problems.push('GitHub variables unreachable (check TRACKERS_GITHUB_TOKEN and TRACKERS_REPO)');
       }
     }
-    return json({ configured: syncConfigured(env) && !problems.some((p) => p.startsWith('GitHub')), user, problems });
+    const shown = user && { name: user.name, mustChange: user.mustChange };
+    return json({ configured: syncConfigured(env) && !problems.some((p) => p.startsWith('GitHub')), user: shown, problems }, 200, headers);
   }
 
   if (!syncConfigured(env)) return json({ error: 'auth-not-configured' }, 501);
@@ -55,7 +63,8 @@ export async function handle(request, { env = process.env, fetchImpl = fetch, no
       await sleep(delayMs); // slow down guessing
       return json({ error: 'wrong-password' }, 401);
     }
-    return json({ user: { name, mustChange: !own[name]?.hash } }, 200, { 'Set-Cookie': sessionCookie(signSession(name, env, own, { now })) });
+    const remember = body.remember === true;
+    return json({ user: { name, mustChange: !own[name]?.hash } }, 200, { 'Set-Cookie': sessionCookie(signSession(name, env, own, { now, remember }), { remember }) });
   }
 
   // PUT — choose a new password (needs the current sign-in AND the current password, so a stolen cookie is not enough)
@@ -71,7 +80,8 @@ export async function handle(request, { env = process.env, fetchImpl = fetch, no
   if (problem) return json({ error: problem }, 400);
   try {
     const updated = await store.setHash(user.name, await hashPassword(next), new Date(now).toISOString());
-    return json({ user: { name: user.name, mustChange: false } }, 200, { 'Set-Cookie': sessionCookie(signSession(user.name, env, updated, { now })) });
+    const { remember } = user;
+    return json({ user: { name: user.name, mustChange: false } }, 200, { 'Set-Cookie': sessionCookie(signSession(user.name, env, updated, { now, remember }), { remember }) });
   } catch {
     return json({ error: 'auth-store-unavailable' }, 503);
   }

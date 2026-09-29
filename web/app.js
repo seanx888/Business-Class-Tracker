@@ -16,7 +16,7 @@ const PREF_KEY = 'bct.prefs.v1';
 const DEFAULT_FILTERS = { carrierType: 'fsc', origin: 'all', region: 'all', alliance: 'all', nonstop: false, flat: false, minTier: 'all', sort: 'score' };
 
 function loadPrefs() {
-  const base = { lang: 'zh-TW', langChosen: false, currency: 'TWD', theme: 'auto', skyteamBoost: 'standard', positioning: {}, targets: {}, notified: {}, lastScan: null, filters: { ...DEFAULT_FILTERS }, trackers: [], synced: false, syncedAt: null };
+  const base = { lang: 'zh-TW', langChosen: false, currency: 'TWD', theme: 'auto', skyteamBoost: 'standard', positioning: {}, targets: {}, notified: {}, lastScan: null, filters: { ...DEFAULT_FILTERS }, trackers: [], synced: false, syncedAt: null, remember: true };
   try {
     const saved = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
     const p = { ...base, ...saved, filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) } };
@@ -976,14 +976,12 @@ function syncStatusText() {
   return '';
 }
 
-// Sign in with the password; the server answers with who it belongs to.
-async function syncLogin(password) {
-  if (!password) return;
+// Sign in with the password; the server answers with who it belongs to. `remember` keeps this device signed in (90 days).
+async function signIn(password, remember) {
   state.sync.status = 'busy';
   state.sync.pwMsg = '';
-  renderSettings();
   try {
-    const res = await fetch(AUTH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+    const res = await fetch(AUTH_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password, remember }) });
     if (res.status === 401) state.sync.status = 'wrong';
     else if (!res.ok) state.sync.status = 'error';
     else {
@@ -991,16 +989,102 @@ async function syncLogin(password) {
       state.sync.status = 'idle';
       prefs.synced = false;
       lastLoginPassword = password;
-      if (!state.sync.user.mustChange) {
-        await pullTrackers();
-        savePrefs();
-      }
+      if (!state.sync.user.mustChange) await pullTrackers();
     }
   } catch {
     state.sync.status = 'error';
   }
+  savePrefs();
+}
+
+async function syncLogin(password, remember) {
+  if (!password) return;
+  prefs.remember = remember;
+  state.sync.status = 'busy';
   renderSettings();
+  await signIn(password, remember);
+  renderAuth();
   if (state.sync.user?.mustChange) focusPasswordChange();
+}
+
+// ── Sign-in window: shown when the site is opened and nobody is signed in (or the initial password is still in use) ──
+// Skipping is allowed — the public pages never spend quota — and lasts until the tab is closed.
+const GATE_SKIP_KEY = 'aethersky-gate-skip';
+try {
+  state.gateSkipped = sessionStorage.getItem(GATE_SKIP_KEY) === '1';
+} catch {
+  state.gateSkipped = false;
+}
+
+function gateNeeded() {
+  const s = state.sync;
+  return s.configured === true && !state.gateSkipped && (!s.user || s.user.mustChange);
+}
+
+function renderGate() {
+  const el = $('#gate');
+  const open = gateNeeded();
+  document.querySelectorAll('.topbar, #banner, main, .tabbar').forEach((n) => (n.inert = open)); // keyboard stays inside the window
+  if (!open) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  const s = state.sync;
+  const busy = s.status === 'busy';
+  const fail = { wrong: 'syncStatus_wrong', error: 'syncStatus_error' }[s.status];
+  const fields = !s.user
+    ? `<p class="gate-sub">${esc(t('gateSub'))}</p>
+       <input type="password" id="gate-pass" autocomplete="current-password" placeholder="${esc(t('syncPassword'))}" aria-label="${esc(t('syncPassword'))}">
+       <label class="check"><input type="checkbox" id="gate-remember" ${prefs.remember !== false ? 'checked' : ''}> <span>${esc(t('rememberMe'))}</span></label>
+       ${fail ? `<span class="help warn-text" role="alert">${esc(t(fail))}</span>` : ''}
+       <button type="submit" class="btn primary block" data-act="gate-login" ${busy ? 'disabled' : ''}>${icon('cloud-check')}${esc(t('syncLogin'))}</button>`
+    : `${notice(t('pwMustChange'), true)}
+       ${lastLoginPassword ? '' : `<input type="password" id="gate-current" autocomplete="current-password" placeholder="${esc(t('pwCurrent'))}" aria-label="${esc(t('pwCurrent'))}">`}
+       <input type="password" id="gate-new" autocomplete="new-password" minlength="12" placeholder="${esc(t('pwNew'))}" aria-label="${esc(t('pwNew'))}">
+       <input type="password" id="gate-confirm" autocomplete="new-password" placeholder="${esc(t('pwConfirm'))}" aria-label="${esc(t('pwConfirm'))}">
+       ${s.pwMsg ? `<span class="help warn-text" role="alert">${esc(t(s.pwMsg))}</span>` : ''}
+       <button type="submit" class="btn primary block" data-act="gate-save">${esc(t('pwSave'))}</button>`;
+  el.innerHTML = `<form class="gate-card" id="gate-form" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+      <img src="icons/icon.svg" alt="" width="40" height="40">
+      <h2 id="gate-title">${esc(t('appName'))}</h2>
+      ${fields}
+      <button type="button" class="btn quiet" data-act="gate-skip">${esc(t('gateSkip'))}</button>
+    </form>`;
+  el.hidden = false;
+  requestAnimationFrame(() => {
+    const target = el.contains(document.activeElement) && document.activeElement !== el ? null : el.querySelector('input:not([type=checkbox])');
+    target?.focus();
+  });
+}
+
+async function gateLogin() {
+  const password = $('#gate-pass')?.value || '';
+  if (!password) return $('#gate-pass')?.focus();
+  prefs.remember = !!$('#gate-remember')?.checked;
+  const btn = document.querySelector('[data-act="gate-login"]');
+  if (btn) btn.disabled = true; // keep what was typed; only redraw once the answer is in
+  await signIn(password, prefs.remember);
+  renderAuth();
+  if (state.sync.user && !state.sync.user.mustChange) toast(t('gateWelcome', { who: capName(state.sync.user.name) }));
+  if (state.sync.status === 'wrong') $('#gate-pass')?.select();
+}
+
+function skipGate() {
+  state.gateSkipped = true;
+  try {
+    sessionStorage.setItem(GATE_SKIP_KEY, '1');
+  } catch {
+    /* private mode: the skip just lasts until reload */
+  }
+  renderGate();
+}
+
+// Redraw everything that shows the signed-in state.
+function renderAuth() {
+  renderSettings();
+  if (state.tab === 'routes') renderRoutes();
+  renderGate();
 }
 
 const PW_ERRORS = { 'too-short': 'pwShort', 'too-long': 'pwShort', 'same-as-current': 'pwSame', 'same-as-initial': 'pwSame', taken: 'pwTaken' };
@@ -1029,14 +1113,14 @@ async function changePassword(current, next, confirm) {
       s.pwMsg = 'pwError';
     }
   }
-  renderSettings();
+  renderAuth();
   if (s.pwMsg) focusPasswordChange();
 }
 
 // Right after the first sign-in: bring the "choose your own password" form into view.
 function focusPasswordChange() {
   requestAnimationFrame(() => {
-    const el = $('#pw-new');
+    const el = $('#gate-new') || $('#pw-new');
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     el?.focus({ preventScroll: true });
   });
@@ -1049,7 +1133,8 @@ function syncBoxHtml() {
     return `<div class="sync-row">
         <input type="password" id="sync-pass" autocomplete="current-password" placeholder="${esc(t('syncPassword'))}" aria-label="${esc(t('syncPassword'))}" ${off ? 'disabled' : ''}>
         <button class="btn" data-act="sync-login" ${off ? 'disabled' : ''}>${icon('cloud-check')}${esc(t('syncLogin'))}</button>
-      </div>`;
+      </div>
+      <label class="check"><input type="checkbox" id="sync-remember" ${prefs.remember !== false ? 'checked' : ''} ${off ? 'disabled' : ''}> <span>${esc(t('rememberMe'))}</span></label>`;
   }
   const must = s.user.mustChange;
   const needCurrent = !(must && lastLoginPassword);
@@ -1520,7 +1605,16 @@ document.addEventListener('click', async (e) => {
       return;
     // Sync
     case 'sync-login':
-      await syncLogin($('#sync-pass')?.value || '');
+      await syncLogin($('#sync-pass')?.value || '', !!$('#sync-remember')?.checked);
+      return;
+    case 'gate-login':
+      await gateLogin();
+      return;
+    case 'gate-save':
+      await changePassword(lastLoginPassword || $('#gate-current')?.value || '', $('#gate-new')?.value || '', $('#gate-confirm')?.value || '');
+      return;
+    case 'gate-skip':
+      skipGate();
       return;
     case 'pw-save':
       await changePassword(lastLoginPassword && !$('#pw-current') ? lastLoginPassword : $('#pw-current')?.value || '', $('#pw-new')?.value || '', $('#pw-confirm')?.value || '');
@@ -1532,6 +1626,7 @@ document.addEventListener('click', async (e) => {
       state.sync.pwMsg = '';
       lastLoginPassword = '';
       prefs.synced = false;
+      skipGate();
       break;
     // Member wallet
     case 'mem-new':
@@ -1702,14 +1797,22 @@ readHash();
 render();
 loadData();
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && gateNeeded()) return skipGate();
   if (e.key !== 'Enter') return;
   const act = { 'sync-pass': 'sync-login', 'pw-confirm': 'pw-save' }[e.target?.id];
   if (act) document.querySelector(`[data-act="${act}"]`)?.click();
 });
-syncPing().then(pullTrackers).then(() => {
-  savePrefs();
-  if (state.tab === 'routes' || state.tab === 'settings') render();
-});
+// The window's own form: Enter clicks its submit button (handled above); just stop the page from reloading.
+document.addEventListener('submit', (e) => e.preventDefault());
+syncPing()
+  .then(() => {
+    renderGate();
+    return pullTrackers();
+  })
+  .then(() => {
+    savePrefs();
+    if (state.tab === 'routes' || state.tab === 'settings') render();
+  });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }

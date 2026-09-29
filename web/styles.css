@@ -318,6 +318,22 @@ input:disabled, select:disabled, .btn:disabled { opacity: 0.55; cursor: not-allo
 .pw-box summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .pw-fields { display: grid; gap: 8px; margin-top: 6px; }
 .pw-fields input { min-width: 0; }
+.check { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.check input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; accent-color: var(--primary); }
+.gate {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.gate[hidden] { display: none; }
+.gate-card {
+  width: min(100%, 380px); display: grid; gap: 10px; justify-items: stretch; padding: 24px 20px 16px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+.gate-card img { justify-self: center; }
+.gate-card h2 { margin: 0; text-align: center; font-size: 20px; }
+.gate-card .gate-sub { margin: 0 0 4px; text-align: center; font-size: 14px; color: var(--muted); }
+.gate-card .help { font-size: 13px; }
+.gate-card .btn.quiet { justify-self: center; color: var(--muted); }
 .warn-text { color: var(--bad); }
 
 /* ── Member wallet ── */
