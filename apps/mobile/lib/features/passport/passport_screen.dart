@@ -46,7 +46,10 @@ class PassportScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(s.passport),
-        actions: [IconButton(tooltip: s.manualTitle, icon: const Icon(Icons.edit_calendar_outlined), onPressed: () => showManualFlightSheet(context))],
+        actions: [
+          IconButton(tooltip: s.logbook, icon: const Icon(Icons.menu_book_outlined), onPressed: () => context.go('/flights/passport/logbook')),
+          IconButton(tooltip: s.manualTitle, icon: const Icon(Icons.edit_calendar_outlined), onPressed: () => showManualFlightSheet(context)),
+        ],
       ),
       body: stats.isEmpty
           ? Center(
@@ -68,10 +71,24 @@ class PassportScreen extends ConsumerWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: FilledButton.tonalIcon(
-                    icon: const Icon(Icons.auto_awesome),
-                    label: Text(s.wrappedEntry),
-                    onPressed: () => context.go('/flights/passport/wrapped'),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          icon: const Icon(Icons.auto_awesome),
+                          label: Text(s.wrappedEntry, overflow: TextOverflow.ellipsis),
+                          onPressed: () => context.go('/flights/passport/wrapped'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          icon: const Icon(Icons.menu_book_outlined),
+                          label: Text(s.logbook, overflow: TextOverflow.ellipsis),
+                          onPressed: () => context.go('/flights/passport/logbook'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Row(

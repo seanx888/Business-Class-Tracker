@@ -14,6 +14,8 @@ import '../../domain/departure_plan.dart';
 import '../../domain/flight.dart';
 import '../../domain/ics.dart';
 import '../../domain/manual_flight.dart';
+import '../../domain/passport.dart' show flownFlights;
+import '../logbook/log_entry_sheet.dart';
 import 'connection_widgets.dart';
 import 'departure_card.dart';
 import 'jetlag_card.dart';
@@ -86,6 +88,7 @@ class FlightDetailScreen extends ConsumerWidget {
           if (departurePlanFor(ref, flight, now: now) != null || checkInLikelyOpen(flight, now)) const SizedBox(height: 12),
           TripInfoCard(flight: flight),
           const SizedBox(height: 12),
+          if (flownFlights([flight], now).isNotEmpty) ...[LogCard(flight: flight), const SizedBox(height: 12)],
           if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[
             LoungeCard(flight: flight),
             const SizedBox(height: 12),
@@ -222,6 +225,8 @@ class _ManualDetail extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         TripInfoCard(flight: f),
+        const SizedBox(height: 12),
+        LogCard(flight: f),
       ]),
     );
   }

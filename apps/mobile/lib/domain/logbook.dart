@@ -40,13 +40,16 @@ List<LogEntry> logEntries(Iterable<Flight> flights, Map<String, TripInfo> infos,
   return out;
 }
 
-/// The calendar year of departure at the origin airport; null when the flight has no time at all.
-int? entryYear(LogEntry e, DateTime Function(DateTime utc, String? timeZone) localTime) {
+/// Departure as wall-clock time at the origin airport (hand-entered flights carry only a date, stored as noon UTC, which is
+/// already the local day); null when the flight has no time at all.
+DateTime? entryLocalDeparture(LogEntry e, DateTime Function(DateTime utc, String? timeZone) localTime) {
   final d = e.departure;
   if (d == null) return null;
-  // Hand-entered flights carry only a date (noon UTC), which is already the local day.
-  return (e.flight.origin.timeZone == null ? d : localTime(d, e.flight.origin.timeZone)).year;
+  return e.flight.origin.timeZone == null ? d : localTime(d, e.flight.origin.timeZone);
 }
+
+/// The calendar year of departure at the origin airport; null when the flight has no time at all.
+int? entryYear(LogEntry e, DateTime Function(DateTime utc, String? timeZone) localTime) => entryLocalDeparture(e, localTime)?.year;
 
 typedef CountKm = ({String key, int flights, int km});
 

@@ -9,6 +9,7 @@ import 'data/stores.dart';
 import 'features/fares/fares_screen.dart';
 import 'features/flights/flight_detail_screen.dart';
 import 'features/flights/flights_screen.dart';
+import 'features/logbook/logbook_screen.dart';
 import 'features/passport/passport_screen.dart';
 import 'features/passport/wrapped_screen.dart';
 import 'features/plans/plans_screen.dart';
@@ -30,7 +31,10 @@ GoRouter buildRouter() => GoRouter(
                   GoRoute(
                     path: 'passport',
                     builder: (_, _) => const PassportScreen(),
-                    routes: [GoRoute(path: 'wrapped', builder: (_, _) => const WrappedScreen())],
+                    routes: [
+                      GoRoute(path: 'wrapped', builder: (_, _) => const WrappedScreen()),
+                      GoRoute(path: 'logbook', builder: (_, _) => const LogbookScreen()),
+                    ],
                   ), // before ':id'
                   GoRoute(path: 'settings', builder: (_, _) => const SettingsScreen()),
                   GoRoute(path: ':id', builder: (_, state) => FlightDetailScreen(id: state.pathParameters['id']!)),

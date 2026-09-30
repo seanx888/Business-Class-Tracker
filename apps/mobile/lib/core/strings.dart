@@ -100,6 +100,7 @@ class S {
   String get tier => _t('等級', 'Tier', '등급');
   String get save => _t('儲存', 'Save', '저장');
   String get cancel => _t('取消', 'Cancel', '취소');
+  String get close => _t('關閉', 'Close', '닫기');
   String get copied => _t('已複製', 'Copied', '복사됨');
   String get noMemberships => _t('還沒有會員卡', 'No memberships yet', '회원카드가 없습니다');
   String expiresIn(int d) => d < 0 ? _t('等級已到期', 'Status expired', '등급 만료') : _t('$d 天後到期', 'Expires in $d days', '$d일 후 만료');
@@ -375,6 +376,68 @@ class S {
   String get radarSkyLabel => _t('天空平面圖，正北朝上', 'Sky plan view, north is up', '하늘 평면도, 북쪽이 위');
   String get airportSearchHint => _t('機場代碼或城市…', 'Airport code or city…', '공항 코드 또는 도시…');
   String get airportNoMatch => _t('找不到符合的機場', 'No matching airport', '일치하는 공항이 없습니다');
+
+  // Logbook
+  String get logbook => _t('飛行日誌', 'Logbook', '비행 일지');
+  String get logEntriesTab => _t('紀錄', 'Entries', '기록');
+  String get logStatsTab => _t('統計', 'Statistics', '통계');
+  String get logEmptyTitle => _t('還沒有搭乘紀錄', 'No flights logged yet', '아직 탑승 기록이 없습니다');
+  String get logEmptyHint => _t('完成的航班會自動出現在這裡，也可以補登過去的航班。', 'Finished flights appear here on their own. You can also add past flights.', '완료된 항공편이 자동으로 표시됩니다. 지난 항공편을 직접 추가할 수도 있습니다.');
+  String get logExport => _t('匯出 CSV', 'Export CSV', 'CSV 내보내기');
+  String get logExportSubject => _t('ÆtherSky 飛行日誌', 'ÆtherSky logbook', 'ÆtherSky 비행 일지');
+  String get logExportFile => 'aethersky-logbook.csv';
+  String logExportText(int n) => _t('飛行日誌，共 $n 趟', 'Logbook with $n flights', '비행 일지, 총 $n편');
+  String get logEditEntry => _t('編輯紀錄', 'Edit entry', '기록 편집');
+  String get logAddDetails => _t('補上評分與心得', 'Add ratings and a review', '평점과 후기 추가');
+  String get logCardHint => _t('記下實際機型、評分、搭乘心得與照片。', 'Record the real aircraft, your ratings, a review and photos.', '실제 기종, 평점, 탑승 후기, 사진을 기록하세요.');
+  String get logSaveEntry => _t('儲存紀錄', 'Save entry', '기록 저장');
+  String get logAircraftType => _t('機型', 'Aircraft type', '기종');
+  String get logRegistration => _t('機身註冊號', 'Registration', '등록번호');
+  String logReportedType(String type) => _t('資料來源顯示：$type', 'Reported: $type', '데이터 제공: $type');
+  String get logPurpose => _t('旅程目的', 'Purpose', '여행 목적');
+  String purposeName(TripPurpose p) => switch (p) {
+        TripPurpose.leisure => _t('休閒', 'Leisure', '여가'),
+        TripPurpose.business => _t('商務', 'Business', '출장'),
+        TripPurpose.crew => _t('機組', 'Crew', '승무'),
+        TripPurpose.other => _t('其他', 'Other', '기타'),
+      };
+  String get logRatings => _t('評分', 'Ratings', '평점');
+  String ratingName(RatingAspect a) => switch (a) {
+        RatingAspect.overall => _t('整體', 'Overall', '전체'),
+        RatingAspect.seat => _t('座位', 'Seat', '좌석'),
+        RatingAspect.food => _t('餐點', 'Food', '기내식'),
+        RatingAspect.service => _t('服務', 'Service', '서비스'),
+      };
+  String ratingStar(String aspect, int n) => _t('$aspect $n 星', '$aspect: $n of 5 stars', '$aspect $n점');
+  String get ratingUnrated => _t('未評分', 'Not rated', '평점 없음');
+  String get logRatingHint => _t('再點一次同一顆星可取消。', 'Tap the same star again to clear it.', '같은 별을 다시 누르면 취소됩니다.');
+  String get logExperience => _t('搭乘心得', 'Your review', '탑승 후기');
+  String get logExperienceHint => _t('座位、餐點、機組、值不值得再搭…', 'Seat, meal, crew, would you fly it again…', '좌석, 기내식, 승무원, 다시 탈지…');
+  String get logPhotos => _t('照片', 'Photos', '사진');
+  String get logAddPhoto => _t('加入照片', 'Add photo', '사진 추가');
+  String get logFromCamera => _t('拍照', 'Take a photo', '사진 촬영');
+  String get logFromLibrary => _t('從相簿選擇', 'Choose from library', '앨범에서 선택');
+  String get logRemovePhoto => _t('移除照片', 'Remove photo', '사진 삭제');
+  String get logViewPhoto => _t('放大照片', 'View photo', '사진 보기');
+  String get logPhotoRemoved => _t('已移除 1 張照片', 'Photo removed', '사진 1장을 삭제했습니다');
+  String get logUndo => _t('復原', 'Undo', '실행 취소');
+  String get logPhotosOnDevice => _t('照片只存在這支手機，不會上傳。', 'Photos stay on this phone. Nothing is uploaded.', '사진은 이 휴대폰에만 저장되며 업로드되지 않습니다.');
+  String get logPhotosAppOnly => _t('照片功能僅限手機 App。', 'Photos are available in the phone app.', '사진 기능은 모바일 앱에서만 사용할 수 있습니다.');
+  String logPhotoLimit(int n) => _t('每趟航班最多 $n 張照片。', 'Up to $n photos per flight.', '항공편당 사진은 최대 $n장입니다.');
+  String flightRemoved(String ident) => _t('已移除 $ident', 'Removed $ident', '$ident 삭제됨');
+  String get logStatSummary => _t('總覽', 'Overview', '요약');
+  String get logStatAircraft => _t('機型', 'Aircraft types', '기종');
+  String get logStatCabins => _t('艙等', 'Cabins', '좌석 등급');
+  String get logStatPurpose => _t('旅程目的', 'Purpose', '여행 목적');
+  String get logStatRatings => _t('平均評分', 'Average ratings', '평균 평점');
+  String logStatReviewed(int n) => _t('$n 趟寫了心得或評分', n == 1 ? '1 flight reviewed' : '$n flights reviewed', '후기·평점 $n편');
+  String logStatPhotos(int n) => _t('$n 張照片', n == 1 ? '1 photo' : '$n photos', '사진 $n장');
+  String logStatTails(int n) => _t('$n 架不同機身', n == 1 ? '1 airframe' : '$n airframes', '기체 $n대');
+  String get logNoRatingsYet => _t('還沒有評分。', 'No ratings yet.', '아직 평점이 없습니다.');
+  String get logUnknownYear => _t('日期不明', 'Undated', '날짜 미상');
+  String get logStatNoAircraft => _t('填入機型後會顯示在這裡。', 'Aircraft types appear here once you record them.', '기종을 기록하면 여기에 표시됩니다.');
+  String get logStatNoCabins => _t('在航班的「我的行程」填入艙等後會顯示在這裡。', 'Cabins appear here once you set them on a flight.', '항공편에서 좌석 등급을 입력하면 표시됩니다.');
+  String ratingAverage(double avg, int n) => _t('${avg.toStringAsFixed(1)}（$n 次）', '${avg.toStringAsFixed(1)} from $n', '${avg.toStringAsFixed(1)} ($n회)');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

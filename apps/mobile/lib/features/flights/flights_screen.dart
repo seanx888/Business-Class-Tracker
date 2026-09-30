@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../data/flight_repository.dart';
+import '../../data/photo_service.dart';
 import '../../data/stores.dart';
 import '../../domain/connections.dart';
 import '../../domain/documents.dart';
@@ -45,6 +46,42 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
     super.dispose();
   }
 
+  /// Removing a flight also drops the traveller's log entry for it, so it can be undone until the message goes away;
+  /// only then are the entry's photos deleted from the phone.
+  void _remove(Flight f) {
+    final s = S.of(context);
+    final flights = ref.read(myFlightsProvider.notifier);
+    final trips = ref.read(tripInfosProvider.notifier);
+    final info = ref.read(tripInfosProvider)[f.id];
+    final photos = ref.read(photoServiceProvider);
+    flights.remove(f.id);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(s.flightRemoved(f.ident)),
+            // A snack bar with an action stays until dismissed unless told otherwise; the photos are only deleted once it is gone.
+            persist: false,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: s.logUndo,
+              onPressed: () {
+                flights.upsert(f);
+                if (info != null) trips.set(f.id, info);
+              },
+            ),
+          ),
+        )
+        .closed
+        .then((reason) {
+          if (reason == SnackBarClosedReason.action) return;
+          for (final name in info?.log.photos ?? const <String>[]) {
+            photos.delete(name);
+          }
+        });
+  }
+
   Widget _dismissible(Flight f, DateTime now) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -57,7 +94,7 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
           padding: const EdgeInsets.only(right: 20),
           child: Icon(Icons.delete_outline, color: scheme.error),
         ),
-        onDismissed: (_) => ref.read(myFlightsProvider.notifier).remove(f.id),
+        onDismissed: (_) => _remove(f),
         child: f.isManual
             ? ManualFlightCard(flight: f, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}'))
             : FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
