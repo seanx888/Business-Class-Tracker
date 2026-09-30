@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:aethersky/app.dart';
 import 'package:aethersky/data/external.dart';
 import 'package:aethersky/data/flight_repository.dart';
+import 'package:aethersky/data/photo_service.dart';
 import 'package:aethersky/data/stores.dart';
 import 'package:aethersky/domain/flight.dart';
 import 'package:flutter/material.dart';
@@ -36,6 +38,39 @@ class FakeExternalActions implements ExternalActions {
   }) async {
     shared.add((text: text, subject: subject, fileName: fileName, fileText: fileText, fileBytes: fileBytes));
   }
+}
+
+/// Photos kept in memory: `add` hands out the queued names, `deleted` records what was removed.
+class FakePhotoService implements PhotoService {
+  FakePhotoService({List<String> next = const [], this.available = true}) : _next = [...next];
+  final List<String> _next;
+  final stored = <String>{};
+  final deleted = <String>[];
+  final sources = <PhotoSource>[];
+
+  @override
+  final bool available;
+
+  @override
+  Future<String?> add(PhotoSource source) async {
+    sources.add(source);
+    if (_next.isEmpty) return null;
+    final name = _next.removeAt(0);
+    stored.add(name);
+    return name;
+  }
+
+  @override
+  Future<void> delete(String name) async {
+    stored.remove(name);
+    deleted.add(name);
+  }
+
+  // A 1x1 transparent PNG, so thumbnails decode without touching the disk.
+  static final _png = base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+
+  @override
+  ImageProvider? imageFor(String name, {int? cacheWidth}) => MemoryImage(_png);
 }
 
 /// A source that knows nothing and never changes what is stored — for tests that seed their own flights.
