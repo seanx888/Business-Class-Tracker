@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
 import '../../core/strings.dart';
@@ -172,6 +173,50 @@ class NextFlightBanner extends StatelessWidget {
               '${f.ident} · ${f.origin.iata} → ${f.destination.iata} · ${hhmm(f.gateOut.best, f.origin.timeZone)}',
               style: t.bodyMedium?.merge(tabular).copyWith(color: scheme.onPrimaryContainer),
             ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// A hand-entered past flight: no clock times exist, so the card shows the day, the route and the estimated distance.
+class ManualFlightCard extends StatelessWidget {
+  const ManualFlightCard({super.key, required this.flight, this.onTap});
+  final Flight flight;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final t = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final f = flight;
+    final day = f.gateOut.best == null ? '' : DateFormat.yMMMEd(s.locale).format(f.gateOut.best!.toUtc());
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Text(f.ident, style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  Flexible(child: Text(day, style: t.bodySmall?.copyWith(color: muted), overflow: TextOverflow.ellipsis)),
+                ]),
+                const SizedBox(height: 4),
+                Text('${f.origin.iata} → ${f.destination.iata}', style: t.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                Text('${f.origin.city ?? ''} – ${f.destination.city ?? ''}', style: t.bodySmall?.copyWith(color: muted), overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Icon(Icons.edit_note, size: 20, color: muted),
+              Text(s.manualBadge, style: t.labelSmall?.copyWith(color: muted)),
+              if (f.distanceKm != null) Text('${NumberFormat.decimalPattern('en_US').format(f.distanceKm)} km', style: t.bodySmall?.merge(tabular)),
+            ]),
           ]),
         ),
       ),

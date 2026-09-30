@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
 import '../../core/share_text.dart';
@@ -7,9 +8,11 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/external.dart';
 import '../../data/stores.dart';
+import '../../domain/airlines.dart';
 import '../../domain/connections.dart';
 import '../../domain/flight.dart';
 import '../../domain/ics.dart';
+import '../../domain/manual_flight.dart';
 import 'connection_widgets.dart';
 import 'lounge_card.dart';
 import 'trip_info_card.dart';
@@ -28,6 +31,7 @@ class FlightDetailScreen extends ConsumerWidget {
     }
     if (f == null) return Scaffold(appBar: AppBar(), body: Center(child: Text(s.notFound)));
     final flight = f;
+    if (flight.isManual) return _ManualDetail(flight: flight);
     final t = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final now = ref.watch(clockProvider)().toUtc();
@@ -163,6 +167,48 @@ class _EndpointPanel extends StatelessWidget {
           ],
         ]),
       ),
+    );
+  }
+}
+
+/// A hand-entered flight has no live data: show what we know (day, route, distance) and the traveller's own notes.
+class _ManualDetail extends ConsumerWidget {
+  const _ManualDetail({required this.flight});
+  final Flight flight;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final t = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final f = flight;
+    final day = f.gateOut.best == null ? '—' : DateFormat.yMMMMEEEEd(s.locale).format(f.gateOut.best!.toUtc());
+    return Scaffold(
+      appBar: AppBar(title: Text(f.ident)),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
+        Row(children: [
+          Text(f.origin.iata, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.arrow_forward)),
+          Text(f.destination.iata, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+        ]),
+        Text('${f.origin.city ?? ''} – ${f.destination.city ?? ''}', style: t.bodyMedium?.copyWith(color: muted)),
+        const SizedBox(height: 4),
+        Text(day, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: [
+              _kv(context, s.statAirlines, airlineDisplayName(f.carrier, chinese: s.lang == 'zh')),
+              _kv(context, s.distance, f.distanceKm == null ? '—' : '${f.distanceKm} km'),
+              _kv(context, s.blockTime, '${duration(f.blockTime)} (${s.estimatedTime})'),
+              _kv(context, s.dataSource, s.manualBadge),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TripInfoCard(flight: f),
+      ]),
     );
   }
 }

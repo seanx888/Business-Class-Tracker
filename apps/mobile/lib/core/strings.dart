@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../domain/airlines.dart' show Alliance;
 import '../domain/connections.dart';
 import '../domain/flight.dart';
+import '../domain/manual_flight.dart';
 import '../domain/trip.dart';
 
 /// UI strings in 繁體中文 (default) · English · 한국어 — same three languages as the PWA.
@@ -196,6 +197,23 @@ class S {
   String delayShrunk(Duration d) => _t('延誤已讓轉機縮短 ${span(d)}', 'Delay has cut the connection by ${span(d)}', '지연으로 환승 시간이 ${span(d)} 줄었습니다');
   String get connectionMissedAdvice => _t('後一班會在你降落前起飛，請儘快聯絡航空公司改訂。', 'The next flight leaves before you land — contact the airline about rebooking now.', '다음 항공편이 도착 전에 출발합니다. 항공사에 재예약을 문의하세요.');
   String get connectionCriticalAdvice => _t('下機後直奔登機門；不確定就先向地勤確認。', 'Head straight to the gate on landing; ask ground staff if unsure.', '착륙 후 바로 게이트로 이동하고, 불확실하면 지상직원에게 확인하세요.');
+
+  String get manualTitle => _t('補登過去航班', 'Add a past flight', '지난 항공편 추가');
+  String get manualHint => _t('沒有即時資料的舊航班也能算進飛行紀錄；里程以大圓距離估算，只記日期。', 'Old flights without live data still count toward your Passport; distance is the great-circle estimate and only the day is stored.', '실시간 데이터가 없는 지난 항공편도 기록에 포함됩니다. 거리는 대권 거리로 추정하며 날짜만 저장합니다.');
+  String get manualAdd => _t('或補登過去的航班', 'or add a past flight', '또는 지난 항공편 추가');
+  String get fromAirport => _t('出發機場代碼', 'From (airport code)', '출발 공항 코드');
+  String get toAirport => _t('抵達機場代碼', 'To (airport code)', '도착 공항 코드');
+  String get saveAndAnother => _t('儲存並再補一班', 'Save & add another', '저장 후 계속 추가');
+  String manualSaved(String ident) => _t('已補登 $ident', 'Added $ident', '$ident 추가됨');
+  String get manualBadge => _t('手動補登', 'Added by hand', '직접 추가');
+  String get estimatedTime => _t('估算', 'estimated', '추정');
+  String manualError(ManualFlightError e) => switch (e) {
+        ManualFlightError.badNumber => badNumber,
+        ManualFlightError.unknownOrigin => _t('找不到出發機場代碼', 'Unknown departure airport code', '출발 공항 코드를 찾을 수 없습니다'),
+        ManualFlightError.unknownDestination => _t('找不到抵達機場代碼', 'Unknown arrival airport code', '도착 공항 코드를 찾을 수 없습니다'),
+        ManualFlightError.sameAirport => _t('出發與抵達機場不能相同', 'Departure and arrival must differ', '출발과 도착 공항이 같을 수 없습니다'),
+        ManualFlightError.notPast => _t('請選擇昨天以前的日期（今天與未來的航班請用查詢）', 'Pick a date before today (today and future flights use the normal lookup)', '어제 이전 날짜를 선택하세요 (오늘·미래 항공편은 조회를 사용)'),
+      };
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

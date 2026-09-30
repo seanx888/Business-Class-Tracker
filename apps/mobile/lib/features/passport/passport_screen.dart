@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../data/stores.dart';
 import '../../domain/airlines.dart';
 import '../../domain/passport.dart';
+import '../flights/manual_flight_sheet.dart';
 
 /// Lifetime stats from every tracked flight that is now over.
 class PassportScreen extends ConsumerWidget {
@@ -42,12 +43,23 @@ class PassportScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(s.passport)),
+      appBar: AppBar(
+        title: Text(s.passport),
+        actions: [IconButton(tooltip: s.manualTitle, icon: const Icon(Icons.edit_calendar_outlined), onPressed: () => showManualFlightSheet(context))],
+      ),
       body: stats.isEmpty
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text(s.passportEmpty, textAlign: TextAlign.center, style: t.bodyLarge),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(s.passportEmpty, textAlign: TextAlign.center, style: t.bodyLarge),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => showManualFlightSheet(context),
+                    icon: const Icon(Icons.edit_calendar_outlined),
+                    label: Text(s.manualTitle),
+                  ),
+                ]),
               ),
             )
           : ListView(

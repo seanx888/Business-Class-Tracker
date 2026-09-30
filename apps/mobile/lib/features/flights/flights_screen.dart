@@ -10,9 +10,11 @@ import '../../data/flight_repository.dart';
 import '../../data/stores.dart';
 import '../../domain/connections.dart';
 import '../../domain/flight.dart';
+import '../../domain/manual_flight.dart';
 import '../../domain/schedule.dart';
 import 'connection_widgets.dart';
 import 'import_sheet.dart';
+import 'manual_flight_sheet.dart';
 import 'widgets.dart';
 
 class FlightsScreen extends ConsumerStatefulWidget {
@@ -53,7 +55,9 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
           child: Icon(Icons.delete_outline, color: scheme.error),
         ),
         onDismissed: (_) => ref.read(myFlightsProvider.notifier).remove(f.id),
-        child: FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
+        child: f.isManual
+            ? ManualFlightCard(flight: f, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}'))
+            : FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
       ),
     );
   }
@@ -256,6 +260,17 @@ class _AddFlightSheetState extends ConsumerState<AddFlightSheet> {
             onPressed: () {
               Navigator.of(context).pop();
               showImportSheet(context);
+            },
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+            label: Text(s.manualAdd),
+            onPressed: () {
+              Navigator.of(context).pop();
+              showManualFlightSheet(context);
             },
           ),
         ),
