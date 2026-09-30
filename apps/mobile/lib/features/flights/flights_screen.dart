@@ -15,6 +15,7 @@ import '../../domain/manual_flight.dart';
 import '../../domain/schedule.dart';
 import '../wallet/document_alert.dart';
 import 'connection_widgets.dart';
+import 'departure_card.dart';
 import 'import_sheet.dart';
 import 'manual_flight_sheet.dart';
 import 'widgets.dart';
@@ -81,6 +82,7 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
         title: const Text('ÆtherSky'),
         actions: [
           IconButton(tooltip: s.passport, icon: const Icon(Icons.badge_outlined), onPressed: () => context.go('/flights/passport')),
+          IconButton(tooltip: s.settings, icon: const Icon(Icons.settings_outlined), onPressed: () => context.go('/flights/settings')),
           IconButton(
             tooltip: s.addFlight,
             icon: const Icon(Icons.add_circle_outline),
@@ -98,7 +100,12 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
             for (final c in connections.where((c) => c.risk == ConnectionRisk.critical || c.risk == ConnectionRisk.missed))
               ConnectionChip(connection: c, onTap: () => openFlight(c.from.id)),
             if (parts.upcoming.isNotEmpty) ...[
-              NextFlightBanner(flight: parts.upcoming.first, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(parts.upcoming.first.id)}')),
+              NextFlightBanner(
+                flight: parts.upcoming.first,
+                now: now,
+                leaveHome: departurePlanFor(ref, parts.upcoming.first, now: now)?.leaveHome,
+                onTap: () => context.go('/flights/${Uri.encodeComponent(parts.upcoming.first.id)}'),
+              ),
               const SizedBox(height: 16),
             ],
             Text(s.upcoming, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),

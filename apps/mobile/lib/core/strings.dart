@@ -273,6 +273,28 @@ class S {
 
   String get jetLagDisclaimer => _t('一般性睡眠建議，非醫療意見；有睡眠或健康問題請諮詢醫師。', 'General sleep guidance, not medical advice — ask a clinician if you have sleep or health concerns.', '일반적인 수면 조언이며 의료 조언이 아닙니다. 건강 문제가 있으면 의사와 상담하세요.');
 
+  String get departureTitle => _t('出發時間表', 'When to leave', '출발 준비');
+  String leaveHomeAt(String time) => _t('$time 出門', 'Leave at $time', '$time 출발');
+  String arriveAirportAt(String time) => _t('$time 到機場', 'At the airport by $time', '$time까지 공항 도착');
+  String departsAtTime(String time) => _t('$time 起飛', 'Departs $time', '$time 이륙');
+  String bufferNote(Duration buffer, Duration travel, bool intl) => _t(
+      '${intl ? '國際線' : '國內線'}提前 ${span(buffer)} · 路程 ${span(travel)}（可在設定或行程資訊調整）',
+      '${intl ? 'International' : 'Domestic'}: ${span(buffer)} before departure · ${span(travel)} journey (change in Settings or trip details)',
+      '${intl ? '국제선' : '국내선'} ${span(buffer)} 전 도착 · 이동 ${span(travel)} (설정 또는 여정 정보에서 변경)');
+  String get travelToAirport => _t('到機場所需時間（分鐘）', 'Journey to the airport (min)', '공항까지 소요 시간(분)');
+  String travelOverrideHint(int defaultMinutes) => _t('留空 = 使用設定的 $defaultMinutes 分鐘', 'Blank = the default of $defaultMinutes min from Settings', '비워 두면 설정의 $defaultMinutes분 사용');
+  String get checkInTitle => _t('線上報到', 'Online check-in', '온라인 체크인');
+  String get checkInHint => _t('多數航空公司在起飛前 24–48 小時開放線上報到（依航空公司而異）。', 'Most airlines open online check-in 24–48 h before departure (it varies by airline).', '대부분의 항공사는 출발 24–48시간 전에 온라인 체크인을 엽니다(항공사별 상이).');
+  String checkInAt(String airline) => _t('前往 $airline 官網報到', 'Check in on the $airline website', '$airline 웹사이트에서 체크인');
+
+  String get settings => _t('設定', 'Settings', '설정');
+  String get languageSetting => _t('語言', 'Language', '언어');
+  String get languageSystem => _t('跟隨手機', 'System', '시스템');
+  String get airportTimeSettings => _t('到機場的時間', 'Getting to the airport', '공항 이동');
+  String get bufferInternationalSetting => _t('國際線：提前到機場', 'International: be at the airport before departure', '국제선: 출발 전 공항 도착');
+  String get bufferDomesticSetting => _t('國內線：提前到機場', 'Domestic: be at the airport before departure', '국내선: 출발 전 공항 도착');
+  String minutes(int n) => _t('$n 分鐘', '$n min', '$n분');
+
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
   String get openFail => _t('無法開啟連結', 'Could not open the link', '링크를 열 수 없습니다');

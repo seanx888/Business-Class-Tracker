@@ -11,6 +11,7 @@ import 'features/flights/flight_detail_screen.dart';
 import 'features/flights/flights_screen.dart';
 import 'features/passport/passport_screen.dart';
 import 'features/plans/plans_screen.dart';
+import 'features/settings/settings_screen.dart';
 import 'features/wallet/wallet_screen.dart';
 
 GoRouter buildRouter() => GoRouter(
@@ -25,6 +26,7 @@ GoRouter buildRouter() => GoRouter(
                 builder: (_, _) => const FlightsScreen(),
                 routes: [
                   GoRoute(path: 'passport', builder: (_, _) => const PassportScreen()), // before ':id'
+                  GoRoute(path: 'settings', builder: (_, _) => const SettingsScreen()),
                   GoRoute(path: ':id', builder: (_, state) => FlightDetailScreen(id: state.pathParameters['id']!)),
                 ],
               ),
@@ -102,8 +104,16 @@ class _AetherAppState extends ConsumerState<AetherApp> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
+    final language = ref.watch(settingsProvider.select((x) => x.language));
     return MaterialApp.router(
       title: 'ÆtherSky',
+      // null = follow the phone; otherwise the language chosen in Settings.
+      locale: switch (language) {
+        'zh' => const Locale('zh', 'TW'),
+        'en' => const Locale('en'),
+        'ko' => const Locale('ko'),
+        _ => null,
+      },
       debugShowCheckedModeBanner: false,
       theme: aetherTheme(Brightness.light),
       darkTheme: aetherTheme(Brightness.dark),

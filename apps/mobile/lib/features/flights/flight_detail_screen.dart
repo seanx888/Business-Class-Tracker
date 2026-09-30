@@ -10,10 +10,12 @@ import '../../data/external.dart';
 import '../../data/stores.dart';
 import '../../domain/airlines.dart';
 import '../../domain/connections.dart';
+import '../../domain/departure_plan.dart';
 import '../../domain/flight.dart';
 import '../../domain/ics.dart';
 import '../../domain/manual_flight.dart';
 import 'connection_widgets.dart';
+import 'departure_card.dart';
 import 'jetlag_card.dart';
 import 'lounge_card.dart';
 import 'route_map.dart';
@@ -79,6 +81,8 @@ class FlightDetailScreen extends ConsumerWidget {
           _EndpointPanel(title: s.arrival, e: flight.destination, time: flight.gateIn, air: flight.landing, airLabel: s.landing),
           const SizedBox(height: 12),
           for (final c in connections) ConnectionChip(connection: c),
+          DepartureCard(flight: flight, now: now),
+          if (departurePlanFor(ref, flight, now: now) != null || checkInLikelyOpen(flight, now)) const SizedBox(height: 12),
           TripInfoCard(flight: flight),
           const SizedBox(height: 12),
           if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[

@@ -146,10 +146,13 @@ String countdownText(S s, Flight f, DateTime now) {
 
 /// "Next flight" hero at the top of the list: route + a live countdown.
 class NextFlightBanner extends StatelessWidget {
-  const NextFlightBanner({super.key, required this.flight, required this.now, this.onTap});
+  const NextFlightBanner({super.key, required this.flight, required this.now, this.onTap, this.leaveHome});
   final Flight flight;
   final DateTime now;
   final VoidCallback? onTap;
+
+  /// When to leave for the airport (shown when it is still ahead and within a day).
+  final DateTime? leaveHome;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +176,15 @@ class NextFlightBanner extends StatelessWidget {
               '${f.ident} · ${f.origin.iata} → ${f.destination.iata} · ${hhmm(f.gateOut.best, f.origin.timeZone)}',
               style: t.bodyMedium?.merge(tabular).copyWith(color: scheme.onPrimaryContainer),
             ),
+            if (leaveHome != null && leaveHome!.isAfter(now) && leaveHome!.difference(now) <= const Duration(hours: 24))
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.directions_walk, size: 16, color: scheme.onPrimaryContainer),
+                  const SizedBox(width: 4),
+                  Text(s.leaveHomeAt(hhmm(leaveHome, f.origin.timeZone)), style: t.bodyMedium?.merge(tabular).copyWith(fontWeight: FontWeight.w700, color: scheme.onPrimaryContainer)),
+                ]),
+              ),
           ]),
         ),
       ),

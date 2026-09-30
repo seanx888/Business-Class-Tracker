@@ -12,6 +12,7 @@ import '../domain/flight.dart';
 import '../domain/geo.dart';
 import '../domain/membership.dart';
 import '../domain/schedule.dart';
+import '../domain/settings.dart';
 import '../domain/trip.dart';
 import 'flight_repository.dart';
 
@@ -144,6 +145,29 @@ class Wallet extends Notifier<List<Membership>> {
 }
 
 final walletProvider = NotifierProvider<Wallet, List<Membership>>(Wallet.new);
+
+/// Language override and the "when do I leave" numbers.
+class Settings extends Notifier<AppSettings> {
+  static const _key = 'aether.settings.v1';
+
+  @override
+  AppSettings build() {
+    final raw = ref.read(prefsProvider).getString(_key);
+    if (raw == null) return const AppSettings();
+    try {
+      return AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return const AppSettings();
+    }
+  }
+
+  void update(AppSettings Function(AppSettings) change) {
+    state = change(state);
+    ref.read(prefsProvider).setString(_key, jsonEncode(state.toJson()));
+  }
+}
+
+final settingsProvider = NotifierProvider<Settings, AppSettings>(Settings.new);
 
 /// Passports, visas and IDs (kind, holder, country, expiry — never a document number), kept on the device.
 class TravelDocs extends Notifier<List<TravelDoc>> {
