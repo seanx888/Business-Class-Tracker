@@ -4,6 +4,7 @@ import '../domain/airlines.dart' show Alliance;
 import '../domain/connections.dart';
 import '../domain/documents.dart';
 import '../domain/flight.dart';
+import '../domain/jetlag.dart';
 import '../domain/manual_flight.dart';
 import '../domain/trip.dart';
 
@@ -246,6 +247,31 @@ class S {
       DocIssueKind.visaExpiredByTrip => _t('$where 簽證（$who）在 $ident 抵達前就會到期（$on）', '$where visa ($who) expires ($on) before $ident lands', '$where 비자($who)가 $ident 도착 전에 만료됩니다 ($on)'),
     };
   }
+
+  String get jetLagTitle => _t('時差調整', 'Jet lag plan', '시차 적응');
+  String jetLagSummary(JetLagPlan p) {
+    final dir = p.direction == JetLagDirection.east ? _t('往東', 'Eastbound', '동쪽으로') : _t('往西', 'Westbound', '서쪽으로');
+    return _t('$dir ${p.hours} 小時時差 · 約需 ${p.recoveryDays} 天適應', '$dir · ${p.hours} h shift · about ${p.recoveryDays} days to adjust', '$dir ${p.hours}시간 · 적응 약 ${p.recoveryDays}일');
+  }
+
+  String jetLagTip(JetLagTip tip, JetLagPlan p) {
+    final east = p.direction == JetLagDirection.east;
+    return switch (tip) {
+      JetLagTip.shiftBedtimeBefore => _t(
+          '出發前 ${p.preDays} 天起，每天把就寢與起床時間${east ? '提早' : '延後'} 1 小時。',
+          'From ${p.preDays} days before, move bedtime and wake-up ${east ? 'earlier' : 'later'} by 1 h each day.',
+          '출발 ${p.preDays}일 전부터 취침·기상 시간을 매일 1시간씩 ${east ? '앞당기' : '늦추'}세요.'),
+      JetLagTip.destinationTimeOnBoard => _t('上機就把手錶與手機調成目的地時間，照當地時間吃飯與睡覺。', 'Set your watch to destination time on boarding and eat and sleep by it.', '탑승하면 시계를 도착지 시간으로 맞추고 그 시간에 맞춰 식사·수면하세요.'),
+      JetLagTip.stayAwakeUntilBedtime => _t('抵達後撐到當地就寢時間；要小睡的話不超過 30 分鐘、下午 3 點前。', 'Stay up until local bedtime; if you nap, keep it under 30 min and before 3 pm.', '현지 취침 시간까지 깨어 있고, 낮잠은 오후 3시 전 30분 이내로 하세요.'),
+      JetLagTip.sleepOnLocalTime => _t('抵達時已近當地夜晚：直接依當地時間就寢，即使不太睏。', 'You land close to local night — go to bed on local time even if you do not feel tired.', '현지 밤에 가까운 시각에 도착합니다. 졸리지 않아도 현지 시간에 잠자리에 드세요.'),
+      JetLagTip.seekMorningLight => _t('到達後幾天，早上多曬太陽（戶外自然光），幫助生理時鐘提前。', 'For the first days get bright light in the local morning to pull your body clock earlier.', '도착 후 며칠간 아침에 밝은 빛을 쬐어 생체시계를 앞당기세요.'),
+      JetLagTip.seekEveningLight => _t('傍晚到入夜前多接觸明亮光線，幫助生理時鐘延後。', 'Get bright light in the late afternoon and evening to push your body clock later.', '늦은 오후~저녁에 밝은 빛을 쬐어 생체시계를 늦추세요.'),
+      JetLagTip.avoidEarlyLightFirstDays => _t('時差很大的東行：前兩天早上 10 點前避免強光（可戴墨鏡），改在下午曬太陽。', 'Big eastward shift: for two days avoid bright light before 10 am (sunglasses help) and take it in the afternoon instead.', '큰 동향 시차: 처음 이틀은 오전 10시 전 강한 빛을 피하고(선글라스) 오후에 빛을 쬐세요.'),
+      JetLagTip.limitCaffeine => _t('當地就寢前 6 小時內不要咖啡因。', 'No caffeine in the 6 hours before local bedtime.', '현지 취침 6시간 전부터는 카페인을 피하세요.'),
+    };
+  }
+
+  String get jetLagDisclaimer => _t('一般性睡眠建議，非醫療意見；有睡眠或健康問題請諮詢醫師。', 'General sleep guidance, not medical advice — ask a clinician if you have sleep or health concerns.', '일반적인 수면 조언이며 의료 조언이 아닙니다. 건강 문제가 있으면 의사와 상담하세요.');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
