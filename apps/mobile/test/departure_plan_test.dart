@@ -88,6 +88,22 @@ void main() {
       expect(AppSettings.fromJson(const {}).travelMinutes, 60);
     });
 
+    test('radar preferences: defaults, round trip, and junk is ignored', () {
+      const d = AppSettings();
+      expect(d.radarUseLocation, isTrue);
+      expect(d.radarAirport, '');
+      expect(d.radarRadiusKm, 50);
+      final back = AppSettings.fromJson(const AppSettings(radarUseLocation: false, radarAirport: 'TPE', radarRadiusKm: 25).toJson());
+      expect(back.radarUseLocation, isFalse);
+      expect(back.radarAirport, 'TPE');
+      expect(back.radarRadiusKm, 25);
+      final junk = AppSettings.fromJson({'radarUseLocation': 'yes', 'radarAirport': 'toolong', 'radarRadiusKm': 33});
+      expect(junk.radarUseLocation, isTrue);
+      expect(junk.radarAirport, '');
+      expect(junk.radarRadiusKm, 50);
+      expect(AppSettings.fromJson({'radarAirport': 'nrt'}).radarAirport, 'NRT');
+    });
+
     test('copyWith changes only what it is told to', () {
       final c = const AppSettings().copyWith(travelMinutes: 30);
       expect(c.travelMinutes, 30);

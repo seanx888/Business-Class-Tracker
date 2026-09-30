@@ -65,6 +65,7 @@ Future<void> pumpApp(
   addTearDown(tester.platformDispatcher.clearLocalesTestValue);
   await tester.pumpWidget(
     ProviderScope(
+      retry: noAutoRetry,
       overrides: [
         prefsProvider.overrideWithValue(sp),
         flightSourceProvider.overrideWithValue(source ?? DemoFlightDataSource(clock: clock)),

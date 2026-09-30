@@ -12,6 +12,7 @@ import 'features/flights/flights_screen.dart';
 import 'features/passport/passport_screen.dart';
 import 'features/passport/wrapped_screen.dart';
 import 'features/plans/plans_screen.dart';
+import 'features/radar/radar_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/wallet/wallet_screen.dart';
 
@@ -36,6 +37,7 @@ GoRouter buildRouter() => GoRouter(
                 ],
               ),
             ]),
+            StatefulShellBranch(routes: [GoRoute(path: '/radar', builder: (_, _) => const RadarScreen())]),
             StatefulShellBranch(routes: [GoRoute(path: '/fares', builder: (_, _) => const FaresScreen())]),
             StatefulShellBranch(routes: [GoRoute(path: '/wallet', builder: (_, _) => const WalletScreen())]),
             StatefulShellBranch(routes: [GoRoute(path: '/plans', builder: (_, _) => const PlansScreen())]),
@@ -58,6 +60,7 @@ class _Shell extends StatelessWidget {
         onDestinationSelected: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
         destinations: [
           NavigationDestination(icon: const Icon(Icons.flight_outlined), selectedIcon: const Icon(Icons.flight), label: s.tabFlights),
+          NavigationDestination(icon: const Icon(Icons.radar_outlined), selectedIcon: const Icon(Icons.radar), label: s.tabRadar),
           NavigationDestination(icon: const Icon(Icons.trending_down_outlined), selectedIcon: const Icon(Icons.trending_down), label: s.tabFares),
           NavigationDestination(icon: const Icon(Icons.wallet_outlined), selectedIcon: const Icon(Icons.wallet), label: s.tabWallet),
           NavigationDestination(icon: const Icon(Icons.workspace_premium_outlined), selectedIcon: const Icon(Icons.workspace_premium), label: s.tabPlans),

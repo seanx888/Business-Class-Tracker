@@ -8,6 +8,7 @@ import '../../data/stores.dart';
 import '../../domain/flight.dart';
 import '../../domain/geo.dart';
 import '../../domain/route_map.dart';
+import '../common/plane_shape.dart';
 
 /// The route on a world outline: great-circle arc, the part already flown, both airports and the aircraft.
 class RouteMap extends ConsumerWidget {
@@ -162,8 +163,8 @@ class RouteMapPainter extends CustomPainter {
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.rotate(heading);
-    canvas.drawPath(_plane(11), Paint()..color = sea);
-    canvas.drawPath(_plane(9), Paint()..color = routeColor);
+    canvas.drawPath(planePath(11), Paint()..color = sea);
+    canvas.drawPath(planePath(9), Paint()..color = routeColor);
     canvas.restore();
   }
 
@@ -180,19 +181,6 @@ class RouteMapPainter extends CustomPainter {
     if (dy + tp.height > size.height) dy = at.dy - 8 - tp.height; // near the bottom edge → above the dot
     dx = dx.clamp(4.0, math.max(4.0, size.width - tp.width - 4));
     tp.paint(canvas, Offset(dx, dy));
-  }
-
-  /// A small aircraft silhouette pointing up, [r] pixels from centre to nose.
-  static Path _plane(double r) {
-    const right = [(0.0, -1.0), (0.14, -0.35), (0.95, 0.2), (0.95, 0.38), (0.14, 0.12), (0.1, 0.7), (0.42, 0.9), (0.42, 1.02), (0.0, 0.9)];
-    final path = Path()..moveTo(0, -r);
-    for (final (x, y) in right.skip(1)) {
-      path.lineTo(x * r, y * r);
-    }
-    for (final (x, y) in right.skip(1).toList().reversed) {
-      path.lineTo(-x * r, y * r);
-    }
-    return path..close();
   }
 
   @override

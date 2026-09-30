@@ -28,6 +28,10 @@ final httpClientProvider = Provider<http.Client>((ref) => http.Client());
 /// Current time; overridden in tests so countdowns and upcoming/past grouping are deterministic.
 final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
+/// Riverpod 3 re-runs a failed provider on its own with growing pauses, which would leave a screen on its loading state for
+/// minutes while the phone is offline. Failures here are shown at once with a Retry button instead.
+Duration? noAutoRetry(int retryCount, Object error) => null;
+
 /// Flights the user follows, kept on the device (account sync comes with the backend).
 class MyFlights extends Notifier<List<Flight>> {
   static const _key = 'aether.flights.v1';

@@ -1,11 +1,13 @@
 import 'package:flutter/widgets.dart';
 
+import '../data/location_service.dart' show LocationFailure;
 import '../domain/airlines.dart' show Alliance;
 import '../domain/connections.dart';
 import '../domain/documents.dart';
 import '../domain/flight.dart';
 import '../domain/jetlag.dart';
 import '../domain/manual_flight.dart';
+import '../domain/nearby.dart';
 import '../domain/trip.dart';
 import '../domain/weather.dart';
 
@@ -324,6 +326,55 @@ class S {
   String get shareImage => _t('分享圖片', 'Share image', '이미지 공유');
   String wrappedShareText(int year, int flights, String km) => _t('我的 $year 飛行回顧：$flights 趟、$km km — ÆtherSky', 'My $year in the air: $flights flights, $km km — ÆtherSky', '나의 $year 비행 회고: $flights번, $km km — ÆtherSky');
   String get wrappedEmpty => _t('這一年還沒有完成的航班。', 'No completed flights in this year yet.', '이 해에는 완료된 항공편이 없습니다.');
+
+  String get tabRadar => _t('雷達', 'Radar', '레이더');
+  String get radarTitle => _t('附近航班', 'Flights nearby', '주변 항공편');
+  String get radarMyLocation => _t('我的位置', 'My location', '내 위치');
+  String get radarAirport => _t('機場', 'Airport', '공항');
+  String get radarList => _t('清單', 'List', '목록');
+  String get radarSky => _t('天空', 'Sky', '하늘');
+  String radarRadius(int km) => '$km\u00A0km';
+  String radarSummary(int n, int km, String time) => _t('$n 架航班 · 半徑 $km km · $time 更新', n == 1 ? '1 aircraft · $km km radius · updated $time' : '$n aircraft · $km km radius · updated $time', '항공기 $n대 · 반경 $km km · $time 갱신');
+  String get radarLocating => _t('定位中…', 'Finding your location…', '위치 확인 중…');
+  String get radarLoading => _t('載入附近航班…', 'Loading nearby flights…', '주변 항공편 불러오는 중…');
+  String get radarEmptyTitle => _t('這個範圍內沒有航班', 'No aircraft in range', '범위 안에 항공기가 없습니다');
+  String get radarEmptyHint => _t('放大半徑，或改選機場看看。', 'Try a wider radius or pick an airport.', '반경을 넓히거나 공항을 선택해 보세요.');
+  String get radarErrorTitle => _t('無法取得航班資料', 'Could not load aircraft', '항공기 정보를 불러올 수 없습니다');
+  String get radarErrorHint => _t('請確認網路連線後重試。網頁版瀏覽器會擋下這類資料來源，請改用手機 App。', 'Check your connection and try again. Browsers block this data source on the web, so use the phone app.', '네트워크를 확인하고 다시 시도하세요. 웹 브라우저는 이 데이터 소스를 차단하므로 모바일 앱을 사용하세요.');
+  String get radarTryAgain => _t('重試', 'Try again', '다시 시도');
+  String get radarPickAirport => _t('選擇機場', 'Pick an airport', '공항 선택');
+  String get radarNeedAirport => _t('選一個機場，看它周圍的航班。', 'Pick an airport to see the flights around it.', '공항을 선택하면 주변 항공편을 볼 수 있습니다.');
+  String radarLocationProblem(LocationFailure f) => switch (f) {
+        LocationFailure.denied => _t('需要位置權限才能顯示你附近的航班。', 'Location permission is needed to show flights near you.', '내 주변 항공편을 보려면 위치 권한이 필요합니다.'),
+        LocationFailure.deniedForever => _t('位置權限已被關閉。請到系統設定開啟，或改選機場。', 'Location permission is off. Turn it on in system settings, or pick an airport.', '위치 권한이 꺼져 있습니다. 시스템 설정에서 켜거나 공항을 선택하세요.'),
+        LocationFailure.serviceOff => _t('手機的定位服務已關閉。開啟後重試，或改選機場。', 'Location is switched off on this phone. Turn it on and try again, or pick an airport.', '휴대폰의 위치 서비스가 꺼져 있습니다. 켠 뒤 다시 시도하거나 공항을 선택하세요.'),
+        LocationFailure.unavailable => _t('暫時無法取得位置。到戶外或稍後再試，或改選機場。', 'Could not get a position. Try outdoors or later, or pick an airport.', '위치를 가져올 수 없습니다. 야외에서 또는 나중에 다시 시도하거나 공항을 선택하세요.'),
+      };
+  String get radarOpenSettings => _t('開啟系統設定', 'Open settings', '설정 열기');
+  String get radarOverhead => _t('頭頂上方', 'Overhead', '머리 위');
+  String get radarOnGround => _t('地面', 'On ground', '지상');
+  String radarEmergency(String squawk) => _t('緊急代碼 $squawk', 'Emergency code $squawk', '비상 코드 $squawk');
+  String radarTrend(VerticalTrend t) => switch (t) {
+        VerticalTrend.climbing => _t('爬升', 'Climbing', '상승'),
+        VerticalTrend.descending => _t('下降', 'Descending', '하강'),
+        VerticalTrend.level => _t('平飛', 'Level', '수평'),
+      };
+  String get radarAltitude => _t('高度', 'Altitude', '고도');
+  String get radarSpeed => _t('對地速度', 'Ground speed', '대지 속도');
+  String get radarHeading => _t('航向', 'Heading', '방향');
+  String get radarVertical => _t('升降率', 'Vertical rate', '상승/하강률');
+  String get radarSquawk => _t('應答機代碼', 'Squawk', '스퀘이크');
+  String get radarRegistration => _t('註冊號', 'Registration', '등록번호');
+  String get radarAircraft => _t('機型', 'Aircraft', '기종');
+  String get radarDistance => _t('距離', 'Distance', '거리');
+  String get radarSeen => _t('最後更新', 'Last update', '마지막 갱신');
+  String radarSecondsAgo(int sec) => _t('$sec 秒前', '${sec}s ago', '$sec초 전');
+  String get radarOpenFr24 => _t('在 Flightradar24 查看', 'View on Flightradar24', 'Flightradar24에서 보기');
+  String get radarTrack => _t('追蹤這班航班', 'Track this flight', '이 항공편 추적');
+  String get radarAttribution => _t('ADS-B 資料：adsb.lol 與 adsb.fi 社群（ODbL 開放資料）。位置為即時接收，可能有遺漏。', 'ADS-B data from the adsb.lol and adsb.fi communities (ODbL open data). Positions are received live and coverage can have gaps.', 'ADS-B 데이터: adsb.lol 및 adsb.fi 커뮤니티 (ODbL 오픈 데이터). 실시간 수신이라 누락될 수 있습니다.');
+  String get radarSkyLabel => _t('天空平面圖，正北朝上', 'Sky plan view, north is up', '하늘 평면도, 북쪽이 위');
+  String get airportSearchHint => _t('機場代碼或城市…', 'Airport code or city…', '공항 코드 또는 도시…');
+  String get airportNoMatch => _t('找不到符合的機場', 'No matching airport', '일치하는 공항이 없습니다');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

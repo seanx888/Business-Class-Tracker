@@ -12,5 +12,5 @@ Future<void> main() async {
   initTimeZones();
   await initializeDateFormatting();
   final prefs = await SharedPreferences.getInstance();
-  runApp(ProviderScope(overrides: [prefsProvider.overrideWithValue(prefs)], child: const AetherApp()));
+  runApp(ProviderScope(retry: noAutoRetry, overrides: [prefsProvider.overrideWithValue(prefs)], child: const AetherApp()));
 }
