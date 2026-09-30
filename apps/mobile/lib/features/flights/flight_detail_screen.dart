@@ -16,6 +16,7 @@ import '../../domain/manual_flight.dart';
 import 'connection_widgets.dart';
 import 'jetlag_card.dart';
 import 'lounge_card.dart';
+import 'route_map.dart';
 import 'trip_info_card.dart';
 import 'widgets.dart';
 
@@ -70,6 +71,8 @@ class FlightDetailScreen extends ConsumerWidget {
           Text(countdownText(s, flight, now), style: t.titleMedium?.merge(tabular).copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           ProgressLine(progress: flight.progress(now), color: AetherColors.phase(flight.phase)),
+          const SizedBox(height: 16),
+          RouteMap(flight: flight, now: now),
           const SizedBox(height: 16),
           _EndpointPanel(title: s.departure, e: flight.origin, time: flight.gateOut, air: flight.takeoff, airLabel: s.takeoff),
           const SizedBox(height: 12),

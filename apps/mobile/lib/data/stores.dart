@@ -187,6 +187,12 @@ final airportGeoProvider = FutureProvider<Map<String, AirportGeo>>((ref) async {
   return {for (final e in raw.entries) e.key: ?AirportGeo.fromJson(e.value)};
 });
 
+/// Land outline for the route map: rings of [lon, lat, lon, lat, …] (Natural Earth 110m, public domain).
+final worldLandProvider = FutureProvider<List<List<double>>>((ref) async {
+  final raw = jsonDecode(await rootBundle.loadString('assets/world-land.json')) as List;
+  return [for (final ring in raw) [for (final v in ring as List) (v as num).toDouble()]];
+});
+
 Future<Map<String, dynamic>> _fetchJson(http.Client client, String file) async {
   final res = await client.get(Uri.parse('${AppConfig.dataBase}$file')).timeout(const Duration(seconds: 20));
   if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');

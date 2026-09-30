@@ -70,6 +70,7 @@ flutter:
   assets:
     - assets/airport-countries.json # IATA → ISO country, copied from config/ by scripts/gen-dart-airlines.mjs
     - assets/airport-geo.json # IATA → [lat, lon, city], same
+    - assets/world-land.json # land outline for the route map, from scripts/build-land-outline.mjs (Natural Earth, public domain)
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

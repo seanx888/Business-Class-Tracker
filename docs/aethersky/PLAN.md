@@ -165,6 +165,7 @@ flowchart LR
 |---|---|---|---|
 | **P0 PWA 升級** | 本 PR | ÆtherSky 改名、Real Tracker（固定/彈性日期＋Email/推播通知）、會員卡夾、Flutter 專案骨架、Supabase schema | ✅ 本次完成 |
 | **P1a 免帳號實用功能** | 已完成 | 下一班倒數＋即將出發/已完成分組、開啟自動刷新（省 API）、艙等/座位/訂位代號、分享航班、加入行事曆 (.ics)、**貼上訂位確認信批次加入**、**貴賓室資格判斷**、票價一鍵開搜尋、Passport 飛行統計、會員計畫與 PWA 完全對齊（28 個） | ✅ 本次完成（Flutter 96 測試） |
+| **P1b 免帳號實用功能（第二批）** | 已完成 | 轉機助理、手動補登過去航班、護照／簽證到期提醒、時差調整計畫、航線大圓弧地圖 | ✅ 本次完成（Flutter 168 測試） |
 | **P1 MVP（其餘）** | 4–6 週 | 帳號登入與雲端同步、推播（FCM/APNs）、Live Activity / Live Updates、地圖與航跡、RevenueCat 付費牆 | 🔜 需要帳號／裝置（見 §13） |
 | **P2 Pro** | +6 週 | Email 轉寄匯入、日曆同步、轉機助理、inbound 飛機追蹤、延誤預測、機場延誤趨勢、RevenueCat 付費牆、家庭方案 | |
 | **P3 Elite** | +8 週 | 貴賓室指南＋評價、快速通關預約、會員等級進度、里程兌換位提醒、AI 助理、賠償申請 | |
@@ -341,6 +342,20 @@ Everything below works on-device today, is unit- or widget-tested, and needs no 
 
 **單一資料來源 Single source of truth**：航空公司／聯盟／會員計畫／機場國別表由 `web/core/*.js` 與 `config/` 產生 Dart，`npm test` 會檢查是否過期（`npm run gen:dart` 重新產生）。
 
+### P1b（第二批，同樣免帳號）
+
+| # | 功能 Feature | 為什麼優先 Why | 位置 Where |
+|---|---|---|---|
+| 10 | **轉機助理**：兩班相接的追蹤航班 → 轉機時間（依即時預估）、風險（國際 45/90 分、國內 30/60 分、換航廈 +30 分）、延誤已縮短多少、來不及轉乘；首頁列表班與班之間顯示，很趕／來不及時置頂警示 | 多航段行程最容易出事的地方；延誤發生時最需要 | `lib/domain/connections.dart` |
+| 11 | **手動補登過去航班**：航班號＋日期＋兩個機場代碼 → 大圓距離、估算飛行時間，只記日期（不編造時刻） | 讓 Passport 一開始就有資料，不用等到下次飛行 | `lib/domain/manual_flight.dart` |
+| 12 | **護照／簽證到期提醒**：只存類型、持有人、國家、到期日（**不存證件號碼**）；到期 180 天內提醒、已過期、護照抵達時不足 6 個月、簽證在抵達前到期 → 首頁警示 | 被拒絕登機／入境的代價最高；純本機 | `lib/domain/documents.dart` |
+| 13 | **時差調整計畫**：由兩地 UTC 偏移算出方向與小時數（取較短方向）、約需幾天適應、出發前就寢調整、抵達時間決定「撐到晚上」或「直接睡」、光照與咖啡因 | 長程商務艙旅客每趟都用得到；純邏輯 | `lib/domain/jetlag.dart` |
+| 14 | **航線大圓弧地圖**：世界輪廓（Natural Earth 110m，公有領域，47 KB）＋大圓弧＋已飛路段＋機位；跨日期變更線正確；不需要地圖圖磚或金鑰 | 每次開航班頁都看得到 | `lib/domain/route_map.dart`, `features/flights/route_map.dart` |
+
+**資料**：`config/airport-geo.json`（9,053 個機場座標／城市，OurAirports 公有領域；`npm run airports` 更新）與 App 內副本由測試保證一致；`apps/mobile/assets/world-land.json` 由 `scripts/build-land-outline.mjs` 產生。
+
+**順帶修正**：會員卡與證件對話框在關閉動畫尚未結束時就釋放輸入框控制器（`TextEditingController was used after being disposed`），已改為由對話框自己持有並釋放，並加上回歸測試。
+
 ### 仍需要你（USERA / USERB）做的事 · Blocked on accounts or devices
 
 | 項目 | 需要 | 我能先做的 |
@@ -352,5 +367,4 @@ Everything below works on-device today, is unit- or widget-tested, and needs no 
 | 付費牆 | RevenueCat 帳號＋兩家商店的訂閱商品 | `plans.dart` 權限閘已就緒 |
 | 貴賓室目錄與評價、快速通關 | 資料來源合約（LoungeReview / DragonPass / Priority Pass） | 資格判斷規則層已完成，接上目錄即可顯示「哪一間」 |
 
-**下一批（不需帳號，依序）**：① 轉機助理（最短轉機時間、風險提示）② 時差調整計畫 ③ 護照／簽證到期提醒（本機）④ 航線大圓弧地圖（不需圖磚）⑤ 手動補登過去航班（讓 Passport 立刻有資料）。
-
+**下一批（不需帳號，依序）**：① 本機提醒（起飛前該出門、證件到期；需 flutter_local_notifications 與實機驗證）② 貴賓室目錄（先做 TPE/ICN/NRT/BKK/SIN 的名稱、航廈、開放條件；需逐筆核實）③ 機場地圖／登機門步行時間 ④ 年度飛行回顧（Wrapped，可分享圖片）⑤ 航班備註與照片附件。
