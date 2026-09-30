@@ -6,6 +6,7 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/stores.dart';
 import '../../domain/membership.dart';
+import 'documents_section.dart';
 
 class WalletScreen extends ConsumerStatefulWidget {
   const WalletScreen({super.key});
@@ -71,63 +72,82 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
               ),
             ),
           ),
+        const DocumentsSection(),
       ]),
     );
   }
 
   Future<void> _edit(BuildContext context) async {
-    final s = S.of(context);
-    final number = TextEditingController();
-    final owner = TextEditingController();
-    final tier = TextEditingController();
-    String program = programs.first.key;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: Text(s.addMembership),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              DropdownButtonFormField<String>(
-                initialValue: program,
-                isExpanded: true,
-                decoration: InputDecoration(labelText: s.program),
-                items: [for (final p in programs) DropdownMenuItem(value: p.key, child: Text(p.label(s.lang), overflow: TextOverflow.ellipsis))],
-                onChanged: (v) => setLocal(() => program = v ?? program),
-              ),
-              TextField(controller: number, decoration: InputDecoration(labelText: s.memberNumber), textCapitalization: TextCapitalization.characters),
-              TextField(controller: owner, decoration: InputDecoration(labelText: s.owner)),
-              Autocomplete<String>(
-                optionsBuilder: (v) => (programFor(program)?.tiers ?? const <String>[]).where((x) => x.toLowerCase().contains(v.text.toLowerCase())),
-                onSelected: (v) => tier.text = v,
-                fieldViewBuilder: (context, c, focus, submit) => TextField(
-                  controller: c,
-                  focusNode: focus,
-                  decoration: InputDecoration(labelText: s.tier),
-                  onChanged: (v) => tier.text = v,
-                ),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(s.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(s.save)),
-          ],
-        ),
-      ),
-    );
-    final m = ok == true
-        ? Membership.fromJson({
-            'id': 'm${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}',
-            'program': program,
-            'number': number.text,
-            if (owner.text.trim().isNotEmpty) 'owner': owner.text.trim(),
-            if (tier.text.trim().isNotEmpty) 'tier': tier.text.trim(),
-          })
-        : null;
+    final m = await showDialog<Membership>(context: context, builder: (_) => const _MembershipDialog());
     if (m != null) ref.read(walletProvider.notifier).upsert(m);
-    number.dispose();
-    owner.dispose();
-    tier.dispose();
+  }
+}
+
+/// Owns its text controllers, so they are disposed only after the dialog's exit animation has finished.
+class _MembershipDialog extends StatefulWidget {
+  const _MembershipDialog();
+
+  @override
+  State<_MembershipDialog> createState() => _MembershipDialogState();
+}
+
+class _MembershipDialogState extends State<_MembershipDialog> {
+  final _number = TextEditingController();
+  final _owner = TextEditingController();
+  String _tier = '';
+  String _program = programs.first.key;
+
+  @override
+  void dispose() {
+    _number.dispose();
+    _owner.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return AlertDialog(
+      title: Text(s.addMembership),
+      content: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          DropdownButtonFormField<String>(
+            initialValue: _program,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: s.program),
+            items: [for (final p in programs) DropdownMenuItem(value: p.key, child: Text(p.label(s.lang), overflow: TextOverflow.ellipsis))],
+            onChanged: (v) => setState(() => _program = v ?? _program),
+          ),
+          TextField(controller: _number, decoration: InputDecoration(labelText: s.memberNumber), textCapitalization: TextCapitalization.characters),
+          TextField(controller: _owner, decoration: InputDecoration(labelText: s.owner)),
+          Autocomplete<String>(
+            optionsBuilder: (v) => (programFor(_program)?.tiers ?? const <String>[]).where((x) => x.toLowerCase().contains(v.text.toLowerCase())),
+            onSelected: (v) => _tier = v,
+            fieldViewBuilder: (context, c, focus, submit) => TextField(
+              controller: c,
+              focusNode: focus,
+              decoration: InputDecoration(labelText: s.tier),
+              onChanged: (v) => _tier = v,
+            ),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(s.cancel)),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            Membership.fromJson({
+              'id': 'm${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}',
+              'program': _program,
+              'number': _number.text,
+              if (_owner.text.trim().isNotEmpty) 'owner': _owner.text.trim(),
+              if (_tier.trim().isNotEmpty) 'tier': _tier.trim(),
+            }),
+          ),
+          child: Text(s.save),
+        ),
+      ],
+    );
   }
 }

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/config.dart';
 import '../domain/fares.dart';
+import '../domain/documents.dart';
 import '../domain/flight.dart';
 import '../domain/geo.dart';
 import '../domain/membership.dart';
@@ -143,6 +144,36 @@ class Wallet extends Notifier<List<Membership>> {
 }
 
 final walletProvider = NotifierProvider<Wallet, List<Membership>>(Wallet.new);
+
+/// Passports, visas and IDs (kind, holder, country, expiry — never a document number), kept on the device.
+class TravelDocs extends Notifier<List<TravelDoc>> {
+  static const _key = 'aether.docs.v1';
+
+  @override
+  List<TravelDoc> build() {
+    final raw = ref.read(prefsProvider).getString(_key);
+    if (raw == null) return const [];
+    try {
+      return (jsonDecode(raw) as List).whereType<Map<String, dynamic>>().map(TravelDoc.fromJson).nonNulls.toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  void _save() => ref.read(prefsProvider).setString(_key, jsonEncode(state.map((d) => d.toJson()).toList()));
+
+  void upsert(TravelDoc d) {
+    state = [...state.where((x) => x.id != d.id), d]..sort((a, b) => a.expiry.compareTo(b.expiry));
+    _save();
+  }
+
+  void remove(String id) {
+    state = state.where((d) => d.id != id).toList();
+    _save();
+  }
+}
+
+final travelDocsProvider = NotifierProvider<TravelDocs, List<TravelDoc>>(TravelDocs.new);
 
 /// IATA → ISO country for the Passport stats (bundled OurAirports extract, same file the scanner uses).
 final airportCountriesProvider = FutureProvider<Map<String, String>>((ref) async {

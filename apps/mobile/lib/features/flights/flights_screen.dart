@@ -9,9 +9,11 @@ import '../../core/strings.dart';
 import '../../data/flight_repository.dart';
 import '../../data/stores.dart';
 import '../../domain/connections.dart';
+import '../../domain/documents.dart';
 import '../../domain/flight.dart';
 import '../../domain/manual_flight.dart';
 import '../../domain/schedule.dart';
+import '../wallet/document_alert.dart';
 import 'connection_widgets.dart';
 import 'import_sheet.dart';
 import 'manual_flight_sheet.dart';
@@ -71,6 +73,7 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
     final parts = splitFlights(flights, now);
     final countries = ref.watch(airportCountriesProvider).asData?.value;
     final connections = findConnections(flights, now, countryOf: countries == null ? null : (iata) => countries[iata]);
+    final docIssues = checkDocuments(ref.watch(travelDocsProvider), flights, now, countryOf: countries == null ? null : (iata) => countries[iata]);
     final connectionAfter = {for (final c in connections) c.from.id: c};
     void openFlight(String id) => context.go('/flights/${Uri.encodeComponent(id)}');
     return Scaffold(
@@ -90,6 +93,7 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
+            DocumentAlert(issues: docIssues, onTap: () => context.go('/wallet')),
             // A connection that is missed or barely possible is worth shouting about above everything else.
             for (final c in connections.where((c) => c.risk == ConnectionRisk.critical || c.risk == ConnectionRisk.missed))
               ConnectionChip(connection: c, onTap: () => openFlight(c.from.id)),

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../domain/airlines.dart' show Alliance;
 import '../domain/connections.dart';
+import '../domain/documents.dart';
 import '../domain/flight.dart';
 import '../domain/manual_flight.dart';
 import '../domain/trip.dart';
@@ -214,6 +215,37 @@ class S {
         ManualFlightError.sameAirport => _t('出發與抵達機場不能相同', 'Departure and arrival must differ', '출발과 도착 공항이 같을 수 없습니다'),
         ManualFlightError.notPast => _t('請選擇昨天以前的日期（今天與未來的航班請用查詢）', 'Pick a date before today (today and future flights use the normal lookup)', '어제 이전 날짜를 선택하세요 (오늘·미래 항공편은 조회를 사용)'),
       };
+
+  String get docsTitle => _t('證件', 'Travel documents', '여행 서류');
+  String get docsHint => _t('只存類型、持有人與到期日，不存證件號碼。', 'Only type, holder and expiry date — never a document number.', '종류·소지자·만료일만 저장하며 서류 번호는 저장하지 않습니다.');
+  String get addDoc => _t('新增證件', 'Add document', '서류 추가');
+  String get holder => _t('持有人', 'Holder', '소지자');
+  String get countryCode => _t('國家代碼（2 碼，例 TW）', 'Country code (2 letters, e.g. TW)', '국가 코드 (2자, 예: TW)');
+  String get docCountryHint => _t('護照／身分證：發證國；簽證：可入境的國家', 'Passport / ID: issuing country · Visa: country it admits you to', '여권/신분증: 발급국 · 비자: 입국 가능 국가');
+  String get expiryDate => _t('到期日', 'Expiry date', '만료일');
+  String get noDocs => _t('還沒有證件', 'No documents yet', '서류가 없습니다');
+  String docKindName(DocKind k) => switch (k) {
+        DocKind.passport => _t('護照', 'Passport', '여권'),
+        DocKind.visa => _t('簽證', 'Visa', '비자'),
+        DocKind.idCard => _t('身分證／居留證', 'ID / residence card', '신분증/거소증'),
+        DocKind.other => _t('其他', 'Other', '기타'),
+      };
+  String docLeft(int days) => days < 0
+      ? _t('已過期 ${-days} 天', 'Expired ${-days} days ago', '${-days}일 전 만료')
+      : (days == 0 ? _t('今天到期', 'Expires today', '오늘 만료') : _t('$days 天後到期', 'Expires in $days days', '$days일 후 만료'));
+  String docIssueText(DocIssue i, String Function(String) place) {
+    final who = '${docKindName(i.doc.kind)} ${i.doc.holder}'.trim();
+    final on = i.doc.expiry.toIso8601String().substring(0, 10);
+    final where = i.country == null ? '' : place(i.country!);
+    final ident = i.flight?.ident ?? '';
+    return switch (i.kind) {
+      DocIssueKind.expired => _t('$who 已過期（$on）', '$who has expired ($on)', '$who 만료됨 ($on)'),
+      DocIssueKind.expiringSoon => _t('$who 將於 $on 到期', '$who expires on $on', '$who $on 만료 예정'),
+      DocIssueKind.passportExpiredByTrip => _t('$who 在抵達 $where（$ident）前就會到期（$on）', '$who expires ($on) before you reach $where ($ident)', '$who 이(가) $where 도착($ident) 전에 만료됩니다 ($on)'),
+      DocIssueKind.passportUnderSixMonths => _t('$who 於 $on 到期，前往 $where（$ident）時效期不足 6 個月，許多國家會拒絕入境', '$who expires $on — under 6 months left on arrival in $where ($ident); many countries refuse entry', '$who $on 만료 — $where($ident) 도착 시 6개월 미만, 입국이 거부될 수 있습니다'),
+      DocIssueKind.visaExpiredByTrip => _t('$where 簽證（$who）在 $ident 抵達前就會到期（$on）', '$where visa ($who) expires ($on) before $ident lands', '$where 비자($who)가 $ident 도착 전에 만료됩니다 ($on)'),
+    };
+  }
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
