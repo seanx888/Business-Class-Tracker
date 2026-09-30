@@ -420,11 +420,14 @@ class S {
   String get logRemovePhoto => _t('移除照片', 'Remove photo', '사진 삭제');
   String get logViewPhoto => _t('放大照片', 'View photo', '사진 보기');
   String get logPhotoRemoved => _t('已移除 1 張照片', 'Photo removed', '사진 1장을 삭제했습니다');
-  String get logUndo => _t('復原', 'Undo', '실행 취소');
+  String get undo => _t('復原', 'Undo', '실행 취소');
   String get logPhotosOnDevice => _t('照片只存在這支手機，不會上傳。', 'Photos stay on this phone. Nothing is uploaded.', '사진은 이 휴대폰에만 저장되며 업로드되지 않습니다.');
   String get logPhotosAppOnly => _t('照片功能僅限手機 App。', 'Photos are available in the phone app.', '사진 기능은 모바일 앱에서만 사용할 수 있습니다.');
   String logPhotoLimit(int n) => _t('每趟航班最多 $n 張照片。', 'Up to $n photos per flight.', '항공편당 사진은 최대 $n장입니다.');
-  String flightRemoved(String ident) => _t('已移除 $ident', 'Removed $ident', '$ident 삭제됨');
+  String removedItem(String name) => _t('已移除 $name', 'Removed $name', '$name 삭제됨');
+  String get logDiscardTitle => _t('捨棄這些變更？', 'Discard your changes?', '변경 사항을 버릴까요?');
+  String get logKeepEditing => _t('繼續編輯', 'Keep editing', '계속 편집');
+  String get logDiscard => _t('捨棄', 'Discard', '버리기');
   String get logStatSummary => _t('總覽', 'Overview', '요약');
   String get logStatAircraft => _t('機型', 'Aircraft types', '기종');
   String get logStatCabins => _t('艙等', 'Cabins', '좌석 등급');

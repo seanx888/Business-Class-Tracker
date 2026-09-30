@@ -62,10 +62,7 @@ class AircraftSheet extends ConsumerWidget {
           children: [
             Text(a.label, style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
             if (airline != null || iataFlight != null)
-              Text(
-                [?airline, ?iataFlight].join('  '),
-                style: t.bodyMedium?.copyWith(color: muted),
-              ),
+              Text([?airline, ?iataFlight].join('  '), style: t.bodyMedium?.copyWith(color: muted)),
             if (a.emergencySquawk)
               Padding(
                 padding: const EdgeInsets.only(top: 8),

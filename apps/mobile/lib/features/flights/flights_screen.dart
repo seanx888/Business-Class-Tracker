@@ -60,12 +60,12 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
     messenger
         .showSnackBar(
           SnackBar(
-            content: Text(s.flightRemoved(f.ident)),
+            content: Text(s.removedItem(f.ident)),
             // A snack bar with an action stays until dismissed unless told otherwise; the photos are only deleted once it is gone.
             persist: false,
             duration: const Duration(seconds: 6),
             action: SnackBarAction(
-              label: s.logUndo,
+              label: s.undo,
               onPressed: () {
                 flights.upsert(f);
                 if (info != null) trips.set(f.id, info);

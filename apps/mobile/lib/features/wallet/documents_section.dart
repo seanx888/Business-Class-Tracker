@@ -70,8 +70,21 @@ class DocumentsSection extends ConsumerWidget {
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline),
-                          tooltip: s.cancel,
-                          onPressed: () => ref.read(travelDocsProvider.notifier).remove(d.id),
+                          tooltip: s.remove,
+                          onPressed: () {
+                            final notifier = ref.read(travelDocsProvider.notifier);
+                            notifier.remove(d.id);
+                            final messenger = ScaffoldMessenger.of(context);
+                            messenger.clearSnackBars();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(s.removedItem(s.docKindName(d.kind))),
+                                persist: false,
+                                duration: const Duration(seconds: 6),
+                                action: SnackBarAction(label: s.undo, onPressed: () => notifier.upsert(d)),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),

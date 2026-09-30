@@ -94,10 +94,10 @@ void main() {
     expect(find.text('2026'), findsOneWidget);
     expect(find.text('2025'), findsOneWidget);
     expect(find.text('3 班'), findsOneWidget, reason: 'three flights in 2026');
-    final cal = tester.getTopLeft(find.text('CI160  TPE to ICN')).dy;
-    final br197 = tester.getTopLeft(find.text('BR197  NRT to TPE')).dy;
-    final br198 = tester.getTopLeft(find.text('BR198  TPE to NRT')).dy;
-    final br12 = tester.getTopLeft(find.text('BR12  TPE to NRT')).dy;
+    final cal = tester.getTopLeft(find.text('CI160  TPE → ICN')).dy;
+    final br197 = tester.getTopLeft(find.text('BR197  NRT → TPE')).dy;
+    final br198 = tester.getTopLeft(find.text('BR198  TPE → NRT')).dy;
+    final br12 = tester.getTopLeft(find.text('BR12  TPE → NRT')).dy;
     expect(cal, lessThan(br197));
     expect(br197, lessThan(br198));
     expect(br198, lessThan(br12));
@@ -116,7 +116,7 @@ void main() {
 
   testWidgets('recording a flight: aircraft, cabin, purpose, ratings and a review are saved with the trip', (tester) async {
     await openLogbook(tester);
-    await tester.tap(find.text('BR197  NRT to TPE'));
+    await tester.tap(find.text('BR197  NRT → TPE'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).at(0), 'b78x');
@@ -151,7 +151,7 @@ void main() {
       ),
     };
     await openLogbook(tester, infos: infos);
-    await tester.tap(find.text('BR197  NRT to TPE'));
+    await tester.tap(find.text('BR197  NRT → TPE'));
     await tester.pumpAndSettle();
     await tapVisible(tester, find.byTooltip('座位 3 星'));
     await tapVisible(tester, find.text('儲存紀錄'));
@@ -165,7 +165,7 @@ void main() {
   testWidgets('photos: added from the camera, kept on save, and the choice of source is honoured', (tester) async {
     final photos = FakePhotoService(next: ['meal.jpg']);
     await openLogbook(tester, photos: photos);
-    await tester.tap(find.text('BR197  NRT to TPE'));
+    await tester.tap(find.text('BR197  NRT → TPE'));
     await tester.pumpAndSettle();
     expect(find.text('照片只存在這支手機，不會上傳。'), findsOneWidget);
     await tapVisible(tester, find.text('加入照片'));
@@ -185,7 +185,7 @@ void main() {
       flights[1].id: TripInfo(log: FlightLog.clean(photos: ['a.jpg', 'b.jpg'])),
     };
     await openLogbook(tester, infos: infos, photos: photos);
-    await tester.tap(find.text('BR197  NRT to TPE'));
+    await tester.tap(find.text('BR197  NRT → TPE'));
     await tester.pumpAndSettle();
     await tapVisible(tester, find.byTooltip('移除照片').first);
     expect(find.text('已移除 1 張照片'), findsOneWidget);
@@ -204,13 +204,13 @@ void main() {
   testWidgets('dismissing the sheet without saving throws away photos added meanwhile and keeps the old entry', (tester) async {
     final photos = FakePhotoService(next: ['new.jpg']);
     await openLogbook(tester, photos: photos);
-    await tester.tap(find.text('BR197  NRT to TPE'));
+    await tester.tap(find.text('BR197  NRT → TPE'));
     await tester.pumpAndSettle();
     await tapVisible(tester, find.text('加入照片'));
     await tester.tap(find.text('從相簿選擇'));
     await tester.pumpAndSettle();
     expect(photos.stored, {'new.jpg'});
-    Navigator.of(tester.element(find.text('儲存紀錄'))).pop(); // what tapping the scrim or the back button does
+    Navigator.of(tester.element(find.text('儲存紀錄'))).pop(); // closing the route directly (the confirmed-discard path ends here)
     await tester.pumpAndSettle();
     expect(find.text('儲存紀錄'), findsNothing);
     expect(photos.deleted, ['new.jpg']);
@@ -219,7 +219,7 @@ void main() {
 
   testWidgets('without photo storage (web) the sheet says so instead of offering a button', (tester) async {
     await openLogbook(tester, photos: FakePhotoService(available: false));
-    await tester.tap(find.text('BR197  NRT to TPE'));
+    await tester.tap(find.text('BR197  NRT → TPE'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('照片功能僅限手機 App。'));
     expect(find.text('照片功能僅限手機 App。'), findsOneWidget);
@@ -343,5 +343,44 @@ void main() {
     await tester.pump(const Duration(seconds: 7));
     await tester.pumpAndSettle();
     expect(photos.deleted, ['gone.jpg']);
+  });
+
+  testWidgets('back with unsaved changes asks first; keep editing leaves the sheet open, discard throws the changes and new photos away', (
+    tester,
+  ) async {
+    final photos = FakePhotoService(next: ['new.jpg']);
+    await openLogbook(tester, photos: photos);
+    await tester.tap(find.text('BR197  NRT → TPE'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(2), 'A draft I do not want to lose');
+    await tapVisible(tester, find.text('加入照片'));
+    await tester.tap(find.text('拍照'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('捨棄這些變更？'), findsOneWidget);
+    await tester.tap(find.text('繼續編輯'));
+    await tester.pumpAndSettle();
+    expect(find.text('儲存紀錄'), findsOneWidget);
+    expect(find.text('A draft I do not want to lose'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('關閉').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('捨棄'));
+    await tester.pumpAndSettle();
+    expect(find.text('儲存紀錄'), findsNothing);
+    expect(photos.deleted, ['new.jpg']);
+    expect(await storedTrips(), isEmpty);
+  });
+
+  testWidgets('closing an untouched sheet needs no confirmation', (tester) async {
+    await openLogbook(tester);
+    await tester.tap(find.text('BR197  NRT → TPE'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('捨棄這些變更？'), findsNothing);
+    expect(find.text('儲存紀錄'), findsNothing);
   });
 }

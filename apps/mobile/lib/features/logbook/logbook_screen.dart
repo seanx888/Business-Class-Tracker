@@ -212,7 +212,7 @@ class _EntryTile extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${e.flight.ident}  ${e.flight.origin.iata} to ${e.flight.destination.iata}',
+                      '${e.flight.ident}  ${e.flight.origin.iata} → ${e.flight.destination.iata}',
                       style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                       overflow: TextOverflow.ellipsis,
                     ),

@@ -110,9 +110,9 @@ class PhotoThumb extends ConsumerWidget {
               right: 0,
               child: IconButton.filledTonal(
                 tooltip: s.logRemovePhoto,
-                iconSize: 16,
+                iconSize: 18,
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 icon: const Icon(Icons.close),
                 onPressed: onRemove,
               ),

@@ -16,6 +16,23 @@ class WalletScreen extends ConsumerStatefulWidget {
 }
 
 class _WalletScreenState extends ConsumerState<WalletScreen> {
+  /// Removing a card is immediate but can be undone while the message is showing.
+  void _remove(Membership m) {
+    final s = S.of(context);
+    final notifier = ref.read(walletProvider.notifier);
+    notifier.remove(m.id);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(s.removedItem(m.displayName(lang: s.lang))),
+        persist: false,
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(label: s.undo, onPressed: () => notifier.upsert(m)),
+      ),
+    );
+  }
+
   final _revealed = <String>{};
 
   @override
@@ -53,7 +70,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                     Row(children: [
                       Expanded(child: Text(m.displayName(lang: s.lang), style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700))),
                       if (m.tier != null) Chip(label: Text(m.tier!), visualDensity: VisualDensity.compact),
-                      IconButton(icon: const Icon(Icons.delete_outline), tooltip: s.cancel, onPressed: () => ref.read(walletProvider.notifier).remove(m.id)),
+                      IconButton(icon: const Icon(Icons.delete_outline), tooltip: s.remove, onPressed: () => _remove(m)),
                     ]),
                     Text(
                       _revealed.contains(m.id) ? m.number : m.masked,

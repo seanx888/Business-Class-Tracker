@@ -113,6 +113,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('護照 · Sean'), findsNothing);
     expect(find.text('還沒有證件'), findsOneWidget);
+    expect(find.text('已移除 護照'), findsOneWidget, reason: 'the removal says what it did');
+  });
+
+  testWidgets('a removed document comes back with Undo', (tester) async {
+    await pumpApp(
+      tester,
+      source: InertFlightSource(),
+      clock: clock,
+      overrides: overrides,
+      prefs: seed(docs: [passport(DateTime.utc(2032, 1, 1))]),
+    );
+    await tester.tap(find.text('會員卡'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('護照 · Sean'), 250, scrollable: find.byType(Scrollable).last);
+    await tester.tap(find.descendant(of: find.widgetWithText(ListTile, '護照 · Sean'), matching: find.byIcon(Icons.delete_outline)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('復原'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('護照 · Sean'), findsOneWidget);
+    expect(find.text('還沒有證件'), findsNothing);
   });
 
   testWidgets('adding a membership through the dialog works and leaves no framework errors behind', (tester) async {

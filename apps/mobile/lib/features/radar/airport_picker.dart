@@ -95,7 +95,6 @@ class _AirportPickerState extends ConsumerState<_AirportPicker> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: TextField(
                   controller: _query,
-                  autofocus: true,
                   autocorrect: false,
                   enableSuggestions: false,
                   textCapitalization: TextCapitalization.characters,

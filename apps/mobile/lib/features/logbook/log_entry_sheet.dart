@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/strings.dart';
@@ -13,7 +16,8 @@ Future<void> showLogEntrySheet(BuildContext context, Flight flight) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+    // Dragging would close the sheet past the unsaved-changes check, and it fights with scrolling the form.
+    enableDrag: false,
     builder: (_) => LogEntrySheet(flight: flight),
   );
 }
@@ -108,27 +112,44 @@ class _LogEntrySheetState extends ConsumerState<LogEntrySheet> {
     _photos.insert(r.index.clamp(0, _photos.length), r.name);
   });
 
+  FlightLog _draft() => FlightLog.clean(
+    aircraftType: _type.text,
+    registration: _reg.text,
+    purpose: _purpose,
+    ratings: _ratings,
+    experience: _experience.text,
+    photos: _photos,
+  );
+
+  /// Anything changed since the sheet opened?
+  bool get _dirty => _cabin != _initial.cabin || jsonEncode(_draft().toJson()) != jsonEncode(_initial.log.toJson());
+
+  Future<void> _confirmClose() async {
+    if (!_dirty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final s = S.of(context);
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.logDiscardTitle),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(s.logKeepEditing)),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(s.logDiscard)),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.of(context).pop();
+  }
+
   void _save() {
     final f = _initial;
     ref
         .read(tripInfosProvider.notifier)
         .set(
           widget.flight.id,
-          TripInfo.clean(
-            cabin: _cabin,
-            seat: f.seat,
-            pnr: f.pnr,
-            notes: f.notes,
-            travelMinutes: f.travelMinutes,
-            log: FlightLog.clean(
-              aircraftType: _type.text,
-              registration: _reg.text,
-              purpose: _purpose,
-              ratings: _ratings,
-              experience: _experience.text,
-              photos: _photos,
-            ),
-          ),
+          TripInfo.clean(cabin: _cabin, seat: f.seat, pnr: f.pnr, notes: f.notes, travelMinutes: f.travelMinutes, log: _draft()),
         );
     _saved = true;
     // Photos that were on the entry before and are gone now, or that were added and removed again, are no longer referenced.
@@ -154,156 +175,191 @@ class _LogEntrySheetState extends ConsumerState<LogEntrySheet> {
       child: Text(title, style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
     );
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.viewInsetsOf(context).bottom + 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${widget.flight.ident}  ${widget.flight.origin.iata} to ${widget.flight.destination.iata}',
-              style: t.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _type,
-              autocorrect: false,
-              enableSuggestions: false,
-              textCapitalization: TextCapitalization.characters,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: s.logAircraftType,
-                hintText: reported == null ? 'A359…' : '$reported…',
-                helperText: typeName ?? (reported == null ? null : s.logReportedType(reported)),
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            if (suggestions.isNotEmpty)
+    // The back button and a tap on the scrim ask first when there is something to lose.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmClose();
+      },
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Title, close and Save stay put while the form scrolls.
               Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+                padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+                child: Row(
                   children: [
-                    for (final c in suggestions)
-                      ActionChip(
-                        label: Text(c),
-                        onPressed: () => setState(() {
-                          _type.text = c;
-                          _type.selection = TextSelection.collapsed(offset: c.length);
-                        }),
+                    Expanded(
+                      child: Text(
+                        '${widget.flight.ident}  ${widget.flight.origin.iata} → ${widget.flight.destination.iata}',
+                        style: t.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    IconButton(tooltip: s.close, icon: const Icon(Icons.close), onPressed: _confirmClose),
                   ],
                 ),
               ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _reg,
-              autocorrect: false,
-              enableSuggestions: false,
-              textCapitalization: TextCapitalization.characters,
-              decoration: InputDecoration(labelText: s.logRegistration, hintText: 'B-16722…', border: const OutlineInputBorder()),
-            ),
-            section(s.cabin),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final c in Cabin.values)
-                  ChoiceChip(
-                    label: Text(s.cabinName(c)),
-                    selected: _cabin == c,
-                    onSelected: (on) => setState(() => _cabin = on ? c : null),
-                  ),
-              ],
-            ),
-            section(s.logPurpose),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final p in TripPurpose.values)
-                  ChoiceChip(
-                    label: Text(s.purposeName(p)),
-                    selected: _purpose == p,
-                    onSelected: (on) => setState(() => _purpose = on ? p : null),
-                  ),
-              ],
-            ),
-            section(s.logRatings),
-            for (final a in RatingAspect.values)
-              Row(
-                children: [
-                  SizedBox(width: 64, child: Text(s.ratingName(a), style: t.bodyMedium)),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: StarRating(
-                        label: s.ratingName(a),
-                        value: _ratings[a],
-                        onChanged: (v) => setState(() => v == null ? _ratings.remove(a) : _ratings[a] = v),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            Text(s.logRatingHint, style: t.bodySmall?.copyWith(color: muted)),
-            section(s.logExperience),
-            TextField(
-              controller: _experience,
-              minLines: 3,
-              maxLines: 8,
-              maxLength: 2000,
-              keyboardType: TextInputType.multiline,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(hintText: s.logExperienceHint, border: const OutlineInputBorder()),
-            ),
-            section(s.logPhotos),
-            if (!service.available)
-              Text(s.logPhotosAppOnly, style: t.bodySmall?.copyWith(color: muted))
-            else ...[
-              if (_photos.isNotEmpty)
-                SizedBox(
-                  height: 96,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _photos.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: PhotoThumb(name: _photos[i], onRemove: () => _removePhoto(_photos[i])),
-                    ),
-                  ),
-                ),
-              if (_removed.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(child: Text(s.logPhotoRemoved, style: t.bodyMedium)),
-                      TextButton(onPressed: _undoRemove, child: Text(s.logUndo)),
+                      TextField(
+                        controller: _type,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [LengthLimitingTextInputFormatter(30)],
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: s.logAircraftType,
+                          hintText: reported == null ? 'A359…' : '$reported…',
+                          helperText: typeName ?? (reported == null ? null : s.logReportedType(reported)),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      if (suggestions.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              for (final c in suggestions)
+                                ActionChip(
+                                  label: Text(c),
+                                  onPressed: () => setState(() {
+                                    _type.text = c;
+                                    _type.selection = TextSelection.collapsed(offset: c.length);
+                                  }),
+                                ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _reg,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [LengthLimitingTextInputFormatter(12)],
+                        decoration: InputDecoration(labelText: s.logRegistration, hintText: 'B-16722…', border: const OutlineInputBorder()),
+                      ),
+                      section(s.cabin),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final c in Cabin.values)
+                            ChoiceChip(
+                              label: Text(s.cabinName(c)),
+                              selected: _cabin == c,
+                              onSelected: (on) => setState(() => _cabin = on ? c : null),
+                            ),
+                        ],
+                      ),
+                      section(s.logPurpose),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final p in TripPurpose.values)
+                            ChoiceChip(
+                              label: Text(s.purposeName(p)),
+                              selected: _purpose == p,
+                              onSelected: (on) => setState(() => _purpose = on ? p : null),
+                            ),
+                        ],
+                      ),
+                      section(s.logRatings),
+                      for (final a in RatingAspect.values)
+                        Row(
+                          children: [
+                            SizedBox(width: 64, child: Text(s.ratingName(a), style: t.bodyMedium)),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: StarRating(
+                                  label: s.ratingName(a),
+                                  value: _ratings[a],
+                                  onChanged: (v) => setState(() => v == null ? _ratings.remove(a) : _ratings[a] = v),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      Text(s.logRatingHint, style: t.bodySmall?.copyWith(color: muted)),
+                      section(s.logExperience),
+                      TextField(
+                        controller: _experience,
+                        minLines: 3,
+                        maxLines: 8,
+                        maxLength: 2000,
+                        keyboardType: TextInputType.multiline,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(hintText: s.logExperienceHint, border: const OutlineInputBorder()),
+                      ),
+                      section(s.logPhotos),
+                      if (!service.available)
+                        Text(s.logPhotosAppOnly, style: t.bodySmall?.copyWith(color: muted))
+                      else ...[
+                        if (_photos.isNotEmpty)
+                          SizedBox(
+                            height: 96,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _photos.length,
+                              separatorBuilder: (_, _) => const SizedBox(width: 8),
+                              itemBuilder: (_, i) => Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: PhotoThumb(name: _photos[i], onRemove: () => _removePhoto(_photos[i])),
+                              ),
+                            ),
+                          ),
+                        if (_removed.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(s.logPhotoRemoved, style: t.bodyMedium)),
+                                TextButton(onPressed: _undoRemove, child: Text(s.undo)),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                            label: Text(s.logAddPhoto),
+                            onPressed: _photos.length >= FlightLog.maxPhotos ? null : _choosePhotoSource,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _photos.length >= FlightLog.maxPhotos ? s.logPhotoLimit(FlightLog.maxPhotos) : s.logPhotosOnDevice,
+                          style: t.bodySmall?.copyWith(color: muted),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-                  label: Text(s.logAddPhoto),
-                  onPressed: _photos.length >= FlightLog.maxPhotos ? null : _choosePhotoSource,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(onPressed: _save, child: Text(s.logSaveEntry)),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                _photos.length >= FlightLog.maxPhotos ? s.logPhotoLimit(FlightLog.maxPhotos) : s.logPhotosOnDevice,
-                style: t.bodySmall?.copyWith(color: muted),
-              ),
             ],
-            const SizedBox(height: 20),
-            FilledButton(onPressed: _save, child: Text(s.logSaveEntry)),
-          ],
+          ),
         ),
       ),
     );

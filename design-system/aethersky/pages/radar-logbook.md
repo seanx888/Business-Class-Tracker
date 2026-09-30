@@ -50,3 +50,22 @@ Honest note: DESIGN.md files are inspired interpretations, not the brand's own s
 | Inputs: correct type, no autocorrect on codes, placeholders end with `…` | `keyboardType`, `autocorrect: false`, hint text |
 | Locale-aware dates and numbers | `intl` formatters, never hand-built strings |
 | Specific button labels | "Save entry", "Add photo", never "OK" |
+
+## 5. Audit of the shipped screens (web-design-guidelines, fetched 2026-09-30)
+
+Checked `features/radar/*` and `features/logbook/*` rule by rule. Fixed during the audit:
+
+- **Destructive actions** had no undo: flights (with their log entry), membership cards and travel documents now show "Removed X" with Undo; log photos are deleted from the phone only after the message is gone and was not undone.
+- **Unsaved changes**: the entry sheet asks before discarding (back button, scrim tap, close icon). Drag-to-dismiss is off for that sheet because it would bypass the check and fights with scrolling the form.
+- **autoFocus** removed from the airport search (guideline: avoid on mobile); the common airports are visible first.
+- **Icon-only buttons** all carry a tooltip; the delete icons in Wallet were labelled "Cancel" and now say "Remove".
+- **Touch targets**: photo remove button raised to 40 dp, star buttons are 48 dp.
+- **Input limits**: aircraft type 30, registration 12, review 2,000 characters.
+- **Route text** uses `→` like the rest of the app instead of an English "to" (which read badly in Chinese and Korean).
+- **Auto-retry**: failed providers now surface the error and a Retry button at once (Riverpod 3 retried silently for minutes).
+
+Deliberate deviations, recorded so they are not "fixed" later:
+
+- **Sentence case** for English labels ("Track this flight"), matching the rest of the app, not Title Case: the shape-consistency rule of taste-skill beats a per-screen guideline.
+- Numbers use `NumberFormat('en_US')` grouping like the rest of the app; zh, en and ko all group by commas, so the output is identical to the locale formatter.
+- Web-only rules (skip links, `<meta theme-color>`, hydration, `touch-action`) do not apply to a Flutter app; the web build is a secondary target.
