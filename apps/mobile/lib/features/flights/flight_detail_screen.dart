@@ -7,8 +7,10 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/external.dart';
 import '../../data/stores.dart';
+import '../../domain/connections.dart';
 import '../../domain/flight.dart';
 import '../../domain/ics.dart';
+import 'connection_widgets.dart';
 import 'lounge_card.dart';
 import 'trip_info_card.dart';
 import 'widgets.dart';
@@ -29,6 +31,9 @@ class FlightDetailScreen extends ConsumerWidget {
     final t = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final now = ref.watch(clockProvider)().toUtc();
+    final countries = ref.watch(airportCountriesProvider).asData?.value;
+    final connections = findConnections(ref.watch(myFlightsProvider), now, countryOf: countries == null ? null : (iata) => countries[iata])
+        .where((c) => c.from.id == flight.id || c.to.id == flight.id);
     return Scaffold(
       appBar: AppBar(
         title: Text(flight.ident),
@@ -65,6 +70,7 @@ class FlightDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _EndpointPanel(title: s.arrival, e: flight.destination, time: flight.gateIn, air: flight.landing, airLabel: s.landing),
           const SizedBox(height: 12),
+          for (final c in connections) ConnectionChip(connection: c),
           TripInfoCard(flight: flight),
           const SizedBox(height: 12),
           if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[

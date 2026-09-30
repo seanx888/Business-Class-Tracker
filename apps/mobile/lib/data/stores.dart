@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config.dart';
 import '../domain/fares.dart';
 import '../domain/flight.dart';
+import '../domain/geo.dart';
 import '../domain/membership.dart';
 import '../domain/schedule.dart';
 import '../domain/trip.dart';
@@ -147,6 +148,12 @@ final walletProvider = NotifierProvider<Wallet, List<Membership>>(Wallet.new);
 final airportCountriesProvider = FutureProvider<Map<String, String>>((ref) async {
   final raw = jsonDecode(await rootBundle.loadString('assets/airport-countries.json')) as Map<String, dynamic>;
   return raw.map((k, v) => MapEntry(k, v as String));
+});
+
+/// IATA → coordinates and city (bundled OurAirports extract, same source as the country table).
+final airportGeoProvider = FutureProvider<Map<String, AirportGeo>>((ref) async {
+  final raw = jsonDecode(await rootBundle.loadString('assets/airport-geo.json')) as Map<String, dynamic>;
+  return {for (final e in raw.entries) e.key: ?AirportGeo.fromJson(e.value)};
 });
 
 Future<Map<String, dynamic>> _fetchJson(http.Client client, String file) async {

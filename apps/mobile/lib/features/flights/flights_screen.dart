@@ -8,8 +8,10 @@ import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../data/flight_repository.dart';
 import '../../data/stores.dart';
+import '../../domain/connections.dart';
 import '../../domain/flight.dart';
 import '../../domain/schedule.dart';
+import 'connection_widgets.dart';
 import 'import_sheet.dart';
 import 'widgets.dart';
 
@@ -63,6 +65,10 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
     final flights = ref.watch(myFlightsProvider);
     final now = ref.watch(clockProvider)().toUtc();
     final parts = splitFlights(flights, now);
+    final countries = ref.watch(airportCountriesProvider).asData?.value;
+    final connections = findConnections(flights, now, countryOf: countries == null ? null : (iata) => countries[iata]);
+    final connectionAfter = {for (final c in connections) c.from.id: c};
+    void openFlight(String id) => context.go('/flights/${Uri.encodeComponent(id)}');
     return Scaffold(
       appBar: AppBar(
         title: const Text('ÆtherSky'),
@@ -80,6 +86,9 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
+            // A connection that is missed or barely possible is worth shouting about above everything else.
+            for (final c in connections.where((c) => c.risk == ConnectionRisk.critical || c.risk == ConnectionRisk.missed))
+              ConnectionChip(connection: c, onTap: () => openFlight(c.from.id)),
             if (parts.upcoming.isNotEmpty) ...[
               NextFlightBanner(flight: parts.upcoming.first, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(parts.upcoming.first.id)}')),
               const SizedBox(height: 16),
@@ -92,7 +101,10 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
               ),
             const SizedBox(height: 12),
             if (parts.upcoming.isEmpty) const _EmptyFlights(),
-            for (final f in parts.upcoming) _dismissible(f, now),
+            for (final f in parts.upcoming) ...[
+              _dismissible(f, now),
+              if (connectionAfter[f.id] case final c?) ConnectionChip(connection: c, onTap: () => openFlight(c.to.id)),
+            ],
             if (parts.past.isNotEmpty)
               Theme(
                 data: Theme.of(context).copyWith(dividerColor: Colors.transparent),

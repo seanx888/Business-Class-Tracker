@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../domain/airlines.dart' show Alliance;
+import '../domain/connections.dart';
 import '../domain/flight.dart';
 import '../domain/trip.dart';
 
@@ -182,6 +183,19 @@ class S {
   String earthLaps(double laps) => _t('繞地球 ${laps.toStringAsFixed(2)} 圈', '${laps.toStringAsFixed(2)}× around the Earth', '지구 ${laps.toStringAsFixed(2)}바퀴');
   String get distanceLowerBound => _t('部分航班沒有距離資料，實際更多', 'Some flights have no distance data — the real total is higher', '일부 항공편은 거리 정보가 없어 실제로는 더 많습니다');
   String flightCount(int n) => _t('$n 班', '$n', '$n편');
+
+  String connectionTitle(String airport, Duration layover) =>
+      _t('在 $airport 轉機 · ${layover.isNegative ? '—' : span(layover)}', 'Connection at $airport · ${layover.isNegative ? '—' : span(layover)}', '$airport 환승 · ${layover.isNegative ? '—' : span(layover)}');
+  String connectionRisk(ConnectionRisk r) => switch (r) {
+        ConnectionRisk.ok => _t('時間充裕', 'Plenty of time', '여유 있음'),
+        ConnectionRisk.tight => _t('時間偏緊', 'Tight', '촉박'),
+        ConnectionRisk.critical => _t('非常趕', 'Very tight', '매우 촉박'),
+        ConnectionRisk.missed => _t('已來不及', 'Missed', '놓침'),
+      };
+  String terminalChangeText(String from, String to) => _t('需換航廈 T$from → T$to', 'Change terminals T$from → T$to', '터미널 이동 T$from → T$to');
+  String delayShrunk(Duration d) => _t('延誤已讓轉機縮短 ${span(d)}', 'Delay has cut the connection by ${span(d)}', '지연으로 환승 시간이 ${span(d)} 줄었습니다');
+  String get connectionMissedAdvice => _t('後一班會在你降落前起飛，請儘快聯絡航空公司改訂。', 'The next flight leaves before you land — contact the airline about rebooking now.', '다음 항공편이 도착 전에 출발합니다. 항공사에 재예약을 문의하세요.');
+  String get connectionCriticalAdvice => _t('下機後直奔登機門；不確定就先向地勤確認。', 'Head straight to the gate on landing; ask ground staff if unsure.', '착륙 후 바로 게이트로 이동하고, 불확실하면 지상직원에게 확인하세요.');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

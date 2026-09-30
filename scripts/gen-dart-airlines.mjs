@@ -12,6 +12,10 @@ export const OUT = fileURLToPath(new URL('../apps/mobile/lib/domain/airlines.g.d
 // IATA → ISO country (OurAirports); the app bundles a copy for its Passport stats.
 export const AIRPORTS_SRC = fileURLToPath(new URL('../config/airport-countries.json', import.meta.url));
 export const AIRPORTS_OUT = fileURLToPath(new URL('../apps/mobile/assets/airport-countries.json', import.meta.url));
+// IATA → [lat, lon, city]; distance of hand-entered flights, route map, connection checks.
+export const GEO_SRC = fileURLToPath(new URL('../config/airport-geo.json', import.meta.url));
+export const GEO_OUT = fileURLToPath(new URL('../apps/mobile/assets/airport-geo.json', import.meta.url));
+export const ASSET_COPIES = [[AIRPORTS_SRC, AIRPORTS_OUT], [GEO_SRC, GEO_OUT]];
 export const OUT_PROGRAMS = fileURLToPath(new URL('../apps/mobile/lib/domain/programs.g.dart', import.meta.url));
 
 const q = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\$/g, '\\$')}'`;
@@ -60,16 +64,20 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         process.exit(1);
       }
     }
-    if (!readFileSync(AIRPORTS_SRC).equals(readFileSync(AIRPORTS_OUT))) {
-      console.error(`${AIRPORTS_OUT} is stale — run: node scripts/gen-dart-airlines.mjs`);
-      process.exit(1);
+    for (const [src, out] of ASSET_COPIES) {
+      if (!readFileSync(src).equals(readFileSync(out))) {
+        console.error(`${out} is stale — run: node scripts/gen-dart-airlines.mjs`);
+        process.exit(1);
+      }
     }
   } else {
     for (const [file, next] of outputs) {
       writeFileSync(file, next);
       console.log(`wrote ${file}`);
     }
-    copyFileSync(AIRPORTS_SRC, AIRPORTS_OUT);
-    console.log(`copied ${AIRPORTS_OUT}`);
+    for (const [src, out] of ASSET_COPIES) {
+      copyFileSync(src, out);
+      console.log(`copied ${out}`);
+    }
   }
 }
