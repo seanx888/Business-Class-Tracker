@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
@@ -65,6 +66,14 @@ class PassportScreen extends ConsumerWidget {
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
               children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: FilledButton.tonalIcon(
+                    icon: const Icon(Icons.auto_awesome),
+                    label: Text(s.wrappedEntry),
+                    onPressed: () => context.go('/flights/passport/wrapped'),
+                  ),
+                ),
                 Row(
                   children: [
                     tile(s.statFlights, '${stats.flights}'),

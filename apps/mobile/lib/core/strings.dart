@@ -312,6 +312,19 @@ class S {
   String get bringUmbrella => _t('記得帶傘', 'Pack an umbrella', '우산을 챙기세요');
   String get weatherCredit => _t('天氣資料：Open-Meteo.com', 'Weather data by Open-Meteo.com', '날씨 데이터: Open-Meteo.com');
 
+  String get wrappedEntry => _t('年度飛行回顧', 'Year in review', '올해의 비행 회고');
+  String wrappedYear(int y) => _t('$y 年', '$y', '$y년');
+  String wrappedFlightsLabel(int n) => _t('趟飛行', n == 1 ? 'flight' : 'flights', '번 비행');
+  String wrappedHours(int h) => _t('$h 小時在空中', '$h hours in the air', '하늘에서 $h시간');
+  String wrappedAroundEarth(double laps) => laps >= 0.1 ? earthLaps(laps) : '';
+  String wrappedBusiest(String month, int n) => _t('最忙的月份　$month（$n 趟）', 'Busiest month  $month ($n)', '가장 바쁜 달  $month ($n)');
+  String get wrappedTopRoute => _t('最常飛', 'Most flown', '가장 많이 탄 노선');
+  String get wrappedTopAirline => _t('最常搭乘', 'Most flown airline', '가장 많이 탄 항공사');
+  String wrappedCountries(int n) => _t('$n 個國家／地區', n == 1 ? '1 country' : '$n countries', '$n개 국가/지역');
+  String get shareImage => _t('分享圖片', 'Share image', '이미지 공유');
+  String wrappedShareText(int year, int flights, String km) => _t('我的 $year 飛行回顧：$flights 趟、$km km — ÆtherSky', 'My $year in the air: $flights flights, $km km — ÆtherSky', '나의 $year 비행 회고: $flights번, $km km — ÆtherSky');
+  String get wrappedEmpty => _t('這一年還沒有完成的航班。', 'No completed flights in this year yet.', '이 해에는 완료된 항공편이 없습니다.');
+
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
   String get openFail => _t('無法開啟連結', 'Could not open the link', '링크를 열 수 없습니다');
