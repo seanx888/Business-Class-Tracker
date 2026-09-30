@@ -20,6 +20,7 @@ import 'jetlag_card.dart';
 import 'lounge_card.dart';
 import 'route_map.dart';
 import 'trip_info_card.dart';
+import 'weather_card.dart';
 import 'widgets.dart';
 
 class FlightDetailScreen extends ConsumerWidget {
@@ -88,6 +89,7 @@ class FlightDetailScreen extends ConsumerWidget {
           if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[
             LoungeCard(flight: flight),
             const SizedBox(height: 12),
+            WeatherCard(flight: flight, now: now),
             if (jetLagPlanFor(flight) case final plan?) ...[
               JetLagCard(plan: plan),
               const SizedBox(height: 12),

@@ -7,6 +7,7 @@ import '../domain/flight.dart';
 import '../domain/jetlag.dart';
 import '../domain/manual_flight.dart';
 import '../domain/trip.dart';
+import '../domain/weather.dart';
 
 /// UI strings in 繁體中文 (default) · English · 한국어 — same three languages as the PWA.
 /// A small table keeps the scaffold dependency-free; move to ARB files (flutter gen-l10n) when it grows.
@@ -294,6 +295,22 @@ class S {
   String get bufferInternationalSetting => _t('國際線：提前到機場', 'International: be at the airport before departure', '국제선: 출발 전 공항 도착');
   String get bufferDomesticSetting => _t('國內線：提前到機場', 'Domestic: be at the airport before departure', '국내선: 출발 전 공항 도착');
   String minutes(int n) => _t('$n 分鐘', '$n min', '$n분');
+
+  String weatherTitle(String city) => _t('抵達地天氣 · $city', 'Weather on arrival · $city', '도착지 날씨 · $city');
+  String weatherKind(WeatherKind k) => switch (k) {
+        WeatherKind.clear => _t('晴', 'Clear', '맑음'),
+        WeatherKind.partlyCloudy => _t('多雲時晴', 'Partly cloudy', '구름 조금'),
+        WeatherKind.cloudy => _t('陰', 'Overcast', '흐림'),
+        WeatherKind.fog => _t('霧', 'Fog', '안개'),
+        WeatherKind.drizzle => _t('毛毛雨', 'Drizzle', '이슬비'),
+        WeatherKind.rain => _t('雨', 'Rain', '비'),
+        WeatherKind.showers => _t('陣雨', 'Showers', '소나기'),
+        WeatherKind.snow => _t('雪', 'Snow', '눈'),
+        WeatherKind.thunder => _t('雷雨', 'Thunderstorm', '뇌우'),
+      };
+  String precipChance(int pct) => _t('降雨機率 $pct%', '$pct% chance of rain', '강수확률 $pct%');
+  String get bringUmbrella => _t('記得帶傘', 'Pack an umbrella', '우산을 챙기세요');
+  String get weatherCredit => _t('天氣資料：Open-Meteo.com', 'Weather data by Open-Meteo.com', '날씨 데이터: Open-Meteo.com');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

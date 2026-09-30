@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:aethersky/app.dart';
 import 'package:aethersky/data/external.dart';
 import 'package:aethersky/data/flight_repository.dart';
@@ -14,7 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Records what the app tries to open / share instead of touching platform channels.
 class FakeExternalActions implements ExternalActions {
   final opened = <Uri>[];
-  final shared = <({String text, String? subject, String? fileName, String? fileText})>[];
+  final shared = <({String text, String? subject, String? fileName, String? fileText, Uint8List? fileBytes})>[];
   bool canOpen = true;
 
   @override
@@ -24,8 +26,15 @@ class FakeExternalActions implements ExternalActions {
   }
 
   @override
-  Future<void> share({required String text, String? subject, String? fileName, String? fileText, String fileMime = 'text/plain'}) async {
-    shared.add((text: text, subject: subject, fileName: fileName, fileText: fileText));
+  Future<void> share({
+    required String text,
+    String? subject,
+    String? fileName,
+    String? fileText,
+    Uint8List? fileBytes,
+    String fileMime = 'text/plain',
+  }) async {
+    shared.add((text: text, subject: subject, fileName: fileName, fileText: fileText, fileBytes: fileBytes));
   }
 }
 

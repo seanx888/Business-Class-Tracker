@@ -11,8 +11,8 @@ abstract class ExternalActions {
   /// Opens [url] in the browser / the airline's app. Returns false when nothing could handle it.
   Future<bool> openUrl(Uri url);
 
-  /// Shares plain [text]; with [fileText] also attaches a text file (e.g. a .ics calendar entry).
-  Future<void> share({required String text, String? subject, String? fileName, String? fileText, String fileMime});
+  /// Shares plain [text]; with [fileName] and [fileText] (or [fileBytes], e.g. a PNG) attaches a file instead.
+  Future<void> share({required String text, String? subject, String? fileName, String? fileText, Uint8List? fileBytes, String fileMime});
 }
 
 class PlatformExternalActions implements ExternalActions {
@@ -28,14 +28,22 @@ class PlatformExternalActions implements ExternalActions {
   }
 
   @override
-  Future<void> share({required String text, String? subject, String? fileName, String? fileText, String fileMime = 'text/plain'}) async {
-    final withFile = fileName != null && fileText != null;
+  Future<void> share({
+    required String text,
+    String? subject,
+    String? fileName,
+    String? fileText,
+    Uint8List? fileBytes,
+    String fileMime = 'text/plain',
+  }) async {
+    final bytes = fileBytes ?? (fileText == null ? null : Uint8List.fromList(utf8.encode(fileText)));
+    final withFile = fileName != null && bytes != null;
     await SharePlus.instance.share(
       ShareParams(
         text: withFile ? null : text,
         subject: subject,
         title: subject,
-        files: withFile ? [XFile.fromData(Uint8List.fromList(utf8.encode(fileText)), mimeType: fileMime, name: fileName)] : null,
+        files: withFile ? [XFile.fromData(bytes, mimeType: fileMime, name: fileName)] : null,
         fileNameOverrides: withFile ? [fileName] : null,
       ),
     );
