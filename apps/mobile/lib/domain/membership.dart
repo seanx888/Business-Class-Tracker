@@ -2,34 +2,30 @@
 // backup exported from the PWA can be imported here. Stored on-device; cloud sync (Pro)
 // will encrypt numbers client-side before they leave the phone.
 
-enum Alliance { skyteam, star, oneworld, none }
+import 'airlines.dart';
+import 'programs.g.dart';
+
+export 'airlines.dart' show Alliance;
 
 class Program {
-  const Program(this.key, this.carrier, this.name, this.zh, this.alliance, [this.tiers = const []]);
+  const Program(this.key, this.carrier, this.name, this.zh, this.ko, [this.tiers = const []]);
 
   final String key;
   final String carrier;
   final String name;
   final String zh;
-  final Alliance alliance;
+  final String ko;
   final List<String> tiers;
+
+  Alliance get alliance => allianceOfCarrier(carrier);
+
+  /// Name in the app language (zh · en · ko).
+  String label(String lang) => lang == 'zh' ? zh : (lang == 'ko' ? ko : name);
 }
 
-const programs = <Program>[
-  Program('CI', 'CI', 'Dynasty Flyer', '華夏會員', Alliance.skyteam, ['Dynasty Flyer', 'Gold', 'Emerald', 'Paragon']),
-  Program('KE', 'KE', 'SKYPASS', 'SKYPASS 會員', Alliance.skyteam, ['Morning Calm', 'Morning Calm Premium', 'Million Miler']),
-  Program('AFKL', 'AF', 'Flying Blue', 'Flying Blue 藍天飛行', Alliance.skyteam, ['Explorer', 'Silver', 'Gold', 'Platinum', 'Ultimate']),
-  Program('DL', 'DL', 'SkyMiles', 'SkyMiles 飛凡里程', Alliance.skyteam),
-  Program('VN', 'VN', 'Lotusmiles', '金蓮花里程', Alliance.skyteam),
-  Program('BR', 'BR', 'Infinity MileageLands', '無限萬哩遊', Alliance.star, ['Green', 'Silver', 'Gold', 'Diamond']),
-  Program('NH', 'NH', 'ANA Mileage Club', 'ANA 哩程俱樂部', Alliance.star, ['Bronze', 'Platinum', 'Diamond']),
-  Program('SQ', 'SQ', 'KrisFlyer', 'KrisFlyer 新航會員', Alliance.star, ['KrisFlyer', 'Elite Silver', 'Elite Gold', 'PPS Club', 'Solitaire PPS Club']),
-  Program('UA', 'UA', 'MileagePlus', 'MileagePlus 前程萬里', Alliance.star),
-  Program('JL', 'JL', 'JAL Mileage Bank', 'JAL 哩程銀行', Alliance.oneworld, ['Crystal', 'Sapphire', 'JGC Premier', 'Diamond']),
-  Program('AA', 'AA', 'AAdvantage', 'AAdvantage', Alliance.oneworld),
-  Program('QR', 'QR', 'Privilege Club', 'Privilege Club', Alliance.oneworld),
-  Program('JX', 'JX', 'COSMILE', '星宇 COSMILE', Alliance.none),
-  Program('EK', 'EK', 'Emirates Skywards', '阿聯酋 Skywards', Alliance.none),
+/// Every program of the PWA wallet (generated from web/core/programs.js), so a backup exported there imports in full.
+final programs = <Program>[
+  for (final e in programTable.entries) Program(e.key, e.value.carrier, e.value.en, e.value.zh, e.value.ko, e.value.tiers),
 ];
 
 const otherProgram = 'OTHER';
@@ -53,10 +49,10 @@ class Membership {
   final String? expiry; // yyyy-mm-dd
   final int? miles;
 
-  String displayName({bool chinese = false}) {
+  String displayName({bool chinese = false, String? lang}) {
     final p = programFor(program);
     if (p == null) return programName ?? program;
-    return chinese ? p.zh : p.name;
+    return p.label(lang ?? (chinese ? 'zh' : 'en'));
   }
 
   /// "•••• 1234" — numbers stay hidden until the user taps to reveal.

@@ -80,9 +80,10 @@ class DemoFlightDataSource implements FlightDataSource {
     final now = _clock().toUtc();
     final seed = '$carrier$number'.codeUnits.fold<int>(0, (a, c) => a + c);
     final sameDay = DateTime.utc(date.year, date.month, date.day) == DateTime.utc(now.year, now.month, now.day);
-    // Today's flights get a departure spread around "now" so different phases show up.
+    // Today's flights get a departure spread around "now" so different phases show up
+    // (the earliest one has landed ~70 min ago — still "current" — never straight into Past).
     final dep = sameDay
-        ? now.add(Duration(minutes: [-400, -90, 45, 180, -15][seed % 5]))
+        ? now.add(Duration(minutes: [-260, -90, 45, 180, -15][seed % 5]))
         : DateTime.utc(date.year, date.month, date.day, 1 + seed % 14, (seed * 7) % 60);
     final block = Duration(minutes: r[6] as int);
     final delay = seed % 3 == 0 ? 35 : 0;

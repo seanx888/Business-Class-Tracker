@@ -6,6 +6,8 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/stores.dart';
 import '../../domain/fares.dart';
+import '../../domain/links.dart';
+import 'fare_links_sheet.dart';
 
 /// Real Tracker results and today's deals, straight from the scanner's daily files.
 class FaresScreen extends ConsumerWidget {
@@ -71,26 +73,42 @@ class _TrackerTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${r.origin} → ${r.destination}', style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                Text([dates, if (r.flexDays > 0) s.flex(r.flexDays), r.cabin].join(' · '), style: t.bodySmall?.copyWith(color: muted)),
-                if (r.bestCarrier != null)
-                  Text('${r.bestCarrier} · ${r.bestStops == 0 ? s.nonstop : s.stops(r.bestStops ?? 0)}${r.bestDepart != null && r.bestDepart != r.depart ? ' · ${isoToMd(r.bestDepart)}' : ''}',
-                      style: t.bodySmall?.copyWith(color: muted)),
-              ]),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => showFareLinksSheet(
+            context,
+            title: '${r.origin} → ${r.destination}',
+            carrier: r.bestCarrier,
+            onlyGoogle: true, // only Google Flights honours non-business Real Tracker cabins
+            query: FareQuery(
+              origin: r.origin,
+              destination: r.destination,
+              departDate: r.bestDepart ?? r.depart,
+              returnDate: r.bestDepart != null ? r.bestReturn : r.returnDate,
+              cabin: r.cabin,
             ),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(twd(r.bestPrice), style: t.titleLarge?.merge(tabular).copyWith(fontWeight: FontWeight.w800)),
-              if (change != null && change != 0)
-                Text(s.vsLast('${change < 0 ? '−' : '+'}${twd(change.abs())}'),
-                    style: t.bodySmall?.copyWith(color: change < 0 ? AetherColors.onTime : AetherColors.bad, fontWeight: FontWeight.w600)),
-              if (r.targetHit) Text(s.targetHit, style: t.bodySmall?.copyWith(color: AetherColors.onTime, fontWeight: FontWeight.w700)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${r.origin} → ${r.destination}', style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  Text([dates, if (r.flexDays > 0) s.flex(r.flexDays), r.cabin].join(' · '), style: t.bodySmall?.copyWith(color: muted)),
+                  if (r.bestCarrier != null)
+                    Text('${r.bestCarrier} · ${r.bestStops == 0 ? s.nonstop : s.stops(r.bestStops ?? 0)}${r.bestDepart != null && r.bestDepart != r.depart ? ' · ${isoToMd(r.bestDepart)}' : ''}',
+                        style: t.bodySmall?.copyWith(color: muted)),
+                ]),
+              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(twd(r.bestPrice), style: t.titleLarge?.merge(tabular).copyWith(fontWeight: FontWeight.w800)),
+                if (change != null && change != 0)
+                  Text(s.vsLast('${change < 0 ? '−' : '+'}${twd(change.abs())}'),
+                      style: t.bodySmall?.copyWith(color: change < 0 ? AetherColors.onTime : AetherColors.bad, fontWeight: FontWeight.w600)),
+                if (r.targetHit) Text(s.targetHit, style: t.bodySmall?.copyWith(color: AetherColors.onTime, fontWeight: FontWeight.w700)),
+              ]),
             ]),
-          ]),
+          ),
         ),
       ),
     );
@@ -108,6 +126,12 @@ class _DealTile extends StatelessWidget {
     final hot = d.tier == 'hot';
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      onTap: () => showFareLinksSheet(
+        context,
+        title: '${d.origin} → ${d.destination}',
+        carrier: d.carrier,
+        query: FareQuery(origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate),
+      ),
       leading: CircleAvatar(
         backgroundColor: hot ? AetherColors.gold.withValues(alpha: 0.25) : Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Text(d.carrier, style: t.labelMedium?.copyWith(fontWeight: FontWeight.w700)),

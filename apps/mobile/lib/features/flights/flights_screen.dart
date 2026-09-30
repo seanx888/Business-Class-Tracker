@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,20 +9,65 @@ import '../../core/strings.dart';
 import '../../data/flight_repository.dart';
 import '../../data/stores.dart';
 import '../../domain/flight.dart';
+import '../../domain/schedule.dart';
+import 'import_sheet.dart';
 import 'widgets.dart';
 
-class FlightsScreen extends ConsumerWidget {
+class FlightsScreen extends ConsumerStatefulWidget {
   const FlightsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FlightsScreen> createState() => _FlightsScreenState();
+}
+
+class _FlightsScreenState extends ConsumerState<FlightsScreen> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keeps the "departs in 3 h 20 m" countdown honest while the screen is open.
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  Widget _dismissible(Flight f, DateTime now) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Dismissible(
+        key: ValueKey(f.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          child: Icon(Icons.delete_outline, color: scheme.error),
+        ),
+        onDismissed: (_) => ref.read(myFlightsProvider.notifier).remove(f.id),
+        child: FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final s = S.of(context);
+    final t = Theme.of(context).textTheme;
     final flights = ref.watch(myFlightsProvider);
-    final now = DateTime.now().toUtc();
+    final now = ref.watch(clockProvider)().toUtc();
+    final parts = splitFlights(flights, now);
     return Scaffold(
       appBar: AppBar(
         title: const Text('ÆtherSky'),
         actions: [
+          IconButton(tooltip: s.passport, icon: const Icon(Icons.badge_outlined), onPressed: () => context.go('/flights/passport')),
           IconButton(
             tooltip: s.addFlight,
             icon: const Icon(Icons.add_circle_outline),
@@ -29,31 +76,31 @@ class FlightsScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(),
+        onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(force: true),
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            Text(s.myFlights, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            if (parts.upcoming.isNotEmpty) ...[
+              NextFlightBanner(flight: parts.upcoming.first, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(parts.upcoming.first.id)}')),
+              const SizedBox(height: 16),
+            ],
+            Text(s.upcoming, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             if (!AppConfig.hasApi)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(s.demoData, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                child: Text(s.demoData, style: t.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ),
             const SizedBox(height: 12),
-            if (flights.isEmpty) const _EmptyFlights(),
-            for (final f in flights)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Dismissible(
-                  key: ValueKey(f.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                  ),
-                  onDismissed: (_) => ref.read(myFlightsProvider.notifier).remove(f.id),
-                  child: FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
+            if (parts.upcoming.isEmpty) const _EmptyFlights(),
+            for (final f in parts.upcoming) _dismissible(f, now),
+            if (parts.past.isNotEmpty)
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 4),
+                  title: Text('${s.past} (${parts.past.length})', style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  children: [for (final f in parts.past) _dismissible(f, now)],
                 ),
               ),
           ],
@@ -80,7 +127,10 @@ class _EmptyFlights extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(s.noFlightsHint, style: t.bodyMedium),
           const SizedBox(height: 12),
-          FilledButton.icon(onPressed: () => showAddFlightSheet(context), icon: const Icon(Icons.add), label: Text(s.addFlight)),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FilledButton.icon(onPressed: () => showAddFlightSheet(context), icon: const Icon(Icons.add), label: Text(s.addFlight)),
+            OutlinedButton.icon(onPressed: () => showImportSheet(context), icon: const Icon(Icons.content_paste), label: Text(s.importItinerary)),
+          ]),
           if (!AppConfig.hasApi) ...[
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -186,6 +236,17 @@ class _AddFlightSheetState extends ConsumerState<AddFlightSheet> {
         ),
         const SizedBox(height: 12),
         FilledButton(onPressed: _busy ? null : _find, child: _busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(s.find)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.content_paste, size: 18),
+            label: Text(s.orPaste),
+            onPressed: () {
+              Navigator.of(context).pop();
+              showImportSheet(context);
+            },
+          ),
+        ),
         if (_found != null) ...[
           const SizedBox(height: 16),
           FlightCard(flight: _found!, now: DateTime.now().toUtc()),

@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
+import '../domain/airlines.dart' show Alliance;
 import '../domain/flight.dart';
+import '../domain/trip.dart';
 
 /// UI strings in 繁體中文 (default) · English · 한국어 — same three languages as the PWA.
 /// A small table keeps the scaffold dependency-free; move to ARB files (flutter gen-l10n) when it grows.
@@ -14,6 +16,9 @@ class S {
   }
 
   String get locale => const {'zh': 'zh_TW', 'en': 'en_US', 'ko': 'ko_KR'}[lang]!;
+
+  /// Language tag used by the metasearch deep links (same values as the PWA).
+  String get linkLang => const {'zh': 'zh-TW', 'en': 'en', 'ko': 'ko'}[lang]!;
 
   String _t(String zh, String en, String ko) => lang == 'en' ? en : lang == 'ko' ? ko : zh;
 
@@ -91,6 +96,97 @@ class S {
   String get copied => _t('已複製', 'Copied', '복사됨');
   String get noMemberships => _t('還沒有會員卡', 'No memberships yet', '회원카드가 없습니다');
   String expiresIn(int d) => d < 0 ? _t('等級已到期', 'Status expired', '등급 만료') : _t('$d 天後到期', 'Expires in $d days', '$d일 후 만료');
+
+  String get upcoming => _t('即將出發', 'Upcoming', '예정된 항공편');
+  String get past => _t('已完成', 'Past flights', '지난 항공편');
+  String get nextFlight => _t('下一班', 'Next flight', '다음 항공편');
+  String get noUpcoming => _t('沒有即將出發的航班', 'No upcoming flights', '예정된 항공편이 없습니다');
+
+  /// "3 天 4 小時" · "3 小時 20 分" · "45 分" — the two largest units, like the countdown on a boarding pass.
+  String span(Duration d) {
+    final days = d.inDays;
+    final hours = d.inHours % 24;
+    final mins = d.inMinutes % 60;
+    if (days >= 1) return _t('$days 天${hours > 0 ? ' $hours 小時' : ''}', '${days}d${hours > 0 ? ' ${hours}h' : ''}', '$days일${hours > 0 ? ' $hours시간' : ''}');
+    if (d.inHours >= 1) return _t('${d.inHours} 小時${mins > 0 ? ' $mins 分' : ''}', '${d.inHours}h${mins > 0 ? ' ${mins}m' : ''}', '${d.inHours}시간${mins > 0 ? ' $mins분' : ''}');
+    final m = d.inMinutes < 1 ? 1 : d.inMinutes;
+    return _t('$m 分', '${m}m', '$m분');
+  }
+
+  String departsIn(Duration d) => _t('${span(d)}後起飛', 'Departs in ${span(d)}', '${span(d)} 후 출발');
+  String arrivesIn(Duration d) => _t('約 ${span(d)}後抵達', 'Lands in ~${span(d)}', '약 ${span(d)} 후 도착');
+  String get departingNow => _t('即將起飛', 'Departing now', '곧 출발');
+
+  String get myTrip => _t('我的行程資訊', 'My trip details', '내 여정 정보');
+  String get edit => _t('編輯', 'Edit', '편집');
+  String get cabin => _t('艙等', 'Cabin', '좌석 등급');
+  String get seat => _t('座位', 'Seat', '좌석');
+  String get pnr => _t('訂位代號', 'Booking ref', '예약번호');
+  String get notes => _t('備註', 'Notes', '메모');
+  String get tripHint => _t('填寫艙等後，可判斷你能進哪些貴賓室。', 'Add your cabin to see which lounges you can enter.', '좌석 등급을 입력하면 이용 가능한 라운지를 알려 드립니다.');
+  String cabinName(Cabin c) => switch (c) {
+        Cabin.economy => _t('經濟艙', 'Economy', '이코노미'),
+        Cabin.premium => _t('豪華經濟艙', 'Premium Economy', '프리미엄 이코노미'),
+        Cabin.business => _t('商務艙', 'Business', '비즈니스'),
+        Cabin.first => _t('頭等艙', 'First', '퍼스트'),
+      };
+
+  String get shareFlight => _t('分享航班', 'Share flight', '항공편 공유');
+  String get addToCalendar => _t('加入行事曆', 'Add to calendar', '캘린더에 추가');
+
+  String get importItinerary => _t('貼上訂位確認信', 'Paste booking e-mail', '예약 확인 메일 붙여넣기');
+  String get importHint => _t('把航空公司或旅行社的確認信／行程內容貼上，自動找出所有航班。', 'Paste an airline or travel-agent confirmation — every flight in it is picked up.', '항공사·여행사 확인 메일을 붙여넣으면 모든 항공편을 찾아 드립니다.');
+  String get pasteClipboard => _t('從剪貼簿貼上', 'Paste', '붙여넣기');
+  String get analyze => _t('找出航班', 'Find flights', '항공편 찾기');
+  String get noneFound => _t('沒有找到航班號碼（需要航空公司代碼＋數字，例如 BR198）', 'No flight numbers found (airline code + number, e.g. BR198)', '편명을 찾지 못했습니다 (항공사 코드+번호, 예: BR198)');
+  String get pickDate => _t('選擇日期', 'Pick date', '날짜 선택');
+  String get alreadyTracked => _t('已在追蹤', 'Already tracked', '이미 추적 중');
+  String get searching => _t('查詢中…', 'Looking up…', '조회 중…');
+  String addCount(int n) => _t('加入 $n 個航班', 'Add $n flight${n == 1 ? '' : 's'}', '항공편 $n개 추가');
+  String get orPaste => _t('或貼上訂位確認信', 'or paste a booking e-mail', '또는 예약 확인 메일 붙여넣기');
+
+  String get loungeTitle => _t('貴賓室資格', 'Lounge access', '라운지 이용 자격');
+  String loungeAt(String iata) => _t('在 $iata 出發時', 'When departing $iata', '$iata 출발 시');
+  String allianceName(Alliance a) => switch (a) {
+        Alliance.skyteam => _t('天合聯盟', 'SkyTeam', '스카이팀'),
+        Alliance.star => _t('星空聯盟', 'Star Alliance', '스타얼라이언스'),
+        Alliance.oneworld => _t('寰宇一家', 'oneworld', '원월드'),
+        Alliance.none => _t('無聯盟', 'No alliance', '얼라이언스 없음'),
+      };
+  String loungeOwnCabin(Cabin c, String airline) => _t('${cabinName(c)} · $airline 自家貴賓室', '${cabinName(c)} · $airline lounge', '${cabinName(c)} · $airline 라운지');
+  String loungeAllianceCabin(Cabin c, Alliance a) => _t('${cabinName(c)} · ${allianceName(a)}貴賓室', '${cabinName(c)} · ${allianceName(a)} lounges', '${cabinName(c)} · ${allianceName(a)} 라운지');
+  String loungeStatus(String program, String? tier, String status, Alliance a, int guests) => _t(
+        '$program${tier == null ? '' : ' $tier'}（$status）· ${allianceName(a)}貴賓室${guests > 0 ? '，可攜 $guests 位同行者' : ''}',
+        '$program${tier == null ? '' : ' $tier'} ($status) · ${allianceName(a)} lounges${guests > 0 ? ', +$guests guest' : ''}',
+        '$program${tier == null ? '' : ' $tier'} ($status) · ${allianceName(a)} 라운지${guests > 0 ? ', 동반 $guests명' : ''}',
+      );
+  String get loungeNone => _t('依目前的艙等與會員等級，這班沒有自動的貴賓室資格。', 'With your cabin and status, this flight carries no automatic lounge access.', '현재 좌석 등급과 회원 등급으로는 자동 라운지 이용 자격이 없습니다.');
+  String loungeNeedTier(String programs) => _t('$programs 尚未填寫等級 — 到「會員卡」補上等級才能判斷。', 'Add your tier for $programs in Wallet to check status access.', '$programs 등급을 지갑에서 입력하면 확인할 수 있습니다.');
+  String loungeUnmapped(String programs) => _t('$programs 的聯盟等級對照尚未收錄，請向航空公司確認貴賓室資格。', 'We do not map $programs tiers to alliance status yet — check lounge access with the airline.', '$programs 등급의 얼라이언스 등급 매핑이 아직 없어 항공사에 확인이 필요합니다.');
+  String get loungeNoAlliance => _t('這家航空公司不屬於任何聯盟：只有它自己的商務／頭等艙貴賓室。', 'This airline is in no alliance — only its own premium-cabin lounge applies.', '이 항공사는 얼라이언스에 속하지 않아 자사 프리미엄 라운지만 해당됩니다.');
+  String get loungeUnknownCarrier => _t('尚未收錄這家航空公司的貴賓室規則。', 'No lounge rules for this airline yet.', '이 항공사의 라운지 규정이 아직 없습니다.');
+  String get loungeDisclaimer => _t('依聯盟通則判斷；各貴賓室另有限制（國內線、人數、時段），請以航空公司／機場公告為準。', 'Based on general alliance rules; individual lounges add limits (domestic itineraries, capacity, hours) — confirm with the airline or airport.', '얼라이언스 일반 규정 기준이며 라운지별 제한(국내선, 인원, 시간)이 있을 수 있으니 항공사·공항에 확인하세요.');
+  String findLounges(String iata) => _t('查詢 $iata 貴賓室', 'Find lounges at $iata', '$iata 라운지 찾기');
+
+  String get passport => _t('飛行紀錄', 'Passport', '패스포트');
+  String get passportEmpty => _t('完成第一趟追蹤的航班後，飛行紀錄會自動累積在這裡。', 'Once a tracked flight is over, your flying stats build up here.', '추적한 항공편이 끝나면 비행 기록이 여기에 쌓입니다.');
+  String get statFlights => _t('航班', 'Flights', '항공편');
+  String get statDistance => _t('總里程', 'Distance', '총 거리');
+  String get statAirtime => _t('飛行時間', 'Time flown', '비행 시간');
+  String get statAirports => _t('機場', 'Airports', '공항');
+  String get statCountries => _t('國家／地區', 'Countries', '국가/지역');
+  String get statAirlines => _t('航空公司', 'Airlines', '항공사');
+  String get statTopRoute => _t('最常飛的航線', 'Most flown route', '가장 많이 탄 노선');
+  String get statLongest => _t('最長航班', 'Longest flight', '최장 비행');
+  String get statByYear => _t('每年航班數', 'Flights per year', '연도별 항공편');
+  String earthLaps(double laps) => _t('繞地球 ${laps.toStringAsFixed(2)} 圈', '${laps.toStringAsFixed(2)}× around the Earth', '지구 ${laps.toStringAsFixed(2)}바퀴');
+  String get distanceLowerBound => _t('部分航班沒有距離資料，實際更多', 'Some flights have no distance data — the real total is higher', '일부 항공편은 거리 정보가 없어 실제로는 더 많습니다');
+  String flightCount(int n) => _t('$n 班', '$n', '$n편');
+
+  String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
+  String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');
+  String get openFail => _t('無法開啟連結', 'Could not open the link', '링크를 열 수 없습니다');
+  String get fareHint => _t('票價為掃描當下的參考價，訂票前請再確認。', 'Fares are snapshots — confirm before booking.', '운임은 조회 시점 기준이므로 예약 전 확인하세요.');
 
   String get plans => _t('ÆtherSky 方案', 'ÆtherSky plans', 'ÆtherSky 요금제');
   String get plansHint => _t('競品免費的功能，我們一律免費。第一趟旅程送 Elite 全功能。', 'Everything competitors give away is free here too. Your first trip includes every Elite feature.', '경쟁 앱이 무료로 주는 기능은 모두 무료. 첫 여행은 Elite 전체 기능 제공.');

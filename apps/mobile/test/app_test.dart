@@ -1,34 +1,11 @@
 import 'dart:convert';
 
-import 'package:aethersky/app.dart';
-import 'package:aethersky/data/flight_repository.dart';
-import 'package:aethersky/data/stores.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-Future<void> pumpApp(WidgetTester tester, {http.Client? client}) async {
-  SharedPreferences.setMockInitialValues({});
-  final prefs = await SharedPreferences.getInstance();
-  await initializeDateFormatting();
-  await tester.binding.setSurfaceSize(const Size(420, 900));
-  // The app's primary language is Traditional Chinese.
-  tester.platformDispatcher.localesTestValue = const [Locale('zh', 'TW')];
-  addTearDown(tester.platformDispatcher.clearLocalesTestValue);
-  await tester.pumpWidget(ProviderScope(
-    overrides: [
-      prefsProvider.overrideWithValue(prefs),
-      flightSourceProvider.overrideWithValue(DemoFlightDataSource()),
-      if (client != null) httpClientProvider.overrideWithValue(client),
-    ],
-    child: const AetherApp(),
-  ));
-  await tester.pumpAndSettle();
-}
+import 'support.dart';
 
 void main() {
   testWidgets('empty state → add a demo flight → it appears in My flights', (tester) async {

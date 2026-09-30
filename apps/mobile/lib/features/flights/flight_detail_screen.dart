@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/share_text.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
+import '../../data/external.dart';
 import '../../data/stores.dart';
 import '../../domain/flight.dart';
+import '../../domain/ics.dart';
+import 'lounge_card.dart';
+import 'trip_info_card.dart';
 import 'widgets.dart';
 
 class FlightDetailScreen extends ConsumerWidget {
@@ -23,11 +28,25 @@ class FlightDetailScreen extends ConsumerWidget {
     final flight = f;
     final t = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    final now = DateTime.now().toUtc();
+    final now = ref.watch(clockProvider)().toUtc();
     return Scaffold(
-      appBar: AppBar(title: Text(flight.ident)),
+      appBar: AppBar(
+        title: Text(flight.ident),
+        actions: [
+          IconButton(
+            tooltip: s.shareFlight,
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => ref.read(externalActionsProvider).share(text: flightShareText(s, flight), subject: _title(flight)),
+          ),
+          IconButton(
+            tooltip: s.addToCalendar,
+            icon: const Icon(Icons.event_available_outlined),
+            onPressed: () => _addToCalendar(ref, s, flight),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(),
+        onRefresh: () => ref.read(myFlightsProvider.notifier).refreshAll(force: true),
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
           Row(children: [
             Text(flight.origin.iata, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -37,6 +56,8 @@ class FlightDetailScreen extends ConsumerWidget {
             StatusChip(flight),
           ]),
           Text('${flight.origin.city ?? ''} – ${flight.destination.city ?? ''}', style: t.bodyMedium?.copyWith(color: muted)),
+          const SizedBox(height: 4),
+          Text(countdownText(s, flight, now), style: t.titleMedium?.merge(tabular).copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           ProgressLine(progress: flight.progress(now), color: AetherColors.phase(flight.phase)),
           const SizedBox(height: 16),
@@ -44,6 +65,12 @@ class FlightDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _EndpointPanel(title: s.arrival, e: flight.destination, time: flight.gateIn, air: flight.landing, airLabel: s.landing),
           const SizedBox(height: 12),
+          TripInfoCard(flight: flight),
+          const SizedBox(height: 12),
+          if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[
+            LoungeCard(flight: flight),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -60,6 +87,17 @@ class FlightDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _title(Flight f) => '${f.ident} ${f.origin.iata} → ${f.destination.iata}';
+
+/// Hands a .ics file to the share sheet — pick Calendar (iOS) / Google Calendar (Android) to save the entry.
+void _addToCalendar(WidgetRef ref, S s, Flight flight) {
+  final now = ref.read(clockProvider)();
+  final ics = flightIcs(flight, now: now, description: flightCalendarDescription(s, flight, ref.read(tripInfosProvider)[flight.id]));
+  if (ics == null) return;
+  final day = (flight.gateOut.best ?? now).toUtc().toIso8601String().substring(0, 10);
+  ref.read(externalActionsProvider).share(text: _title(flight), subject: flight.ident, fileName: '${flight.ident}-$day.ics', fileText: ics, fileMime: 'text/calendar');
 }
 
 Widget _kv(BuildContext context, String k, String v) => Padding(
