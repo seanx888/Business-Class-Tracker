@@ -25,6 +25,25 @@ flutter analyze && flutter test  # CI: .github/workflows/mobile.yml
 
 需要 Flutter 3.47（stable）。No secrets in the app: FlightAware / OAG keys live only in the backend.
 
+## 網頁版預覽 Web preview（Vercel）
+
+Flutter 網頁版部署在**獨立的** Vercel 專案 `aethersky-app`（與放 PWA 的 `aethersky` 專案分開，兩者互不影響）。
+The Flutter web build lives in its own Vercel project `aethersky-app`, separate from the PWA project `aethersky`.
+
+| 設定 Setting | 值 Value |
+|---|---|
+| Git | `seanx888/aethersky`，Production Branch = `main`（merge 後自動部署；其他 branch 為 Preview，需登入 Vercel 才能看） |
+| Root Directory | `apps/mobile` |
+| Install Command | `git clone --depth 1 -b 3.47.5 https://github.com/flutter/flutter.git /tmp/flutter && /tmp/flutter/bin/flutter config --no-analytics && /tmp/flutter/bin/flutter pub get` |
+| Build Command | `/tmp/flutter/bin/flutter build web --release` |
+| Output Directory | `build/web` |
+| Ignored Build Step | `git diff --quiet HEAD^ HEAD -- .`（只有 `apps/mobile` 有變動才建置；每天的票價資料 commit 不會觸發） |
+
+- Vercel 的建置環境沒有 Flutter，所以每次建置都會先下載 SDK（約 1–2 分鐘）。**升級 Flutter 版本時，要同步改 Install Command 的 `3.47.5`、`.github/workflows/mobile.yml`。**
+- 網頁版是示範資料（沒有設 `AETHER_API_BASE`）。網址使用 hash 路由（`/#/flights`），不需要 rewrite 規則。
+- 網頁版限制：瀏覽器擋下 ADS-B 資料來源（CORS），雷達顯示「請改用手機 App」；沒有檔案儲存，日誌照片功能自動隱藏。
+- 手動重新部署：Vercel → `aethersky-app` → Deployments → 該筆 → ⋯ → Redeploy。
+
 ## 結構 Structure
 
 ```
