@@ -5,9 +5,10 @@ First scaffold of the flight-tracking app. Plan & roadmap: see the link above.
 
 | 分頁 Tab | 內容 What it does | 資料 Data |
 |---|---|---|
-| 航班 Flights | **下一班倒數**、即將出發／已完成、新增航班（航班號＋日期，或**貼上訂位確認信批次加入**）、狀態、延誤、登機門、行李轉盤、進度、各機場當地時間；航班頁：艙等／座位／訂位代號、**貴賓室資格**、**分享**、**加入行事曆 (.ics)**；右上角 **Passport** 飛行統計 | 後端 `flight-lookup`（FlightAware）；未設定時用示範航班 |
+| 航班 Flights | **下一班倒數**、即將出發／已完成、新增航班（航班號＋日期，或**貼上訂位確認信批次加入**）、狀態、延誤、登機門、行李轉盤、進度、各機場當地時間；航班頁：艙等／座位／訂位代號、**出門時間與線上報到入口**、**貴賓室資格**、**時差調整計畫**、**抵達地天氣**、**航線地圖**、**分享**、**加入行事曆 (.ics)**；班與班之間顯示**轉機提醒**；右上角 **Passport** 飛行統計（可**補登過去航班**、產生**年度飛行回顧**分享圖、**飛行日誌**：機型／航空公司／艙等統計、評分、心得、機上餐照片、CSV 匯出）與**設定**（語言、路程、提早到機場時間） | 後端 `flight-lookup`（FlightAware）；未設定時用示範航班 |
+| 雷達 Radar | **附近航班（Lite）**：以我的位置或機場為中心、半徑 25／50／100 km；清單與天空平面圖、頭頂航班、機型／高度／速度、一鍵追蹤或在 Flightradar24 查看；15 秒更新 | 社群 ADS-B（adsb.lol、adsb.fi，ODbL）；座標四捨五入到約 1 公里，不上傳、不儲存 |
 | 票價 Fares | Real Tracker 結果、今日商務艙好價；**點一下開 Google Flights / Skyscanner / KAYAK / 航空公司官網** | 與 PWA 相同的 `web/data/trackers.json`、`deals.json` |
-| 會員卡 Wallet | 28 個常客計畫（與 PWA 相同）、號碼（遮蔽/顯示/長按複製）、等級、到期 | 手機本機；格式與 PWA 備份相同 |
+| 會員卡 Wallet | 28 個常客計畫（與 PWA 相同）、號碼（遮蔽/顯示/長按複製）、等級、到期；**證件**（護照／簽證到期與行程效期檢查，不存證件號碼） | 手機本機；格式與 PWA 備份相同 |
 | 方案 Plans | Free / Pro / Elite 比較（付費牆預覽） | `lib/domain/plans.dart` |
 
 ## 執行 Run
@@ -28,23 +29,27 @@ flutter analyze && flutter test  # CI: .github/workflows/mobile.yml
 
 ```
 lib/
-  main.dart / app.dart         ProviderScope, GoRouter (4-tab StatefulShellRoute), theme
+  main.dart / app.dart         ProviderScope, GoRouter (5-tab StatefulShellRoute), theme
   core/                        config (--dart-define), format (airport-local times), strings (zh/en/ko), theme
   domain/                      pure Dart, unit-tested:
                                flight (status from out/off/on/in times) · schedule (upcoming/past, refresh policy) · trip (cabin/seat/PNR)
                                itinerary_parser (paste a booking e-mail) · ics (calendar export) · lounge_access (alliance rules)
                                passport (stats) · links (fare deep links) · fares · membership · plans
+                               connections (layover risk) · manual_flight · documents (expiry / 6-month rule) · jetlag · geo + route_map
+                               departure_plan (when to leave, check-in window) · settings · weather · wrapped (year in review)
+                               nearby + callsign + aircraft_types (Radar Lite: ADS-B parsing, distance/bearing, EVA198 → BR198) · logbook (stats, CSV)
                                airlines.g.dart / programs.g.dart — GENERATED from web/core/*.js (npm run gen:dart)
   data/                        flight_repository (API + demo sources), stores (Riverpod notifiers, shared_preferences),
-                               external (browser / share sheet seam)
-  features/                    flights (+ import, trip info, lounge card) · fares (+ links sheet) · passport · wallet · plans
-assets/                        airport-countries.json (copy of config/, kept in sync by npm test)
+                               external (browser / share sheet seam), aircraft_source (ADS-B), location_service, photo_service
+  features/                    flights (+ import, trip info, lounge card) · radar (Radar Lite) · logbook · fares (+ links sheet) · passport · wallet · plans
+assets/                        airport-countries.json, airport-geo.json (copies of config/, kept in sync by npm test)
+                               world-land.json (route-map outline, scripts/build-land-outline.mjs)
 test/                          domain + widget tests; support.dart (pumpApp, fake external actions, injectable clock)
 ```
 
 ## 下一步 Next (P1)
 
-✅ 已完成（P1a，免帳號）：下一班倒數、自動刷新、行程資訊、分享／行事曆、貼上訂位信匯入、貴賓室資格、票價一鍵開搜尋、Passport — 詳見 [PLAN.md §13](../../docs/aethersky/PLAN.md)。
+✅ 已完成（P1a／P1b／P1c／P1d，免帳號）：下一班倒數、自動刷新、行程資訊、分享／行事曆、貼上訂位信匯入、貴賓室資格、票價一鍵開搜尋、Passport＋補登、轉機助理、證件提醒、時差調整、航線地圖、出門時間、設定、天氣、年度回顧、附近航班雷達、飛行日誌 — 詳見 [PLAN.md §13](../../docs/aethersky/PLAN.md)。
 
 需要帳號／裝置才能完成：
 1. Supabase 登入（Apple / Google / Email magic link）→ 航班與追蹤存雲端（`backend/supabase`）
@@ -54,4 +59,4 @@ test/                          domain + widget tests; support.dart (pumpApp, fak
 5. RevenueCat（`purchases_flutter`）接上 Plans；首趟 Elite 試用
 6. 在地化改用 ARB（`flutter gen-l10n`）
 
-原生外掛注意：本次新增 `share_plus`、`url_launcher`。已通過 `flutter analyze`、96 個測試與 `flutter build web`；iOS / Android 實機（分享面板、開啟連結）尚未在裝置上驗證。
+原生外掛注意：本次新增 `share_plus`、`url_launcher`。已通過 `flutter analyze`、208 個測試、`flutter build web`，以及 Android SDK 36 上的 `flutter build apk --debug`；iOS 建置與兩個平台的實機行為（分享面板、開啟連結）尚未驗證。

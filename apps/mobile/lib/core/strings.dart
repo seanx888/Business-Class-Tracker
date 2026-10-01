@@ -1,8 +1,15 @@
 import 'package:flutter/widgets.dart';
 
+import '../data/location_service.dart' show LocationFailure;
 import '../domain/airlines.dart' show Alliance;
+import '../domain/connections.dart';
+import '../domain/documents.dart';
 import '../domain/flight.dart';
+import '../domain/jetlag.dart';
+import '../domain/manual_flight.dart';
+import '../domain/nearby.dart';
 import '../domain/trip.dart';
+import '../domain/weather.dart';
 
 /// UI strings in 繁體中文 (default) · English · 한국어 — same three languages as the PWA.
 /// A small table keeps the scaffold dependency-free; move to ARB files (flutter gen-l10n) when it grows.
@@ -93,6 +100,7 @@ class S {
   String get tier => _t('等級', 'Tier', '등급');
   String get save => _t('儲存', 'Save', '저장');
   String get cancel => _t('取消', 'Cancel', '취소');
+  String get close => _t('關閉', 'Close', '닫기');
   String get copied => _t('已複製', 'Copied', '복사됨');
   String get noMemberships => _t('還沒有會員卡', 'No memberships yet', '회원카드가 없습니다');
   String expiresIn(int d) => d < 0 ? _t('等級已到期', 'Status expired', '등급 만료') : _t('$d 天後到期', 'Expires in $d days', '$d일 후 만료');
@@ -182,6 +190,257 @@ class S {
   String earthLaps(double laps) => _t('繞地球 ${laps.toStringAsFixed(2)} 圈', '${laps.toStringAsFixed(2)}× around the Earth', '지구 ${laps.toStringAsFixed(2)}바퀴');
   String get distanceLowerBound => _t('部分航班沒有距離資料，實際更多', 'Some flights have no distance data — the real total is higher', '일부 항공편은 거리 정보가 없어 실제로는 더 많습니다');
   String flightCount(int n) => _t('$n 班', '$n', '$n편');
+
+  String connectionTitle(String airport, Duration layover) =>
+      _t('在 $airport 轉機 · ${layover.isNegative ? '—' : span(layover)}', 'Connection at $airport · ${layover.isNegative ? '—' : span(layover)}', '$airport 환승 · ${layover.isNegative ? '—' : span(layover)}');
+  String connectionRisk(ConnectionRisk r) => switch (r) {
+        ConnectionRisk.ok => _t('時間充裕', 'Plenty of time', '여유 있음'),
+        ConnectionRisk.tight => _t('時間偏緊', 'Tight', '촉박'),
+        ConnectionRisk.critical => _t('非常趕', 'Very tight', '매우 촉박'),
+        ConnectionRisk.missed => _t('已來不及', 'Missed', '놓침'),
+      };
+  String terminalChangeText(String from, String to) => _t('需換航廈 T$from → T$to', 'Change terminals T$from → T$to', '터미널 이동 T$from → T$to');
+  String delayShrunk(Duration d) => _t('延誤已讓轉機縮短 ${span(d)}', 'Delay has cut the connection by ${span(d)}', '지연으로 환승 시간이 ${span(d)} 줄었습니다');
+  String get connectionMissedAdvice => _t('後一班會在你降落前起飛，請儘快聯絡航空公司改訂。', 'The next flight leaves before you land — contact the airline about rebooking now.', '다음 항공편이 도착 전에 출발합니다. 항공사에 재예약을 문의하세요.');
+  String get connectionCriticalAdvice => _t('下機後直奔登機門；不確定就先向地勤確認。', 'Head straight to the gate on landing; ask ground staff if unsure.', '착륙 후 바로 게이트로 이동하고, 불확실하면 지상직원에게 확인하세요.');
+
+  String get manualTitle => _t('補登過去航班', 'Add a past flight', '지난 항공편 추가');
+  String get manualHint => _t('沒有即時資料的舊航班也能算進飛行紀錄；里程以大圓距離估算，只記日期。', 'Old flights without live data still count toward your Passport; distance is the great-circle estimate and only the day is stored.', '실시간 데이터가 없는 지난 항공편도 기록에 포함됩니다. 거리는 대권 거리로 추정하며 날짜만 저장합니다.');
+  String get manualAdd => _t('或補登過去的航班', 'or add a past flight', '또는 지난 항공편 추가');
+  String get fromAirport => _t('出發機場代碼', 'From (airport code)', '출발 공항 코드');
+  String get toAirport => _t('抵達機場代碼', 'To (airport code)', '도착 공항 코드');
+  String get saveAndAnother => _t('儲存並再補一班', 'Save & add another', '저장 후 계속 추가');
+  String manualSaved(String ident) => _t('已補登 $ident', 'Added $ident', '$ident 추가됨');
+  String get manualBadge => _t('手動補登', 'Added by hand', '직접 추가');
+  String get estimatedTime => _t('估算', 'estimated', '추정');
+  String manualError(ManualFlightError e) => switch (e) {
+        ManualFlightError.badNumber => badNumber,
+        ManualFlightError.unknownOrigin => _t('找不到出發機場代碼', 'Unknown departure airport code', '출발 공항 코드를 찾을 수 없습니다'),
+        ManualFlightError.unknownDestination => _t('找不到抵達機場代碼', 'Unknown arrival airport code', '도착 공항 코드를 찾을 수 없습니다'),
+        ManualFlightError.sameAirport => _t('出發與抵達機場不能相同', 'Departure and arrival must differ', '출발과 도착 공항이 같을 수 없습니다'),
+        ManualFlightError.notPast => _t('請選擇昨天以前的日期（今天與未來的航班請用查詢）', 'Pick a date before today (today and future flights use the normal lookup)', '어제 이전 날짜를 선택하세요 (오늘·미래 항공편은 조회를 사용)'),
+      };
+
+  String get docsTitle => _t('證件', 'Travel documents', '여행 서류');
+  String get docsHint => _t('只存類型、持有人與到期日，不存證件號碼。', 'Only type, holder and expiry date — never a document number.', '종류·소지자·만료일만 저장하며 서류 번호는 저장하지 않습니다.');
+  String get addDoc => _t('新增證件', 'Add document', '서류 추가');
+  String get holder => _t('持有人', 'Holder', '소지자');
+  String get countryCode => _t('國家代碼（2 碼，例 TW）', 'Country code (2 letters, e.g. TW)', '국가 코드 (2자, 예: TW)');
+  String get docCountryHint => _t('護照／身分證：發證國；簽證：可入境的國家', 'Passport / ID: issuing country · Visa: country it admits you to', '여권/신분증: 발급국 · 비자: 입국 가능 국가');
+  String get expiryDate => _t('到期日', 'Expiry date', '만료일');
+  String get noDocs => _t('還沒有證件', 'No documents yet', '서류가 없습니다');
+  String docKindName(DocKind k) => switch (k) {
+        DocKind.passport => _t('護照', 'Passport', '여권'),
+        DocKind.visa => _t('簽證', 'Visa', '비자'),
+        DocKind.idCard => _t('身分證／居留證', 'ID / residence card', '신분증/거소증'),
+        DocKind.other => _t('其他', 'Other', '기타'),
+      };
+  String docLeft(int days) => days < 0
+      ? _t('已過期 ${-days} 天', 'Expired ${-days} days ago', '${-days}일 전 만료')
+      : (days == 0 ? _t('今天到期', 'Expires today', '오늘 만료') : _t('$days 天後到期', 'Expires in $days days', '$days일 후 만료'));
+  String docIssueText(DocIssue i, String Function(String) place) {
+    final who = '${docKindName(i.doc.kind)} ${i.doc.holder}'.trim();
+    final on = i.doc.expiry.toIso8601String().substring(0, 10);
+    final where = i.country == null ? '' : place(i.country!);
+    final ident = i.flight?.ident ?? '';
+    return switch (i.kind) {
+      DocIssueKind.expired => _t('$who 已過期（$on）', '$who has expired ($on)', '$who 만료됨 ($on)'),
+      DocIssueKind.expiringSoon => _t('$who 將於 $on 到期', '$who expires on $on', '$who $on 만료 예정'),
+      DocIssueKind.passportExpiredByTrip => _t('$who 在抵達 $where（$ident）前就會到期（$on）', '$who expires ($on) before you reach $where ($ident)', '$who 이(가) $where 도착($ident) 전에 만료됩니다 ($on)'),
+      DocIssueKind.passportUnderSixMonths => _t('$who 於 $on 到期，前往 $where（$ident）時效期不足 6 個月，許多國家會拒絕入境', '$who expires $on — under 6 months left on arrival in $where ($ident); many countries refuse entry', '$who $on 만료 — $where($ident) 도착 시 6개월 미만, 입국이 거부될 수 있습니다'),
+      DocIssueKind.visaExpiredByTrip => _t('$where 簽證（$who）在 $ident 抵達前就會到期（$on）', '$where visa ($who) expires ($on) before $ident lands', '$where 비자($who)가 $ident 도착 전에 만료됩니다 ($on)'),
+    };
+  }
+
+  String get jetLagTitle => _t('時差調整', 'Jet lag plan', '시차 적응');
+  String jetLagSummary(JetLagPlan p) {
+    final dir = p.direction == JetLagDirection.east ? _t('往東', 'Eastbound', '동쪽으로') : _t('往西', 'Westbound', '서쪽으로');
+    return _t('$dir ${p.hours} 小時時差 · 約需 ${p.recoveryDays} 天適應', '$dir · ${p.hours} h shift · about ${p.recoveryDays} days to adjust', '$dir ${p.hours}시간 · 적응 약 ${p.recoveryDays}일');
+  }
+
+  String jetLagTip(JetLagTip tip, JetLagPlan p) {
+    final east = p.direction == JetLagDirection.east;
+    return switch (tip) {
+      JetLagTip.shiftBedtimeBefore => _t(
+          '出發前 ${p.preDays} 天起，每天把就寢與起床時間${east ? '提早' : '延後'} 1 小時。',
+          'From ${p.preDays} days before, move bedtime and wake-up ${east ? 'earlier' : 'later'} by 1 h each day.',
+          '출발 ${p.preDays}일 전부터 취침·기상 시간을 매일 1시간씩 ${east ? '앞당기' : '늦추'}세요.'),
+      JetLagTip.destinationTimeOnBoard => _t('上機就把手錶與手機調成目的地時間，照當地時間吃飯與睡覺。', 'Set your watch to destination time on boarding and eat and sleep by it.', '탑승하면 시계를 도착지 시간으로 맞추고 그 시간에 맞춰 식사·수면하세요.'),
+      JetLagTip.stayAwakeUntilBedtime => _t('抵達後撐到當地就寢時間；要小睡的話不超過 30 分鐘、下午 3 點前。', 'Stay up until local bedtime; if you nap, keep it under 30 min and before 3 pm.', '현지 취침 시간까지 깨어 있고, 낮잠은 오후 3시 전 30분 이내로 하세요.'),
+      JetLagTip.sleepOnLocalTime => _t('抵達時已近當地夜晚：直接依當地時間就寢，即使不太睏。', 'You land close to local night — go to bed on local time even if you do not feel tired.', '현지 밤에 가까운 시각에 도착합니다. 졸리지 않아도 현지 시간에 잠자리에 드세요.'),
+      JetLagTip.seekMorningLight => _t('到達後幾天，早上多曬太陽（戶外自然光），幫助生理時鐘提前。', 'For the first days get bright light in the local morning to pull your body clock earlier.', '도착 후 며칠간 아침에 밝은 빛을 쬐어 생체시계를 앞당기세요.'),
+      JetLagTip.seekEveningLight => _t('傍晚到入夜前多接觸明亮光線，幫助生理時鐘延後。', 'Get bright light in the late afternoon and evening to push your body clock later.', '늦은 오후~저녁에 밝은 빛을 쬐어 생체시계를 늦추세요.'),
+      JetLagTip.avoidEarlyLightFirstDays => _t('時差很大的東行：前兩天早上 10 點前避免強光（可戴墨鏡），改在下午曬太陽。', 'Big eastward shift: for two days avoid bright light before 10 am (sunglasses help) and take it in the afternoon instead.', '큰 동향 시차: 처음 이틀은 오전 10시 전 강한 빛을 피하고(선글라스) 오후에 빛을 쬐세요.'),
+      JetLagTip.limitCaffeine => _t('當地就寢前 6 小時內不要咖啡因。', 'No caffeine in the 6 hours before local bedtime.', '현지 취침 6시간 전부터는 카페인을 피하세요.'),
+    };
+  }
+
+  String get jetLagDisclaimer => _t('一般性睡眠建議，非醫療意見；有睡眠或健康問題請諮詢醫師。', 'General sleep guidance, not medical advice — ask a clinician if you have sleep or health concerns.', '일반적인 수면 조언이며 의료 조언이 아닙니다. 건강 문제가 있으면 의사와 상담하세요.');
+
+  String get departureTitle => _t('出發時間表', 'When to leave', '출발 준비');
+  String leaveHomeAt(String time) => _t('$time 出門', 'Leave at $time', '$time 출발');
+  String arriveAirportAt(String time) => _t('$time 到機場', 'At the airport by $time', '$time까지 공항 도착');
+  String departsAtTime(String time) => _t('$time 起飛', 'Departs $time', '$time 이륙');
+  String bufferNote(Duration buffer, Duration travel, bool intl) => _t(
+      '${intl ? '國際線' : '國內線'}提前 ${span(buffer)} · 路程 ${span(travel)}（可在設定或行程資訊調整）',
+      '${intl ? 'International' : 'Domestic'}: ${span(buffer)} before departure · ${span(travel)} journey (change in Settings or trip details)',
+      '${intl ? '국제선' : '국내선'} ${span(buffer)} 전 도착 · 이동 ${span(travel)} (설정 또는 여정 정보에서 변경)');
+  String get travelToAirport => _t('到機場所需時間（分鐘）', 'Journey to the airport (min)', '공항까지 소요 시간(분)');
+  String travelOverrideHint(int defaultMinutes) => _t('留空 = 使用設定的 $defaultMinutes 分鐘', 'Blank = the default of $defaultMinutes min from Settings', '비워 두면 설정의 $defaultMinutes분 사용');
+  String get checkInTitle => _t('線上報到', 'Online check-in', '온라인 체크인');
+  String get checkInHint => _t('多數航空公司在起飛前 24–48 小時開放線上報到（依航空公司而異）。', 'Most airlines open online check-in 24–48 h before departure (it varies by airline).', '대부분의 항공사는 출발 24–48시간 전에 온라인 체크인을 엽니다(항공사별 상이).');
+  String checkInAt(String airline) => _t('前往 $airline 官網報到', 'Check in on the $airline website', '$airline 웹사이트에서 체크인');
+
+  String get settings => _t('設定', 'Settings', '설정');
+  String get languageSetting => _t('語言', 'Language', '언어');
+  String get languageSystem => _t('跟隨手機', 'System', '시스템');
+  String get airportTimeSettings => _t('到機場的時間', 'Getting to the airport', '공항 이동');
+  String get bufferInternationalSetting => _t('國際線：提前到機場', 'International: be at the airport before departure', '국제선: 출발 전 공항 도착');
+  String get bufferDomesticSetting => _t('國內線：提前到機場', 'Domestic: be at the airport before departure', '국내선: 출발 전 공항 도착');
+  String minutes(int n) => _t('$n 分鐘', '$n min', '$n분');
+
+  String weatherTitle(String city) => _t('抵達地天氣 · $city', 'Weather on arrival · $city', '도착지 날씨 · $city');
+  String weatherKind(WeatherKind k) => switch (k) {
+        WeatherKind.clear => _t('晴', 'Clear', '맑음'),
+        WeatherKind.partlyCloudy => _t('多雲時晴', 'Partly cloudy', '구름 조금'),
+        WeatherKind.cloudy => _t('陰', 'Overcast', '흐림'),
+        WeatherKind.fog => _t('霧', 'Fog', '안개'),
+        WeatherKind.drizzle => _t('毛毛雨', 'Drizzle', '이슬비'),
+        WeatherKind.rain => _t('雨', 'Rain', '비'),
+        WeatherKind.showers => _t('陣雨', 'Showers', '소나기'),
+        WeatherKind.snow => _t('雪', 'Snow', '눈'),
+        WeatherKind.thunder => _t('雷雨', 'Thunderstorm', '뇌우'),
+      };
+  String precipChance(int pct) => _t('降雨機率 $pct%', '$pct% chance of rain', '강수확률 $pct%');
+  String get bringUmbrella => _t('記得帶傘', 'Pack an umbrella', '우산을 챙기세요');
+  String get weatherCredit => _t('天氣資料：Open-Meteo.com', 'Weather data by Open-Meteo.com', '날씨 데이터: Open-Meteo.com');
+
+  String get wrappedEntry => _t('年度飛行回顧', 'Year in review', '올해의 비행 회고');
+  String wrappedYear(int y) => _t('$y 年', '$y', '$y년');
+  String wrappedFlightsLabel(int n) => _t('趟飛行', n == 1 ? 'flight' : 'flights', '번 비행');
+  String wrappedHours(int h) => _t('$h 小時在空中', '$h hours in the air', '하늘에서 $h시간');
+  String wrappedAroundEarth(double laps) => laps >= 0.1 ? earthLaps(laps) : '';
+  String wrappedBusiest(String month, int n) => _t('最忙的月份　$month（$n 趟）', 'Busiest month  $month ($n)', '가장 바쁜 달  $month ($n)');
+  String get wrappedTopRoute => _t('最常飛', 'Most flown', '가장 많이 탄 노선');
+  String get wrappedTopAirline => _t('最常搭乘', 'Most flown airline', '가장 많이 탄 항공사');
+  String wrappedCountries(int n) => _t('$n 個國家／地區', n == 1 ? '1 country' : '$n countries', '$n개 국가/지역');
+  String get shareImage => _t('分享圖片', 'Share image', '이미지 공유');
+  String wrappedShareText(int year, int flights, String km) => _t('我的 $year 飛行回顧：$flights 趟、$km km — ÆtherSky', 'My $year in the air: $flights flights, $km km — ÆtherSky', '나의 $year 비행 회고: $flights번, $km km — ÆtherSky');
+  String get wrappedEmpty => _t('這一年還沒有完成的航班。', 'No completed flights in this year yet.', '이 해에는 완료된 항공편이 없습니다.');
+
+  String get tabRadar => _t('雷達', 'Radar', '레이더');
+  String get radarTitle => _t('附近航班', 'Flights nearby', '주변 항공편');
+  String get radarMyLocation => _t('我的位置', 'My location', '내 위치');
+  String get radarAirport => _t('機場', 'Airport', '공항');
+  String get radarList => _t('清單', 'List', '목록');
+  String get radarSky => _t('天空', 'Sky', '하늘');
+  String radarRadius(int km) => '$km\u00A0km';
+  String radarSummary(int n, int km, String time) => _t('$n 架航班 · 半徑 $km km · $time 更新', n == 1 ? '1 aircraft · $km km radius · updated $time' : '$n aircraft · $km km radius · updated $time', '항공기 $n대 · 반경 $km km · $time 갱신');
+  String get radarLocating => _t('定位中…', 'Finding your location…', '위치 확인 중…');
+  String get radarLoading => _t('載入附近航班…', 'Loading nearby flights…', '주변 항공편 불러오는 중…');
+  String get radarEmptyTitle => _t('這個範圍內沒有航班', 'No aircraft in range', '범위 안에 항공기가 없습니다');
+  String get radarEmptyHint => _t('放大半徑，或改選機場看看。', 'Try a wider radius or pick an airport.', '반경을 넓히거나 공항을 선택해 보세요.');
+  String get radarErrorTitle => _t('無法取得航班資料', 'Could not load aircraft', '항공기 정보를 불러올 수 없습니다');
+  String get radarErrorHint => _t('請確認網路連線後重試。網頁版瀏覽器會擋下這類資料來源，請改用手機 App。', 'Check your connection and try again. Browsers block this data source on the web, so use the phone app.', '네트워크를 확인하고 다시 시도하세요. 웹 브라우저는 이 데이터 소스를 차단하므로 모바일 앱을 사용하세요.');
+  String get radarTryAgain => _t('重試', 'Try again', '다시 시도');
+  String get radarPickAirport => _t('選擇機場', 'Pick an airport', '공항 선택');
+  String get radarNeedAirport => _t('選一個機場，看它周圍的航班。', 'Pick an airport to see the flights around it.', '공항을 선택하면 주변 항공편을 볼 수 있습니다.');
+  String radarLocationProblem(LocationFailure f) => switch (f) {
+        LocationFailure.denied => _t('需要位置權限才能顯示你附近的航班。', 'Location permission is needed to show flights near you.', '내 주변 항공편을 보려면 위치 권한이 필요합니다.'),
+        LocationFailure.deniedForever => _t('位置權限已被關閉。請到系統設定開啟，或改選機場。', 'Location permission is off. Turn it on in system settings, or pick an airport.', '위치 권한이 꺼져 있습니다. 시스템 설정에서 켜거나 공항을 선택하세요.'),
+        LocationFailure.serviceOff => _t('手機的定位服務已關閉。開啟後重試，或改選機場。', 'Location is switched off on this phone. Turn it on and try again, or pick an airport.', '휴대폰의 위치 서비스가 꺼져 있습니다. 켠 뒤 다시 시도하거나 공항을 선택하세요.'),
+        LocationFailure.unavailable => _t('暫時無法取得位置。到戶外或稍後再試，或改選機場。', 'Could not get a position. Try outdoors or later, or pick an airport.', '위치를 가져올 수 없습니다. 야외에서 또는 나중에 다시 시도하거나 공항을 선택하세요.'),
+      };
+  String get radarOpenSettings => _t('開啟系統設定', 'Open settings', '설정 열기');
+  String get radarOverhead => _t('頭頂上方', 'Overhead', '머리 위');
+  String get radarOnGround => _t('地面', 'On ground', '지상');
+  String radarEmergency(String squawk) => _t('緊急代碼 $squawk', 'Emergency code $squawk', '비상 코드 $squawk');
+  String radarTrend(VerticalTrend t) => switch (t) {
+        VerticalTrend.climbing => _t('爬升', 'Climbing', '상승'),
+        VerticalTrend.descending => _t('下降', 'Descending', '하강'),
+        VerticalTrend.level => _t('平飛', 'Level', '수평'),
+      };
+  String get radarAltitude => _t('高度', 'Altitude', '고도');
+  String get radarSpeed => _t('對地速度', 'Ground speed', '대지 속도');
+  String get radarHeading => _t('航向', 'Heading', '방향');
+  String get radarVertical => _t('升降率', 'Vertical rate', '상승/하강률');
+  String get radarSquawk => _t('應答機代碼', 'Squawk', '스퀘이크');
+  String get radarRegistration => _t('註冊號', 'Registration', '등록번호');
+  String get radarAircraft => _t('機型', 'Aircraft', '기종');
+  String get radarDistance => _t('距離', 'Distance', '거리');
+  String get radarSeen => _t('最後更新', 'Last update', '마지막 갱신');
+  String radarSecondsAgo(int sec) => _t('$sec 秒前', '${sec}s ago', '$sec초 전');
+  String get radarOpenFr24 => _t('在 Flightradar24 查看', 'View on Flightradar24', 'Flightradar24에서 보기');
+  String get radarTrack => _t('追蹤這班航班', 'Track this flight', '이 항공편 추적');
+  String get radarAttribution => _t('ADS-B 資料：adsb.lol 與 adsb.fi 社群（ODbL 開放資料）。位置為即時接收，可能有遺漏。', 'ADS-B data from the adsb.lol and adsb.fi communities (ODbL open data). Positions are received live and coverage can have gaps.', 'ADS-B 데이터: adsb.lol 및 adsb.fi 커뮤니티 (ODbL 오픈 데이터). 실시간 수신이라 누락될 수 있습니다.');
+  String get radarSkyLabel => _t('天空平面圖，正北朝上', 'Sky plan view, north is up', '하늘 평면도, 북쪽이 위');
+  String get airportSearchHint => _t('機場代碼或城市…', 'Airport code or city…', '공항 코드 또는 도시…');
+  String get airportNoMatch => _t('找不到符合的機場', 'No matching airport', '일치하는 공항이 없습니다');
+
+  // Logbook
+  String get logbook => _t('飛行日誌', 'Logbook', '비행 일지');
+  String get logEntriesTab => _t('紀錄', 'Entries', '기록');
+  String get logStatsTab => _t('統計', 'Statistics', '통계');
+  String get logEmptyTitle => _t('還沒有搭乘紀錄', 'No flights logged yet', '아직 탑승 기록이 없습니다');
+  String get logEmptyHint => _t('完成的航班會自動出現在這裡，也可以補登過去的航班。', 'Finished flights appear here on their own. You can also add past flights.', '완료된 항공편이 자동으로 표시됩니다. 지난 항공편을 직접 추가할 수도 있습니다.');
+  String get logExport => _t('匯出 CSV', 'Export CSV', 'CSV 내보내기');
+  String get logExportSubject => _t('ÆtherSky 飛行日誌', 'ÆtherSky logbook', 'ÆtherSky 비행 일지');
+  String get logExportFile => 'aethersky-logbook.csv';
+  String logExportText(int n) => _t('飛行日誌，共 $n 趟', 'Logbook with $n flights', '비행 일지, 총 $n편');
+  String get logEditEntry => _t('編輯紀錄', 'Edit entry', '기록 편집');
+  String get logAddDetails => _t('補上評分與心得', 'Add ratings and a review', '평점과 후기 추가');
+  String get logCardHint => _t('記下實際機型、評分、搭乘心得與照片。', 'Record the real aircraft, your ratings, a review and photos.', '실제 기종, 평점, 탑승 후기, 사진을 기록하세요.');
+  String get logSaveEntry => _t('儲存紀錄', 'Save entry', '기록 저장');
+  String get logAircraftType => _t('機型', 'Aircraft type', '기종');
+  String get logRegistration => _t('機身註冊號', 'Registration', '등록번호');
+  String logReportedType(String type) => _t('資料來源顯示：$type', 'Reported: $type', '데이터 제공: $type');
+  String get logPurpose => _t('旅程目的', 'Purpose', '여행 목적');
+  String purposeName(TripPurpose p) => switch (p) {
+        TripPurpose.leisure => _t('休閒', 'Leisure', '여가'),
+        TripPurpose.business => _t('商務', 'Business', '출장'),
+        TripPurpose.crew => _t('機組', 'Crew', '승무'),
+        TripPurpose.other => _t('其他', 'Other', '기타'),
+      };
+  String get logRatings => _t('評分', 'Ratings', '평점');
+  String ratingName(RatingAspect a) => switch (a) {
+        RatingAspect.overall => _t('整體', 'Overall', '전체'),
+        RatingAspect.seat => _t('座位', 'Seat', '좌석'),
+        RatingAspect.food => _t('餐點', 'Food', '기내식'),
+        RatingAspect.service => _t('服務', 'Service', '서비스'),
+      };
+  String ratingStar(String aspect, int n) => _t('$aspect $n 星', '$aspect: $n of 5 stars', '$aspect $n점');
+  String get ratingUnrated => _t('未評分', 'Not rated', '평점 없음');
+  String get logRatingHint => _t('再點一次同一顆星可取消。', 'Tap the same star again to clear it.', '같은 별을 다시 누르면 취소됩니다.');
+  String get logExperience => _t('搭乘心得', 'Your review', '탑승 후기');
+  String get logExperienceHint => _t('座位、餐點、機組、值不值得再搭…', 'Seat, meal, crew, would you fly it again…', '좌석, 기내식, 승무원, 다시 탈지…');
+  String get logPhotos => _t('照片', 'Photos', '사진');
+  String get logAddPhoto => _t('加入照片', 'Add photo', '사진 추가');
+  String get logFromCamera => _t('拍照', 'Take a photo', '사진 촬영');
+  String get logFromLibrary => _t('從相簿選擇', 'Choose from library', '앨범에서 선택');
+  String get logRemovePhoto => _t('移除照片', 'Remove photo', '사진 삭제');
+  String get logViewPhoto => _t('放大照片', 'View photo', '사진 보기');
+  String get logPhotoRemoved => _t('已移除 1 張照片', 'Photo removed', '사진 1장을 삭제했습니다');
+  String get undo => _t('復原', 'Undo', '실행 취소');
+  String get logPhotosOnDevice => _t('照片只存在這支手機，不會上傳。', 'Photos stay on this phone. Nothing is uploaded.', '사진은 이 휴대폰에만 저장되며 업로드되지 않습니다.');
+  String get logPhotosAppOnly => _t('照片功能僅限手機 App。', 'Photos are available in the phone app.', '사진 기능은 모바일 앱에서만 사용할 수 있습니다.');
+  String logPhotoLimit(int n) => _t('每趟航班最多 $n 張照片。', 'Up to $n photos per flight.', '항공편당 사진은 최대 $n장입니다.');
+  String removedItem(String name) => _t('已移除 $name', 'Removed $name', '$name 삭제됨');
+  String get logDiscardTitle => _t('捨棄這些變更？', 'Discard your changes?', '변경 사항을 버릴까요?');
+  String get logKeepEditing => _t('繼續編輯', 'Keep editing', '계속 편집');
+  String get logDiscard => _t('捨棄', 'Discard', '버리기');
+  String get logStatSummary => _t('總覽', 'Overview', '요약');
+  String get logStatAircraft => _t('機型', 'Aircraft types', '기종');
+  String get logStatCabins => _t('艙等', 'Cabins', '좌석 등급');
+  String get logStatPurpose => _t('旅程目的', 'Purpose', '여행 목적');
+  String get logStatRatings => _t('平均評分', 'Average ratings', '평균 평점');
+  String logStatReviewed(int n) => _t('$n 趟寫了心得或評分', n == 1 ? '1 flight reviewed' : '$n flights reviewed', '후기·평점 $n편');
+  String logStatPhotos(int n) => _t('$n 張照片', n == 1 ? '1 photo' : '$n photos', '사진 $n장');
+  String logStatTails(int n) => _t('$n 架不同機身', n == 1 ? '1 airframe' : '$n airframes', '기체 $n대');
+  String get logNoRatingsYet => _t('還沒有評分。', 'No ratings yet.', '아직 평점이 없습니다.');
+  String get logUnknownYear => _t('日期不明', 'Undated', '날짜 미상');
+  String get logStatNoAircraft => _t('填入機型後會顯示在這裡。', 'Aircraft types appear here once you record them.', '기종을 기록하면 여기에 표시됩니다.');
+  String get logStatNoCabins => _t('在航班的「我的行程」填入艙等後會顯示在這裡。', 'Cabins appear here once you set them on a flight.', '항공편에서 좌석 등급을 입력하면 표시됩니다.');
+  String ratingAverage(double avg, int n) => _t('${avg.toStringAsFixed(1)}（$n 次）', '${avg.toStringAsFixed(1)} from $n', '${avg.toStringAsFixed(1)} ($n회)');
 
   String get openSearch => _t('開啟搜尋', 'Open search', '검색 열기');
   String get airlineSite => _t('航空公司官網', 'Airline website', '항공사 웹사이트');

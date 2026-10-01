@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
 import '../../core/share_text.dart';
@@ -7,10 +8,21 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/external.dart';
 import '../../data/stores.dart';
+import '../../domain/airlines.dart';
+import '../../domain/connections.dart';
+import '../../domain/departure_plan.dart';
 import '../../domain/flight.dart';
 import '../../domain/ics.dart';
+import '../../domain/manual_flight.dart';
+import '../../domain/passport.dart' show flownFlights;
+import '../logbook/log_entry_sheet.dart';
+import 'connection_widgets.dart';
+import 'departure_card.dart';
+import 'jetlag_card.dart';
 import 'lounge_card.dart';
+import 'route_map.dart';
 import 'trip_info_card.dart';
+import 'weather_card.dart';
 import 'widgets.dart';
 
 class FlightDetailScreen extends ConsumerWidget {
@@ -26,9 +38,13 @@ class FlightDetailScreen extends ConsumerWidget {
     }
     if (f == null) return Scaffold(appBar: AppBar(), body: Center(child: Text(s.notFound)));
     final flight = f;
+    if (flight.isManual) return _ManualDetail(flight: flight);
     final t = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final now = ref.watch(clockProvider)().toUtc();
+    final countries = ref.watch(airportCountriesProvider).asData?.value;
+    final connections = findConnections(ref.watch(myFlightsProvider), now, countryOf: countries == null ? null : (iata) => countries[iata])
+        .where((c) => c.from.id == flight.id || c.to.id == flight.id);
     return Scaffold(
       appBar: AppBar(
         title: Text(flight.ident),
@@ -61,15 +77,26 @@ class FlightDetailScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           ProgressLine(progress: flight.progress(now), color: AetherColors.phase(flight.phase)),
           const SizedBox(height: 16),
+          RouteMap(flight: flight, now: now),
+          const SizedBox(height: 16),
           _EndpointPanel(title: s.departure, e: flight.origin, time: flight.gateOut, air: flight.takeoff, airLabel: s.takeoff),
           const SizedBox(height: 12),
           _EndpointPanel(title: s.arrival, e: flight.destination, time: flight.gateIn, air: flight.landing, airLabel: s.landing),
           const SizedBox(height: 12),
+          for (final c in connections) ConnectionChip(connection: c),
+          DepartureCard(flight: flight, now: now),
+          if (departurePlanFor(ref, flight, now: now) != null || checkInLikelyOpen(flight, now)) const SizedBox(height: 12),
           TripInfoCard(flight: flight),
           const SizedBox(height: 12),
+          if (flownFlights([flight], now).isNotEmpty) ...[LogCard(flight: flight), const SizedBox(height: 12)],
           if (flight.phase != FlightPhase.arrived && flight.phase != FlightPhase.landed && flight.phase != FlightPhase.cancelled) ...[
             LoungeCard(flight: flight),
             const SizedBox(height: 12),
+            WeatherCard(flight: flight, now: now),
+            if (jetLagPlanFor(flight) case final plan?) ...[
+              JetLagCard(plan: plan),
+              const SizedBox(height: 12),
+            ],
           ],
           Card(
             child: Padding(
@@ -157,6 +184,50 @@ class _EndpointPanel extends StatelessWidget {
           ],
         ]),
       ),
+    );
+  }
+}
+
+/// A hand-entered flight has no live data: show what we know (day, route, distance) and the traveller's own notes.
+class _ManualDetail extends ConsumerWidget {
+  const _ManualDetail({required this.flight});
+  final Flight flight;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final t = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final f = flight;
+    final day = f.gateOut.best == null ? '—' : DateFormat.yMMMMEEEEd(s.locale).format(f.gateOut.best!.toUtc());
+    return Scaffold(
+      appBar: AppBar(title: Text(f.ident)),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
+        Row(children: [
+          Text(f.origin.iata, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.arrow_forward)),
+          Text(f.destination.iata, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+        ]),
+        Text('${f.origin.city ?? ''} – ${f.destination.city ?? ''}', style: t.bodyMedium?.copyWith(color: muted)),
+        const SizedBox(height: 4),
+        Text(day, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(children: [
+              _kv(context, s.statAirlines, airlineDisplayName(f.carrier, chinese: s.lang == 'zh')),
+              _kv(context, s.distance, f.distanceKm == null ? '—' : '${f.distanceKm} km'),
+              _kv(context, s.blockTime, '${duration(f.blockTime)} (${s.estimatedTime})'),
+              _kv(context, s.dataSource, s.manualBadge),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TripInfoCard(flight: f),
+        const SizedBox(height: 12),
+        LogCard(flight: f),
+      ]),
     );
   }
 }

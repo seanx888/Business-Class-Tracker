@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ÆtherSky shows the aircraft flying near you. Your position is only used while the Radar tab is open; a coordinate rounded to about 1 km is sent to a public ADS-B feed to find nearby flights.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of your flight (cabin, meals, views) to keep in your logbook. Photos stay on this device.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos of your flight (cabin, meals, views) to keep in your logbook. Photos stay on this device.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -60,6 +60,10 @@ class TripInfoCard extends ConsumerWidget {
                   cell(s.pnr, info.pnr ?? '—', onLongPress: info.pnr == null ? null : () => _copy(context, info.pnr!)),
                 ],
               ),
+              if (info.travelMinutes != null) ...[
+                const SizedBox(height: 10),
+                Text('${s.travelToAirport}: ${info.travelMinutes}', style: t.bodySmall?.copyWith(color: muted)),
+              ],
               if (info.notes != null) ...[const SizedBox(height: 10), Text(info.notes!, style: t.bodyMedium)],
             ],
           ],
@@ -99,12 +103,14 @@ class _TripInfoSheetState extends ConsumerState<_TripInfoSheet> {
   late final _seat = TextEditingController(text: _initial.seat ?? '');
   late final _pnr = TextEditingController(text: _initial.pnr ?? '');
   late final _notes = TextEditingController(text: _initial.notes ?? '');
+  late final _travel = TextEditingController(text: _initial.travelMinutes?.toString() ?? '');
 
   @override
   void dispose() {
     _seat.dispose();
     _pnr.dispose();
     _notes.dispose();
+    _travel.dispose();
     super.dispose();
   }
 
@@ -154,6 +160,17 @@ class _TripInfoSheetState extends ConsumerState<_TripInfoSheet> {
           ),
           const SizedBox(height: 12),
           TextField(
+            controller: _travel,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: s.travelToAirport,
+              helperText: s.travelOverrideHint(ref.read(settingsProvider).travelMinutes),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
             controller: _notes,
             maxLines: 3,
             decoration: InputDecoration(labelText: s.notes, border: const OutlineInputBorder()),
@@ -163,7 +180,16 @@ class _TripInfoSheetState extends ConsumerState<_TripInfoSheet> {
             onPressed: () {
               ref
                   .read(tripInfosProvider.notifier)
-                  .set(widget.flight.id, TripInfo.clean(cabin: _cabin, seat: _seat.text, pnr: _pnr.text, notes: _notes.text));
+                  .set(
+                    widget.flight.id,
+                    TripInfo.clean(
+                      cabin: _cabin,
+                      seat: _seat.text,
+                      pnr: _pnr.text,
+                      notes: _notes.text,
+                      travelMinutes: int.tryParse(_travel.text),
+                    ),
+                  );
               Navigator.of(context).pop();
             },
             child: Text(s.save),

@@ -89,7 +89,8 @@ PassportStats computePassport(
     bump(routeCount, pair.join('-'));
     final dep = f.gateOut.best ?? f.takeoff.best;
     if (dep != null) {
-      final local = (localTime ?? (t, _) => t)(dep, f.origin.timeZone);
+      // Hand-entered flights carry only a date (stored as noon UTC) — it is already the local day.
+      final local = f.origin.timeZone == null ? dep : (localTime ?? (t, _) => t)(dep, f.origin.timeZone);
       byYear[local.year] = (byYear[local.year] ?? 0) + 1;
     }
   }

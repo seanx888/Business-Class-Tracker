@@ -7,10 +7,18 @@ import 'package:go_router/go_router.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../data/flight_repository.dart';
+import '../../data/photo_service.dart';
 import '../../data/stores.dart';
+import '../../domain/connections.dart';
+import '../../domain/documents.dart';
 import '../../domain/flight.dart';
+import '../../domain/manual_flight.dart';
 import '../../domain/schedule.dart';
+import '../wallet/document_alert.dart';
+import 'connection_widgets.dart';
+import 'departure_card.dart';
 import 'import_sheet.dart';
+import 'manual_flight_sheet.dart';
 import 'widgets.dart';
 
 class FlightsScreen extends ConsumerStatefulWidget {
@@ -38,6 +46,42 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
     super.dispose();
   }
 
+  /// Removing a flight also drops the traveller's log entry for it, so it can be undone until the message goes away;
+  /// only then are the entry's photos deleted from the phone.
+  void _remove(Flight f) {
+    final s = S.of(context);
+    final flights = ref.read(myFlightsProvider.notifier);
+    final trips = ref.read(tripInfosProvider.notifier);
+    final info = ref.read(tripInfosProvider)[f.id];
+    final photos = ref.read(photoServiceProvider);
+    flights.remove(f.id);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(s.removedItem(f.ident)),
+            // A snack bar with an action stays until dismissed unless told otherwise; the photos are only deleted once it is gone.
+            persist: false,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: s.undo,
+              onPressed: () {
+                flights.upsert(f);
+                if (info != null) trips.set(f.id, info);
+              },
+            ),
+          ),
+        )
+        .closed
+        .then((reason) {
+          if (reason == SnackBarClosedReason.action) return;
+          for (final name in info?.log.photos ?? const <String>[]) {
+            photos.delete(name);
+          }
+        });
+  }
+
   Widget _dismissible(Flight f, DateTime now) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -50,8 +94,10 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
           padding: const EdgeInsets.only(right: 20),
           child: Icon(Icons.delete_outline, color: scheme.error),
         ),
-        onDismissed: (_) => ref.read(myFlightsProvider.notifier).remove(f.id),
-        child: FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
+        onDismissed: (_) => _remove(f),
+        child: f.isManual
+            ? ManualFlightCard(flight: f, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}'))
+            : FlightCard(flight: f, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(f.id)}')),
       ),
     );
   }
@@ -63,11 +109,17 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
     final flights = ref.watch(myFlightsProvider);
     final now = ref.watch(clockProvider)().toUtc();
     final parts = splitFlights(flights, now);
+    final countries = ref.watch(airportCountriesProvider).asData?.value;
+    final connections = findConnections(flights, now, countryOf: countries == null ? null : (iata) => countries[iata]);
+    final docIssues = checkDocuments(ref.watch(travelDocsProvider), flights, now, countryOf: countries == null ? null : (iata) => countries[iata]);
+    final connectionAfter = {for (final c in connections) c.from.id: c};
+    void openFlight(String id) => context.go('/flights/${Uri.encodeComponent(id)}');
     return Scaffold(
       appBar: AppBar(
         title: const Text('ÆtherSky'),
         actions: [
           IconButton(tooltip: s.passport, icon: const Icon(Icons.badge_outlined), onPressed: () => context.go('/flights/passport')),
+          IconButton(tooltip: s.settings, icon: const Icon(Icons.settings_outlined), onPressed: () => context.go('/flights/settings')),
           IconButton(
             tooltip: s.addFlight,
             icon: const Icon(Icons.add_circle_outline),
@@ -80,8 +132,17 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
+            DocumentAlert(issues: docIssues, onTap: () => context.go('/wallet')),
+            // A connection that is missed or barely possible is worth shouting about above everything else.
+            for (final c in connections.where((c) => c.risk == ConnectionRisk.critical || c.risk == ConnectionRisk.missed))
+              ConnectionChip(connection: c, onTap: () => openFlight(c.from.id)),
             if (parts.upcoming.isNotEmpty) ...[
-              NextFlightBanner(flight: parts.upcoming.first, now: now, onTap: () => context.go('/flights/${Uri.encodeComponent(parts.upcoming.first.id)}')),
+              NextFlightBanner(
+                flight: parts.upcoming.first,
+                now: now,
+                leaveHome: departurePlanFor(ref, parts.upcoming.first, now: now)?.leaveHome,
+                onTap: () => context.go('/flights/${Uri.encodeComponent(parts.upcoming.first.id)}'),
+              ),
               const SizedBox(height: 16),
             ],
             Text(s.upcoming, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -92,7 +153,10 @@ class _FlightsScreenState extends ConsumerState<FlightsScreen> {
               ),
             const SizedBox(height: 12),
             if (parts.upcoming.isEmpty) const _EmptyFlights(),
-            for (final f in parts.upcoming) _dismissible(f, now),
+            for (final f in parts.upcoming) ...[
+              _dismissible(f, now),
+              if (connectionAfter[f.id] case final c?) ConnectionChip(connection: c, onTap: () => openFlight(c.to.id)),
+            ],
             if (parts.past.isNotEmpty)
               Theme(
                 data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -244,6 +308,17 @@ class _AddFlightSheetState extends ConsumerState<AddFlightSheet> {
             onPressed: () {
               Navigator.of(context).pop();
               showImportSheet(context);
+            },
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+            label: Text(s.manualAdd),
+            onPressed: () {
+              Navigator.of(context).pop();
+              showManualFlightSheet(context);
             },
           ),
         ),

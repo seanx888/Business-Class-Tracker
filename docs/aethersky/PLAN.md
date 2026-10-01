@@ -165,6 +165,9 @@ flowchart LR
 |---|---|---|---|
 | **P0 PWA 升級** | 本 PR | ÆtherSky 改名、Real Tracker（固定/彈性日期＋Email/推播通知）、會員卡夾、Flutter 專案骨架、Supabase schema | ✅ 本次完成 |
 | **P1a 免帳號實用功能** | 已完成 | 下一班倒數＋即將出發/已完成分組、開啟自動刷新（省 API）、艙等/座位/訂位代號、分享航班、加入行事曆 (.ics)、**貼上訂位確認信批次加入**、**貴賓室資格判斷**、票價一鍵開搜尋、Passport 飛行統計、會員計畫與 PWA 完全對齊（28 個） | ✅ 本次完成（Flutter 96 測試） |
+| **P1b 免帳號實用功能（第二批）** | 已完成 | 轉機助理、手動補登過去航班、護照／簽證到期提醒、時差調整計畫、航線大圓弧地圖 | ✅ 本次完成（Flutter 168 測試） |
+| **P1c 免帳號實用功能（第三批）** | 已完成 | 出門時間＋線上報到入口、設定頁（語言／路程／緩衝）、抵達地天氣、年度飛行回顧（可分享圖片）；Android debug APK 建置驗證通過 | ✅ 本次完成（Flutter 208 測試） |
+| **P1d 免帳號實用功能（第四批）** | 已完成 | **附近航班雷達 Lite**（定位或機場周邊、頭頂航班，社群 ADS-B 資料）、**飛行日誌**（機型／艙等／航空公司統計、評分、心得、機上餐照片、CSV 匯出）、刪除可復原 | ✅ 本次完成（Flutter 282 測試） |
 | **P1 MVP（其餘）** | 4–6 週 | 帳號登入與雲端同步、推播（FCM/APNs）、Live Activity / Live Updates、地圖與航跡、RevenueCat 付費牆 | 🔜 需要帳號／裝置（見 §13） |
 | **P2 Pro** | +6 週 | Email 轉寄匯入、日曆同步、轉機助理、inbound 飛機追蹤、延誤預測、機場延誤趨勢、RevenueCat 付費牆、家庭方案 | |
 | **P3 Elite** | +8 週 | 貴賓室指南＋評價、快速通關預約、會員等級進度、里程兌換位提醒、AI 助理、賠償申請 | |
@@ -341,6 +344,57 @@ Everything below works on-device today, is unit- or widget-tested, and needs no 
 
 **單一資料來源 Single source of truth**：航空公司／聯盟／會員計畫／機場國別表由 `web/core/*.js` 與 `config/` 產生 Dart，`npm test` 會檢查是否過期（`npm run gen:dart` 重新產生）。
 
+### P1b（第二批，同樣免帳號）
+
+| # | 功能 Feature | 為什麼優先 Why | 位置 Where |
+|---|---|---|---|
+| 10 | **轉機助理**：兩班相接的追蹤航班 → 轉機時間（依即時預估）、風險（國際 45/90 分、國內 30/60 分、換航廈 +30 分）、延誤已縮短多少、來不及轉乘；首頁列表班與班之間顯示，很趕／來不及時置頂警示 | 多航段行程最容易出事的地方；延誤發生時最需要 | `lib/domain/connections.dart` |
+| 11 | **手動補登過去航班**：航班號＋日期＋兩個機場代碼 → 大圓距離、估算飛行時間，只記日期（不編造時刻） | 讓 Passport 一開始就有資料，不用等到下次飛行 | `lib/domain/manual_flight.dart` |
+| 12 | **護照／簽證到期提醒**：只存類型、持有人、國家、到期日（**不存證件號碼**）；到期 180 天內提醒、已過期、護照抵達時不足 6 個月、簽證在抵達前到期 → 首頁警示 | 被拒絕登機／入境的代價最高；純本機 | `lib/domain/documents.dart` |
+| 13 | **時差調整計畫**：由兩地 UTC 偏移算出方向與小時數（取較短方向）、約需幾天適應、出發前就寢調整、抵達時間決定「撐到晚上」或「直接睡」、光照與咖啡因 | 長程商務艙旅客每趟都用得到；純邏輯 | `lib/domain/jetlag.dart` |
+| 14 | **航線大圓弧地圖**：世界輪廓（Natural Earth 110m，公有領域，47 KB）＋大圓弧＋已飛路段＋機位；跨日期變更線正確；不需要地圖圖磚或金鑰 | 每次開航班頁都看得到 | `lib/domain/route_map.dart`, `features/flights/route_map.dart` |
+
+**資料**：`config/airport-geo.json`（9,053 個機場座標／城市，OurAirports 公有領域；`npm run airports` 更新）與 App 內副本由測試保證一致；`apps/mobile/assets/world-land.json` 由 `scripts/build-land-outline.mjs` 產生。
+
+**順帶修正**：會員卡與證件對話框在關閉動畫尚未結束時就釋放輸入框控制器（`TextEditingController was used after being disposed`），已改為由對話框自己持有並釋放，並加上回歸測試。
+
+### P1c（第三批，同樣免帳號）
+
+| # | 功能 Feature | 為什麼優先 Why | 位置 Where |
+|---|---|---|---|
+| 15 | **出門時間**：起飛時間 − 提早到機場（國際 3 小時／國內 2 小時）− 到機場路程（預設 60 分）；延誤會跟著往後；下一班橫幅顯示「14:00 出門」，航班頁有時間表卡；轉機第二段、手動補登、已起飛的航班不顯示。**線上報到入口**：起飛前 48 小時內提示（多數航空公司 24–48 小時前開放，依航空公司而異）並一鍵開航空公司官網 | 每趟都用、開 App 的第一個問題 | `lib/domain/departure_plan.dart`, `features/flights/departure_card.dart` |
+| 16 | **設定頁**（航班頁右上角齒輪）：語言（跟隨手機／繁中／English／한국어，立即套用整個 App）、到機場路程、國際／國內提早時間；單一航班可在行程資訊覆寫路程（例如從飯店出發）；損壞或超出範圍的設定值不會讓 App 起不來 | 三種語言的家人共用；出門時間需要個人化 | `lib/domain/settings.dart`, `features/settings/` |
+| 17 | **抵達地天氣**：抵達當地日期的最高／最低溫、天氣、降雨機率、「記得帶傘」；Open-Meteo（不需金鑰）、只查 15 天內、任何失敗只是不顯示；卡片標示資料來源 | 打包與出門穿著；資料層可換供應商 | `lib/domain/weather.dart`, `lib/data/weather_source.dart` |
+| 18 | **年度飛行回顧**：Passport → 年度飛行回顧；航班數、里程（繞地球幾圈）、空中小時、國家（旗幟）、最常飛航線與航空公司、最忙月份；分享按鈕輸出 1080×1350 PNG（已驗證尺寸與檔頭） | 留存與自然成長（可分享） | `lib/domain/wrapped.dart`, `features/passport/wrapped_screen.dart` |
+
+**授權注意**：Open-Meteo 的免費方案僅限**非商業**使用（CC BY 4.0，需標示來源，卡片已標示）。若 ÆtherSky 上架收費，需改用其商業方案或換供應商（`WeatherSource` 介面已隔離）。
+
+**Android 建置驗證**：本次在容器內安裝 Android SDK 36，`flutter build apk --debug` 成功（含 share_plus、url_launcher，三個資產都打包進 APK）。iOS 需要 macOS／Xcode，尚未驗證；兩個平台的實機行為（分享面板、開啟連結）仍需實機測試。
+
+### P1d（第四批，同樣免帳號）· Radar Lite + Logbook
+
+設計依據：`design-system/aethersky/pages/radar-logbook.md`（taste-skill 設計讀取與撥盤、awesome-design-md 的 Linear 代幣、web-design-guidelines 逐條對照 Flutter）。
+
+| # | 功能 Feature | 為什麼優先 Why | 位置 Where |
+|---|---|---|---|
+| 19 | **雷達 Lite（第 2 個分頁）**：以「我的位置」或「機場」為中心，半徑 25／50／100 km 內的航班；清單（最近的排最前，標出**頭頂上方**的航班與**緊急應答機代碼 7500/7600/7700**）與**天空平面圖**（正北朝上、機頭指向航向、可點選）；點一架看機型、註冊號、高度、速度、航向、升降率，一鍵「追蹤這班航班」（呼號自動轉成票面航班號，例如 EVA198 → BR198，帶入新增航班表單）或在 Flightradar24 查看；每 15 秒更新（只在該分頁顯示時）；定位被拒／服務關閉／逾時、無航班、網路失敗都有對應畫面與下一步（重試、開系統設定、改選機場） | 「頭上那架飛機是什麼」是最高頻的好奇心；Flightradar24 官方 API 為付費，免費版由社群 ADS-B 接收網涵蓋 | `lib/domain/{nearby,callsign,aircraft_types}.dart`, `lib/data/{aircraft_source,location_service}.dart`, `lib/features/radar/` |
+| 20 | **飛行日誌**（Passport → 飛行日誌，或 Passport 右上角書本圖示）：完成的航班依年份分組；每趟可記**實際機型與註冊號**（資料來源常只給預定機型，輸入時有建議）、艙等、旅程目的（休閒／商務／機組／其他）、整體／座位／餐點／服務 1–5 星（再點一次取消）、**搭乘心得**、**照片（最多 12 張，例如機上餐）**；已完成與補登的航班頁也有日誌卡 | 類 FlightMemory 的個人飛行紀錄；心得與照片是回憶價值所在 | `lib/domain/{trip,logbook}.dart`, `lib/features/logbook/` |
+| 21 | **日誌統計**：總航班／里程、**各航空公司搭乘次數與里程**、**機型排行**、**艙等分布**、旅程目的、平均評分、已寫心得／照片數、不同機身數；長條為無底軌的細條，數字並列 | 「我到底搭過幾次長榮、幾次 A350？」 | `lib/domain/logbook.dart`, `features/logbook/logbook_screen.dart` |
+| 22 | **CSV 匯出**：一鍵交給分享面板（UTF-8 BOM，Excel 讀中文／韓文不亂碼；RFC 4180 引號；以 `=`、`+`、`@` 開頭的儲存格自動加單引號，避免被試算表當公式執行） | 備份、搬到別的日誌服務或試算表 | `logbookCsv()` |
+| 23 | **刪除可復原**：滑動刪除航班（連同日誌）、刪除會員卡、刪除證件，都改為「已移除 X ［復原］」；日誌照片要等提示消失且未復原才真正從手機刪除；日誌編輯頁有「未儲存的變更」確認 | web-design-guidelines：破壞性動作需要確認或復原；心得與照片不可因誤觸消失 | `features/flights/flights_screen.dart`, `features/wallet/` |
+
+**隱私與資料來源（雷達）**
+- 資料：[adsb.lol](https://adsb.lol)（主要）與 [adsb.fi](https://adsb.fi)（備援）的免費開放 API，社群接收的 ADS-B，**ODbL 授權**，卡片已標示來源。覆蓋率不均、可能延遲或漏失，App 不保證完整。
+- 位置：只在雷達分頁開著時才取得；**座標在離開手機前四捨五入到 0.01°（約 1 公里）**，App 不上傳、不儲存位置；定位精度用「低」（省電、夠用）。
+- **授權注意**：兩個社群 API 皆**無 SLA**，商業上架前需與提供者確認條款，或改接付費供應商（`AircraftSource` 介面已隔離，測試用假資料）。網頁版瀏覽器因 CORS 無法直連，會顯示「請改用手機 App」；手機 App 不受影響。
+- 航線（起降機場）：免費來源不可靠，這一版**不顯示**；需要時提供 Flightradar24 連結。
+
+**隱私與資料來源（日誌）**：心得與評分存在手機本機（與行程資訊同一處，`aether.trips.v1`）；照片存在 App 私有資料夾，**沒有任何上傳**；網頁版沒有檔案儲存，照片功能自動隱藏並說明。CSV 只在使用者按下匯出時交給系統分享面板。
+
+**順帶修正**：Riverpod 3 預設會在 provider 失敗後自動重試（間隔越來越長），離線時畫面會一直停在「載入中」數分鐘；現在改為立即顯示錯誤與「重試」（影響票價、天氣、雷達）。Android 主 manifest 原本缺 `INTERNET` 權限（release 版會完全離線），已補上，並新增定位權限；iOS 加上定位／相機／相簿用途說明。
+
+**驗證**：`npm test` 119、Flutter 282 個測試（雷達：定位／機場／權限／錯誤／空狀態／半徑／天空圖點選／三語；日誌：模型相容舊資料、統計、CSV、編輯、照片復原、未儲存警告、刪除復原）。Android debug APK 建置通過；iOS 尚未驗證（需 macOS）。**定位與相機／相簿的實機行為（權限彈窗、拍照）仍需實機測試。**
+
 ### 仍需要你（USERA / USERB）做的事 · Blocked on accounts or devices
 
 | 項目 | 需要 | 我能先做的 |
@@ -352,5 +406,4 @@ Everything below works on-device today, is unit- or widget-tested, and needs no 
 | 付費牆 | RevenueCat 帳號＋兩家商店的訂閱商品 | `plans.dart` 權限閘已就緒 |
 | 貴賓室目錄與評價、快速通關 | 資料來源合約（LoungeReview / DragonPass / Priority Pass） | 資格判斷規則層已完成，接上目錄即可顯示「哪一間」 |
 
-**下一批（不需帳號，依序）**：① 轉機助理（最短轉機時間、風險提示）② 時差調整計畫 ③ 護照／簽證到期提醒（本機）④ 航線大圓弧地圖（不需圖磚）⑤ 手動補登過去航班（讓 Passport 立刻有資料）。
-
+**下一批（不需帳號，依序）**：① 本機提醒（該出門了、證件到期）——出門時間與證件檢查的邏輯已備好，缺 `flutter_local_notifications` 與實機驗證 ② 貴賓室目錄（先做 TPE/ICN/NRT/BKK/SIN 的名稱、航廈、開放條件；需逐筆核實）③ 機場地圖／登機門步行時間 ④ ~~航班備註與照片附件~~（已於 P1d 以飛行日誌完成）⑤ 行程分組（把來回與轉機併成一趟「東京 12/20–12/28」）。

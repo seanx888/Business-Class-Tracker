@@ -7,9 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/config.dart';
 import '../domain/fares.dart';
+import '../domain/documents.dart';
 import '../domain/flight.dart';
+import '../domain/geo.dart';
 import '../domain/membership.dart';
 import '../domain/schedule.dart';
+import '../domain/settings.dart';
 import '../domain/trip.dart';
 import 'flight_repository.dart';
 
@@ -24,6 +27,10 @@ final httpClientProvider = Provider<http.Client>((ref) => http.Client());
 
 /// Current time; overridden in tests so countdowns and upcoming/past grouping are deterministic.
 final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// Riverpod 3 re-runs a failed provider on its own with growing pauses, which would leave a screen on its loading state for
+/// minutes while the phone is offline. Failures here are shown at once with a Retry button instead.
+Duration? noAutoRetry(int retryCount, Object error) => null;
 
 /// Flights the user follows, kept on the device (account sync comes with the backend).
 class MyFlights extends Notifier<List<Flight>> {
@@ -143,10 +150,75 @@ class Wallet extends Notifier<List<Membership>> {
 
 final walletProvider = NotifierProvider<Wallet, List<Membership>>(Wallet.new);
 
+/// Language override and the "when do I leave" numbers.
+class Settings extends Notifier<AppSettings> {
+  static const _key = 'aether.settings.v1';
+
+  @override
+  AppSettings build() {
+    final raw = ref.read(prefsProvider).getString(_key);
+    if (raw == null) return const AppSettings();
+    try {
+      return AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return const AppSettings();
+    }
+  }
+
+  void update(AppSettings Function(AppSettings) change) {
+    state = change(state);
+    ref.read(prefsProvider).setString(_key, jsonEncode(state.toJson()));
+  }
+}
+
+final settingsProvider = NotifierProvider<Settings, AppSettings>(Settings.new);
+
+/// Passports, visas and IDs (kind, holder, country, expiry — never a document number), kept on the device.
+class TravelDocs extends Notifier<List<TravelDoc>> {
+  static const _key = 'aether.docs.v1';
+
+  @override
+  List<TravelDoc> build() {
+    final raw = ref.read(prefsProvider).getString(_key);
+    if (raw == null) return const [];
+    try {
+      return (jsonDecode(raw) as List).whereType<Map<String, dynamic>>().map(TravelDoc.fromJson).nonNulls.toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  void _save() => ref.read(prefsProvider).setString(_key, jsonEncode(state.map((d) => d.toJson()).toList()));
+
+  void upsert(TravelDoc d) {
+    state = [...state.where((x) => x.id != d.id), d]..sort((a, b) => a.expiry.compareTo(b.expiry));
+    _save();
+  }
+
+  void remove(String id) {
+    state = state.where((d) => d.id != id).toList();
+    _save();
+  }
+}
+
+final travelDocsProvider = NotifierProvider<TravelDocs, List<TravelDoc>>(TravelDocs.new);
+
 /// IATA → ISO country for the Passport stats (bundled OurAirports extract, same file the scanner uses).
 final airportCountriesProvider = FutureProvider<Map<String, String>>((ref) async {
   final raw = jsonDecode(await rootBundle.loadString('assets/airport-countries.json')) as Map<String, dynamic>;
   return raw.map((k, v) => MapEntry(k, v as String));
+});
+
+/// IATA → coordinates and city (bundled OurAirports extract, same source as the country table).
+final airportGeoProvider = FutureProvider<Map<String, AirportGeo>>((ref) async {
+  final raw = jsonDecode(await rootBundle.loadString('assets/airport-geo.json')) as Map<String, dynamic>;
+  return {for (final e in raw.entries) e.key: ?AirportGeo.fromJson(e.value)};
+});
+
+/// Land outline for the route map: rings of [lon, lat, lon, lat, …] (Natural Earth 110m, public domain).
+final worldLandProvider = FutureProvider<List<List<double>>>((ref) async {
+  final raw = jsonDecode(await rootBundle.loadString('assets/world-land.json')) as List;
+  return [for (final ring in raw) [for (final v in ring as List) (v as num).toDouble()]];
 });
 
 Future<Map<String, dynamic>> _fetchJson(http.Client client, String file) async {

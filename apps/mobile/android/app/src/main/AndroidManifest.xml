@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flight data, fares and weather are fetched over the network. Flutter's template only declares this for debug builds,
+         which would leave release builds offline. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Radar Lite: aircraft near you. Approximate location is enough. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="ÆtherSky"
         android:name="${applicationName}"

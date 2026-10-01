@@ -8,6 +8,7 @@ on:
       - '.github/workflows/mobile.yml'
       - 'web/core/**'
       - 'config/airport-countries.json'
+      - 'config/airport-geo.json'
       - 'test/fixtures/links-cases.json'
       - 'scripts/gen-dart-airlines.mjs'
   push:
@@ -17,6 +18,7 @@ on:
       - '.github/workflows/mobile.yml'
       - 'web/core/**'
       - 'config/airport-countries.json'
+      - 'config/airport-geo.json'
       - 'test/fixtures/links-cases.json'
       - 'scripts/gen-dart-airlines.mjs'
 

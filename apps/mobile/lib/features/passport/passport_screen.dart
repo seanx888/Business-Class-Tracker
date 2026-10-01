@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/format.dart';
@@ -8,6 +9,7 @@ import '../../core/theme.dart';
 import '../../data/stores.dart';
 import '../../domain/airlines.dart';
 import '../../domain/passport.dart';
+import '../flights/manual_flight_sheet.dart';
 
 /// Lifetime stats from every tracked flight that is now over.
 class PassportScreen extends ConsumerWidget {
@@ -42,17 +44,53 @@ class PassportScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(s.passport)),
+      appBar: AppBar(
+        title: Text(s.passport),
+        actions: [
+          IconButton(tooltip: s.logbook, icon: const Icon(Icons.menu_book_outlined), onPressed: () => context.go('/flights/passport/logbook')),
+          IconButton(tooltip: s.manualTitle, icon: const Icon(Icons.edit_calendar_outlined), onPressed: () => showManualFlightSheet(context)),
+        ],
+      ),
       body: stats.isEmpty
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text(s.passportEmpty, textAlign: TextAlign.center, style: t.bodyLarge),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(s.passportEmpty, textAlign: TextAlign.center, style: t.bodyLarge),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => showManualFlightSheet(context),
+                    icon: const Icon(Icons.edit_calendar_outlined),
+                    label: Text(s.manualTitle),
+                  ),
+                ]),
               ),
             )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
               children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          icon: const Icon(Icons.auto_awesome),
+                          label: Text(s.wrappedEntry, overflow: TextOverflow.ellipsis),
+                          onPressed: () => context.go('/flights/passport/wrapped'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          icon: const Icon(Icons.menu_book_outlined),
+                          label: Text(s.logbook, overflow: TextOverflow.ellipsis),
+                          onPressed: () => context.go('/flights/passport/logbook'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 Row(
                   children: [
                     tile(s.statFlights, '${stats.flights}'),
