@@ -156,7 +156,7 @@ design-system/  UI rules (Minimal Swiss, tokens, a11y) from the ui-ux-pro-max sk
 - Amadeus Self-Service API 已於 2026-07-17 停止服務，因此不支援。
 - 只追蹤機票（每日好價為商務艙；Real Tracker 可選其他艙等），不含火車；未包含里程兌換座位（award seats）。 Flights only — no trains, no award seats.
 - **Facebook 社團無法被程式讀取**（平台禁止且要登入）— 用「貼上貼文」；Secret Flying、FlyerTalk 會擋雲端機房，標示為「被擋住／未啟用」。 Facebook can't be read by a program (use “paste a post”); Secret Flying / FlyerTalk block datacenter IPs.
-- App 內即時搜尋需要 Vercel 的 `SERPAPI_KEY` 並先登入；多段票查詢依 SerpApi 文件實作，**尚未用真實金鑰實測**；多段票的 Google Flights 連結格式未經實測。 Live multi-city search is built from SerpApi's documented shape but not yet exercised with a real key.
+- App 內即時搜尋需要 Vercel 的 `SERPAPI_KEY` 並先登入；多段票查詢的參數已對照 SerpApi 文件核對（`type=3` + `multi_city_json` + `departure_token`），但**尚未用真實金鑰實測**；多段票的 Google Flights 連結格式未經實測。 Live multi-city search follows SerpApi's documented parameters (checked against the docs) but has not been exercised with a real key.
 - 玩法庫是社群做法與一般常識（隱藏城市等可能違反運送條款），不是航空公司認可的方案；請以官網與條款為準。 Playbooks are community know-how, not airline-approved.
 - 會員卡夾只存在各自手機的瀏覽器；換手機前請匯出備份。 The member wallet lives only in each phone's browser.
 - 聯盟成員資料更新至 2026-09：ITA 已轉星空聯盟；韓亞 (OZ) 將於 2026-12-17 併入大韓航空（天合）。
