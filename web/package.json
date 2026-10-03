@@ -1,0 +1,6 @@
+{
+  "name": "aethersky-web",
+  "private": true,
+  "type": "module",
+  "description": "The PWA and the Vercel Functions under api/. \"type\": \"module\" makes web/core/*.js load as ES modules in the functions (api/*.mjs import them); without it Node treats them as CommonJS and the search function fails to start."
+}
