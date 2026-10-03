@@ -16,3 +16,5 @@ jobs:
       - run: npm test
       - name: Demo scan smoke test
         run: OFFLINE=1 FARE_PROVIDER=demo node scripts/scan.mjs
+      - name: Community feed smoke test (offline fixtures)
+        run: COMMUNITY_OFFLINE=1 OFFLINE=1 node scripts/community.mjs

@@ -134,6 +134,21 @@ function compile(keys) {
     cjk: cjk.length ? new RegExp(cjk.map(escapeRe).join('|'), 'g') : null,
   };
 }
+/**
+ * A reusable name matcher: entries are { key: value }, keys in any language. Returns text → [{ value, text, index }],
+ * longest names first, Latin names on word boundaries, diacritics ignored. Used here for places and by the deal classifier
+ * for airlines / hotel brands.
+ */
+export function makeMatcher(entries) {
+  const map = new Map();
+  for (const [k, v] of entries) {
+    const key = fold(k).trim().toLowerCase();
+    if (key.length >= 2 && !map.has(key)) map.set(key, v);
+  }
+  const compiled = compile([...map.keys()]);
+  return (text) => scan(compiled, text).map((h) => ({ value: map.get(h.text), text: h.text, index: h.index })).sort((a, b) => a.index - b.index);
+}
+
 function scan(compiled, text) {
   const out = [];
   const s = fold(text);
@@ -201,7 +216,7 @@ try {
   /* Intl.DisplayNames unavailable: country names just won't be recognised */
 }
 // Two-letter keys are far too ambiguous ("uk" is fine, "in" or "is" are not): keep 3+ letters, 2+ for CJK.
-const COUNTRIES = compile([...countryByName.keys()].filter((k) => (CJK.test(k) ? k.length >= 2 : k.length >= 3)));
+const COUNTRIES = compile([...countryByName.keys()].filter((k) => (CJK.test(k) ? k.length >= 2 : k.length >= 3 || k === 'uk')));
 
 // ── Public helpers ──
 const IATA = /^[A-Z]{3}$/;
