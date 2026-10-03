@@ -37,3 +37,20 @@ prices `font-variant-numeric: tabular-nums`.
 - Focus rings visible (`:focus-visible`), `prefers-reduced-motion` respected, 150–200 ms colour/opacity transitions only.
 - Colour is never the only indicator (deal tier = icon + word + score; savings = sign + word).
 - Safe areas respected for header and tab bar; content never hidden behind fixed bars.
+
+## Screens added 2026-10 (search, community, promotions, playbooks)
+
+- **Search (Routes → 搜尋)** — one column. Trip type is a 3-way segmented control; places are free text (codes or names in three
+  languages) with a one-line hint underneath ("TPE — 台北桃園" or the error); multi-city legs are stacked cards (2–5) with a remove
+  button and an "add flight" row. Cabin / stops / alliance are wrapping chips; airlines are removable chips plus a datalist input;
+  passengers, bags and longest trip sit behind a "More" disclosure with an active-count badge.
+- **Tracking is part of the form** — a switch panel ("追蹤這個搜尋") expands target price, flexible days, alert type, who to notify and
+  the daily country check; the primary button's label changes ("搜尋" → "搜尋並追蹤"), and a result's detail has "追蹤這個搜尋".
+  Without live search the page shows free deep links instead; nothing is hidden or disabled without a sentence saying why.
+- **Community / promotions** — cards, not a table: tag row (type, alliance, new, deadline, lock), title link (opens the source), route
+  or brands, price in TWD with the original currency, a 3-line summary clamp, then actions. Filters are wrapping chips (no clipped
+  scroll rows). Source health and the paste-a-post importer live behind disclosures at the edges of the list.
+- **Playbooks** — accordion cards. Risk is a tag with a word (低/中/高風險) and effort is dots plus a word; the cost calculator's
+  verdict uses an arrow icon plus "省 / 貴" wording, never colour alone.
+- Background data (the feed, search availability) never redraws a screen while a text field has the keyboard.
+

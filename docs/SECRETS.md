@@ -18,6 +18,8 @@
 | ★必要 | `SERPAPI_KEY` | GitHub **Secret** | 真實票價（Google Flights）。沒有 → 只顯示示範資料 | Free 250 次/月 | [A1](#a1-serpapi_key--真實票價) |
 | ★推薦 | `PASSWORD_USERA` / `PASSWORD_USERB` | **Vercel** env | USERA 與 USERB 各一組**初始密碼**（密碼本身就決定是誰；登入後強制自己改）| 自己產生 | [B2](#b2-vercel-環境變數與登入) |
 | ★推薦 | `SESSION_SECRET` | **Vercel** env | 簽登入 Cookie 的隨機字串（≥32 字元）| 自己產生 | [B2](#b2-vercel-環境變數與登入) |
+| 選用 | `SERPAPI_KEY` / `SERPAPI_KEY_2` | **Vercel** env | 開啟 App 內即時搜尋（和 GitHub 同一把金鑰）| 用 SerpApi 額度 | [B2](#b2-vercel-環境變數與登入) |
+| 選用 | `SEARCH_RESERVE` | **Vercel** env | 留給每日掃描的搜尋次數（預設 60）| — | [B2](#b2-vercel-環境變數與登入) |
 | ★推薦 | `TRACKERS_GITHUB_TOKEN` | **Vercel** env | GitHub 權杖，讓 App 寫入 `TRACKERS`，也存放改過的密碼（雜湊）| Free | [B1](#b1-github-fine-grained-權杖) |
 | ★推薦 | `SMTP_URL` | GitHub **Secret** | 寄追蹤 Email 的帳號密碼 | Free | [C1](#c1-email-追蹤通知) |
 | ★推薦 | `ALERT_EMAILS` | GitHub **Secret** | 收件人 | Free | [C1](#c1-email-追蹤通知) |
@@ -129,6 +131,9 @@ App 內新增的 Real Tracker → Vercel Function → 寫入 GitHub Variable `TR
 | 其他名稱的 `PASSWORD_*` | 舊變數 | 名稱必須是 `PASSWORD_USER` + 一個字母（`USERA`、`USERB`…），其他名稱一律**不會被讀取**，可放心刪除 |
 | `SESSION_SECRET` | 隨機字串 ≥ 32 字元（`openssl rand -base64 48`）| 勾 **Sensitive**；換掉這個值 = 所有人被登出 |
 | `TRACKERS_GITHUB_TOKEN` | B1 的權杖 | 勾 **Sensitive** |
+| `SERPAPI_KEY` | 和 GitHub Secret 同一把（選用）| 開啟 App 內**即時搜尋**；沒設定時搜尋頁改給 Google Flights / KAYAK 連結，追蹤不受影響。勾 **Sensitive** |
+| `SERPAPI_KEY_2` | 第二把（選用）| 第一把額度不足時自動改用 |
+| `SEARCH_RESERVE` | 數字，預設 `60`（選用）| 每月永遠留給每日掃描的搜尋次數；即時搜尋不會把額度用到低於它 |
 | `TRACKERS_REPO` | （不用填）預設已是 `seanx888/aethersky` | 若設過，值必須是 `seanx888/aethersky`，或直接刪掉 |
 | ~~`GOOGLE_CLIENT_ID`~~、~~`ALLOWED_EMAILS`~~、~~`APP_PASSCODE`~~ | 舊方案 | **刪除**（已不再使用；Google Cloud 那個專案也可以刪）|
 
@@ -282,6 +287,8 @@ Android 套件 ID `app.aethersky.aethersky`；上架用的簽章金鑰、Apple /
 |---|---|---|
 | `TRACKERS` | Real Tracker 行程 JSON（App 同步自動寫入） | — |
 | `TRACKER_NOTIFICATIONS` | `paused` = 暫停追蹤通知 | 開啟 |
+| `PROMO_ALERTS` | 社群好價／活動通知的個人化 JSON（人、會員品牌、類型、門檻；見 SETUP 第 11 步）| 每人收最強的幾則 |
+| `COMMUNITY_NOTIFICATIONS` | `paused` = 暫停社群好價／活動通知（資料照常更新）| 開啟 |
 | `NOTIFICATIONS` | `on` = 開始 ntfy 推播 | 依 config（`paused`）|
 | `NOTIFY_MIN_SCORE` | 推播門檻分數 | 72 |
 | `MAIL_FROM` | 寄件人 `ÆtherSky <你的帳號@gmail.com>` | 依 SMTP 帳號 |

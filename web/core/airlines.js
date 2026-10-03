@@ -169,13 +169,22 @@ export function isBlockedCarrierCode(code) {
   return !!code && Object.prototype.hasOwnProperty.call(BLOCKED_CARRIERS, String(code).toUpperCase());
 }
 
+// Chinese (Traditional and Simplified) and Korean names of the same carriers, for names typed into a search box.
+// 中國 / 中国 never appears in a Taiwanese or other allowed carrier's name (China Airlines is 中華航空).
+const CJK_BLOCKED = new RegExp([
+  '香港', '澳門', '澳门', '中國', '中国', '東方航空', '东方航空', '南方航空', '國泰', '国泰', '港龍', '港龙', '海南航空', '海航', '深圳航空', '四川航空', '廈門航空', '厦门航空',
+  '山東航空', '山东航空', '上海航空', '春秋航空', '吉祥航空', '首都航空', '天津航空', '成都航空', '祥鵬', '祥鹏', '西部航空', '華夏航空', '华夏航空', '九元航空', '西藏航空', '昆明航空',
+  '東海航空', '东海航空', '龍江航空', '龙江航空', '青島航空', '青岛航空', '瑞麗航空', '瑞丽航空', '長安航空', '长安航空', '烏魯木齊', '乌鲁木齐', '多彩貴州', '多彩贵州', '重慶航空', '重庆航空',
+  '福州航空', '成吉思汗', '北部灣', '北部湾', '大灣區', '大湾区', '홍콩', '캐세이', '중국국제', '중국동방', '중국남방', '하이난',
+].join('|'));
+
 export function isBlockedCarrierName(name) {
   if (!name) return false;
   const n = String(name).toLowerCase().trim();
   if (ALLOWED_NAME_PATTERNS.some((p) => n.startsWith(p))) return false;
   if (BLOCKED_NAME_PATTERNS.some((p) => n.includes(p))) return true;
   // Catch-all for unfamiliar "China …" brands (never matches "China Airlines", handled above).
-  if (/\bchina\b/.test(n) || /(香港|澳門|中國國際|東方航空|南方航空)/.test(name)) return true;
+  if (/\bchina\b/.test(n) || CJK_BLOCKED.test(name)) return true;
   return false;
 }
 
