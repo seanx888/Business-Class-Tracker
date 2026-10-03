@@ -236,7 +236,7 @@ The Routes tab opens on a search form (round trip / one way / multi-city up to 5
 - **額度保護**：Variable/環境變數 `SEARCH_RESERVE`（預設 60）= 永遠留給每日掃描的搜尋次數；剩餘額度低於這個數字，即時搜尋會暫停並說明原因。每人 10 分鐘最多 30 次請求。
 - **一次搜尋用多少額度**：單程/來回 1–3 次；多段票每多一段、每個被驗證的選項多 1 次（最多 5 次）。「比較各國結帳價」每個國家 1 次（預設 10 國，可取消勾選；開始前會先詢問）。
 - 每個追蹤每天用 1 次搜尋（彈性日期 2 次；勾「同時追蹤各國結帳價」再多 1 次）。
-- 多段票的 Google Flights 連結是照 Google 的網址格式組出來的，尚未能在這個環境實測；如果 Google 改了格式，連結可能只會打開 Google Flights 而沒有帶入條件（KAYAK 連結和 App 內的搜尋不受影響）。
+- Google Flights 連結（多段票最多 5 段、艙等、人數、轉機、聯盟／指定航空公司）已用瀏覽器實測，Google 會正確帶入條件；這是 Google 內部的網址格式，萬一哪天改版，連結可能只會打開 Google Flights 而沒有帶入條件（KAYAK 連結和 App 內的搜尋不受影響）。
 
 ---
 

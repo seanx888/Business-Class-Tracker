@@ -182,7 +182,7 @@ test('Google link: plain query for simple trips, tfs for multi-city and filtered
 
 test('KAYAK / Skyscanner links carry cabin, passengers and nonstop; multi-city only goes to KAYAK and Google', () => {
   const s = S({ cabin: 'premium', adults: 2, maxStops: 0 });
-  assert.equal(kayakSearchUrl(s), 'https://www.kayak.com/flights/TPE-CDG/2026-12-20/CDG-TPE/2027-01-05/premium/2adults?sort=price_a&fs=stops=0');
+  assert.equal(kayakSearchUrl(s), 'https://www.kayak.com/flights/TPE-CDG/2026-12-20/2027-01-05/premium/2adults?sort=price_a&fs=stops=0');
   assert.match(skyscannerSearchUrl(s), /^https:\/\/www\.skyscanner\.com\.tw\/transport\/flights\/tpe\/cdg\/261220\/270105\/\?adultsv2=2&cabinclass=premiumeconomy&rtn=1&currency=TWD&preferdirects=true$/);
   const mc = normalizeSearch(MC).search;
   assert.equal(kayakSearchUrl(mc), 'https://www.kayak.com/flights/CRK-TPE/2026-11-01/TPE-FCO/2026-11-04/FCO-TPE/2026-11-15/business?sort=price_a');

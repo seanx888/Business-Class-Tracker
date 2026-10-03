@@ -128,7 +128,11 @@ const SKY_CABIN = { business: 'business', first: 'first', premium: 'premiumecono
 
 export function kayakSearchUrl(search, { lang = 'zh-TW' } = {}) {
   const host = lang.startsWith('ko') ? 'www.kayak.co.kr' : 'www.kayak.com';
-  const legs = routeSegments(search).map((l) => `${first(l.o)}-${first(l.d)}/${l.date}`).join('/');
+  // KAYAK: a round trip is "A-B/depart/return", a one way "A-B/date", a multi-city trip one "A-B/date" pair per flight.
+  const flights = routeSegments(search);
+  const legs = search.trip === 'rt' && search.return
+    ? `${first(search.o)}-${first(search.d)}/${search.depart}/${search.return}`
+    : flights.map((l) => `${first(l.o)}-${first(l.d)}/${l.date}`).join('/');
   const parts = [legs, KAYAK_CABIN[search.cabin] ?? 'business', (search.adults || 1) > 1 ? `${search.adults}adults` : ''].filter(Boolean);
   return `https://${host}/flights/${parts.join('/')}?sort=price_a${search.maxStops === 0 ? '&fs=stops=0' : ''}`;
 }
