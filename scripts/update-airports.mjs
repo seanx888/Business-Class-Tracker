@@ -11,6 +11,8 @@ import { parseCsv } from './lib/csv.mjs';
 
 const SRC = 'https://davidmegginson.github.io/ourairports-data/airports.csv';
 const OUT = fileURLToPath(new URL('../config/airport-countries.json', import.meta.url));
+// The live-search API (web/api/search.mjs) is deployed from web/ only, so it reads its own copy of the country table.
+export const WEB_OUT = fileURLToPath(new URL('../web/data/airport-countries.json', import.meta.url));
 export const GEO_OUT = fileURLToPath(new URL('../config/airport-geo.json', import.meta.url));
 
 const TYPE_RANK = { large_airport: 0, medium_airport: 1, small_airport: 2, seaplane_base: 3, heliport: 4, closed: 5 };
@@ -36,6 +38,7 @@ async function main() {
   const out = {};
   for (const k of [...best.keys()].sort()) out[k] = best.get(k).country;
   await writeFile(OUT, JSON.stringify(out) + '\n');
+  await writeFile(WEB_OUT, JSON.stringify(out) + '\n');
   // Two decimals ≈ 1 km — plenty for great-circle distances and a route map.
   const geo = {};
   for (const k of [...best.keys()].sort()) {

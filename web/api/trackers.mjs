@@ -21,7 +21,11 @@ const FIELDS = {
   id: 'string', o: 'string', d: 'string', trip: 'string', mode: 'string', depart: 'string', return: 'string',
   flex: 'number', cabin: 'string', maxStops: 'number', target: 'number', alertOn: 'string', notify: 'notify',
   label: 'string', paused: 'boolean', created: 'string',
+  // multi-city legs, carrier / alliance filters, passengers, "also price it in other countries"
+  segs: 'segs', airlines: 'strings', alliance: 'string', adults: 'number', children: 'number', infantsSeat: 'number', infantsLap: 'number',
+  bags: 'number', maxHours: 'number', pos: 'boolean',
 };
+const MAX_SEGS = 5;
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -41,8 +45,16 @@ export function sanitize(list) {
       if (type === 'notify') {
         if (v === 'all') t[k] = 'all';
         else if (Array.isArray(v)) t[k] = v.filter((n) => typeof n === 'string').map((n) => n.slice(0, 32)).slice(0, 10);
+      } else if (type === 'strings') {
+        if (Array.isArray(v)) t[k] = v.filter((n) => typeof n === 'string').map((n) => n.slice(0, 8)).slice(0, 8);
+      } else if (type === 'segs') {
+        if (Array.isArray(v)) {
+          t[k] = v.slice(0, MAX_SEGS).map((s) => ({
+            o: String(s?.o ?? '').slice(0, 15), d: String(s?.d ?? '').slice(0, 15), date: String(s?.date ?? '').slice(0, 10),
+          }));
+        }
       } else if (typeof v === type) {
-        t[k] = type === 'string' ? v.slice(0, k === 'label' ? 60 : 40) : v;
+        t[k] = type === 'string' ? v.slice(0, k === 'label' ? 60 : k === 'o' || k === 'd' ? 15 : 40) : v;
       }
     }
     if (!t.o || !t.d || !t.depart) throw new Error('each tracker needs o, d and depart');

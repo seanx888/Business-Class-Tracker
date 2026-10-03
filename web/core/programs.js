@@ -4,7 +4,9 @@
 import { allianceOf } from './airlines.js';
 
 // key: [carrier, English name, 中文, 한국어, tiers]
-const P = (carrier, en, zh, ko, tiers = []) => ({ carrier, en, zh, ko, tiers });
+const P = (carrier, en, zh, ko, tiers = []) => ({ kind: 'airline', carrier, en, zh, ko, tiers });
+// Non-airline programs (hotels, car rental): no carrier, so they never earn on a flight.
+const H = (kind, en, zh, ko, tiers = []) => ({ kind, carrier: null, en, zh, ko, tiers });
 
 export const PROGRAMS = {
   // SkyTeam
@@ -39,6 +41,17 @@ export const PROGRAMS = {
   EK: P('EK', 'Emirates Skywards', '阿聯酋 Skywards', '스카이워드', ['Blue', 'Silver', 'Gold', 'Platinum']),
   EY: P('EY', 'Etihad Guest', 'Etihad Guest', '에티하드 게스트', ['Bronze', 'Silver', 'Gold', 'Platinum']),
   PR: P('PR', 'Mabuhay Miles', 'Mabuhay Miles', '마부하이 마일스'),
+  // Hotels and car rental (no carrier): status matches and promotions cross these industries, so the wallet holds them too.
+  MARRIOTT: H('hotel', 'Marriott Bonvoy', '萬豪旅享家 (Marriott Bonvoy)', '메리어트 본보이', ['Member', 'Silver Elite', 'Gold Elite', 'Platinum Elite', 'Titanium Elite', 'Ambassador Elite']),
+  HILTON: H('hotel', 'Hilton Honors', '希爾頓榮譽客會', '힐튼 아너스', ['Member', 'Silver', 'Gold', 'Diamond']),
+  HYATT: H('hotel', 'World of Hyatt', '凱悅天地 (World of Hyatt)', '월드 오브 하얏트', ['Member', 'Discoverist', 'Explorist', 'Globalist']),
+  IHG: H('hotel', 'IHG One Rewards', 'IHG 優悅會', 'IHG 원 리워즈', ['Club', 'Silver Elite', 'Gold Elite', 'Platinum Elite', 'Diamond Elite']),
+  ACCOR: H('hotel', 'ALL – Accor Live Limitless', '雅高 ALL', '아코르 ALL', ['Classic', 'Silver', 'Gold', 'Platinum', 'Diamond']),
+  WYNDHAM: H('hotel', 'Wyndham Rewards', '溫德姆獎賞', '윈덤 리워즈', ['Blue', 'Gold', 'Platinum', 'Diamond']),
+  RADISSON: H('hotel', 'Radisson Rewards', '麗笙獎賞', '래디슨 리워즈', ['Club', 'Premium', 'VIP']),
+  SHANGRILA: H('hotel', 'Shangri-La Circle', '香格里拉榮譽貴賓會', '샹그릴라 서클', ['Jade', 'Gold', 'Diamond']),
+  HERTZ: H('car', 'Hertz Gold Plus Rewards', 'Hertz Gold Plus Rewards', '허츠 골드 플러스 리워즈', ['Gold', 'Five Star', "President's Circle"]),
+  AVIS: H('car', 'Avis Preferred', 'Avis Preferred', '에이비스 프리퍼드', ['Preferred', 'Preferred Plus', 'President’s Club']),
 };
 
 export const OTHER_PROGRAM = 'OTHER';
@@ -50,7 +63,9 @@ export function programName(key, lang = 'en', custom = '') {
 }
 
 export const programCarrier = (key) => PROGRAMS[key]?.carrier || null;
-export const programAlliance = (key) => (PROGRAMS[key] ? allianceOf(PROGRAMS[key].carrier) : 'NONE');
+export const programAlliance = (key) => (PROGRAMS[key]?.carrier ? allianceOf(PROGRAMS[key].carrier) : 'NONE');
+/** 'airline' | 'hotel' | 'car' — OTHER and unknown keys count as airline-agnostic 'other'. */
+export const programKind = (key) => PROGRAMS[key]?.kind || 'other';
 
 /**
  * Which of your memberships earn on this flight: same airline first, then same alliance.

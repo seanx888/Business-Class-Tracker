@@ -6,7 +6,8 @@
 //   4. score deals, merge with recent ones, update price history
 //   5. write web/data/deals.json + history.json, optionally push a digest
 //
-//   6. Real Tracker: search each tracked trip, detect price changes, e-mail / push alerts → trackers.json
+//   6. Real Tracker: search each tracked trip (round trip, one way, multi-city, carrier / alliance filters), detect price
+//      changes, optionally price the best itinerary in other countries' markets, e-mail / push alerts → trackers.json
 //
 // Env: FARE_PROVIDER (serpapi|duffel|demo), SERPAPI_KEY (+ optional SERPAPI_KEY_2), SERPAPI_VERIFY_RETURN,
 //      SERPAPI_DEEP_SEARCH, DUFFEL_ACCESS_TOKEN, SEARCHES_PER_RUN, SCAN_DATE, SITE_URL,
@@ -29,8 +30,8 @@ import { searchDuffel } from './providers/duffel.mjs';
 import { demoSearch, demoPos } from './providers/demo.mjs';
 import { pickMarkets, matchOffer, posResult, summarizePos } from './lib/pos.mjs';
 import { sendNotifications } from './notify.mjs';
-import { parseTrackers } from '../web/core/trackers.js';
-import { emptyTrackerState, planTrackerSearches, recordTrackerSample, updateTrackerState, evaluateTrackerAlerts } from './lib/trackers.mjs';
+import { parseTrackers, comboSearch, daysBetween as trackerDaysBetween } from '../web/core/trackers.js';
+import { emptyTrackerState, planTrackerSearches, recordTrackerSample, updateTrackerState, evaluateTrackerAlerts, pickTrackerMarkets, recordTrackerPos, trackerRouteKey } from './lib/trackers.mjs';
 import { sendTrackerAlerts } from './tracker-notify.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -207,6 +208,9 @@ export async function runScan({
   const posCfg = config.pos || {};
   const posWanted = posCfg.enabled && provider.pos ? (provider.name === 'demo' ? posCfg.demoChecks ?? 24 : posCfg.checksPerRun ?? 2) : 0;
   const posReserve = provider.name === 'demo' ? 0 : Math.min(posWanted, Math.max(0, maxSearches - 1));
+  // Trackers that asked for "cheapest country to pay" get their own small reserve (one market per tracker per day).
+  const trackerPosWanted = provider.pos && posCfg.enabled !== false ? Math.min(trackers.filter((x) => x.pos && !x.paused).length, posCfg.trackerChecksPerRun ?? 3) : 0;
+  const trackerPosReserve = provider.name === 'demo' ? 0 : Math.min(trackerPosWanted, Math.max(0, maxSearches - 1 - posReserve));
   const prev = await readJson(path.join(outDir, 'deals.json'), null);
   let history = await readJson(path.join(outDir, 'history.json'), emptyHistory());
   // Never mix demo prices into real price history (or vice versa).
@@ -218,7 +222,7 @@ export async function runScan({
 
   // Real Tracker searches come first (someone explicitly asked for them) but may use at most ~75 % of
   // the budget so the route rotation keeps moving; the demo provider has no budget.
-  const searchBudget = Math.max(0, maxSearches - posReserve);
+  const searchBudget = Math.max(0, maxSearches - posReserve - trackerPosReserve);
   const trackerBudget = provider.name === 'demo' ? searchBudget
     : searchBudget > 0 ? Math.max(1, Math.ceil(searchBudget * (config.trackerShare ?? 0.75))) : 0;
   const trackerPlan = planTrackerSearches(trackers, trackerState, { today, budget: trackerBudget }).map((q) => ({
@@ -250,6 +254,10 @@ export async function runScan({
     let countries = baseCountries;
     const filter = (itin) => checkItinerary(itin, { countries }).ok;
 
+    if (q.kind === 'tracker' && q.filtered && provider.name === 'duffel') {
+      stats.errors.push(`${q.key}: multi-city / filtered trackers need the SerpApi provider`);
+      continue;
+    }
     let res;
     try {
       res = await provider.search({ ...q, benchmark, originType: originCfg.type }, filter);
@@ -323,8 +331,9 @@ export async function runScan({
       const s = recordTrackerSample(trackerState, q, clean, { today, insights });
       stats.trackers.searches++;
       log(`  ◎ tracker ${q.trackerId} ${q.key} ${q.departDate}${q.returnDate ? '→' + q.returnDate : ''} ${q.cabin}: ${s ? `NT$${s.p.toLocaleString('en-US')} ${s.c}` : 'no China-free result'}`);
-      // Only business-class tracker results also feed the deal list and price history.
-      if (q.cabin !== 'business') {
+      // Only plain business-class tracker results also feed the deal list and price history: other cabins, multi-city and
+      // filtered searches (one carrier, one alliance, several passengers …) are not "the price of the route".
+      if (q.cabin !== 'business' || q.filtered) {
         if (provider.delayMs) await sleep(provider.delayMs);
         continue;
       }
@@ -358,6 +367,43 @@ export async function runScan({
     stats.kept += keep.length;
     log(`  ✓ ${q.key} ${q.departDate}${q.returnDate ? '→' + q.returnDate : ''}: ${res.offers.length} offers, ${clean.length} China-free, kept ${keep.length}`);
     if (provider.delayMs) await sleep(provider.delayMs);
+  }
+
+  // Today's tracker results are in: refresh bests / histories first so the country checks below know each tracker's best itinerary.
+  updateTrackerState(trackerState, trackers, today);
+
+  // Real Tracker "cheapest country to pay": a tracker with pos: true re-prices its best itinerary in ONE other country's
+  // market per day (the one checked longest ago), so every market gets its turn within the same search budget.
+  if (provider.pos && posCfg.enabled !== false) {
+    const demo = provider.name === 'demo';
+    for (const t of trackers.filter((x) => x.pos && !x.paused)) {
+      const st = trackerState.trackers[t.id];
+      const best = st?.best;
+      if (!best?.fl?.length || st.lastSearched !== today) continue;
+      if (!demo && stats.searches >= maxSearches) break;
+      const [market] = pickTrackerMarkets(st.pos, posCfg.markets || [], { n: 1 });
+      if (!market) continue;
+      const search = comboSearch(t, { dep: best.dep, ret: best.ret, dd: trackerDaysBetween(t.depart, best.dep), dr: 0 });
+      const deal = {
+        id: `trk:${t.id}:${best.key}`, routeKey: trackerRouteKey(t), priceTWD: best.p, primaryCarrier: best.c, inboundVerified: false,
+        legs: [{ segments: best.fl[0].split(' · ').map((f) => ({ flightNumber: f })) }],
+      };
+      let entry;
+      try {
+        const res = await provider.pos({ origin: t.o, destination: t.d, search }, market, { fx, deal });
+        stats.searches += demo ? 0 : res.searches || 1;
+        const hit = matchOffer(deal, res.offers, { countries: baseCountries });
+        entry = hit ? posResult(deal, market, hit, fx) : { country: market.country.toUpperCase(), none: true };
+      } catch (e) {
+        stats.searches++;
+        stats.errors.push(`POS ${market.country} tracker ${t.id}: ${redact(e.message)}`);
+        continue;
+      }
+      stats.pos.checked++;
+      recordTrackerPos(trackerState, t.id, entry, today);
+      if (entry && !entry.none) log(`  🌏 tracker ${t.id}: ${entry.country} site ${entry.savingsPct}% vs Taiwan`);
+      if (provider.delayMs) await sleep(provider.delayMs);
+    }
   }
 
   // Point-of-sale checks: re-price today's best full-service deals in other countries' markets.
@@ -419,9 +465,8 @@ export async function runScan({
   const notificationsOn = String(env.NOTIFICATIONS || config.notifications || 'on').trim().toLowerCase() !== 'paused';
   const alertHits = notificationsOn ? evaluatePriceAlerts(priceAlerts, deals, history, today) : new Map();
 
-  // Real Tracker: refresh results, then decide which price changes are worth an alert. Tracker alerts have
+  // Real Tracker: decide which price changes are worth an alert (results were refreshed above). Tracker alerts have
   // their own switch (TRACKER_NOTIFICATIONS) because people asked for them explicitly.
-  updateTrackerState(trackerState, trackers, today);
   const trackerAlertsOn = String(env.TRACKER_NOTIFICATIONS || config.trackerNotifications || 'on').trim().toLowerCase() !== 'paused';
   const trackerAlerts = trackerAlertsOn ? evaluateTrackerAlerts(trackerState, trackers, today) : [];
   stats.trackers.alerts = trackerAlerts.length;

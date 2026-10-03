@@ -1,8 +1,10 @@
 // Real Tracker alerts — Google-Flights-style e-mails (ALERT_EMAILS + SMTP_URL / RESEND_API_KEY)
 // and ntfy pushes (NTFY_TOPICS), each in the recipient's language.
 import { airlineName } from '../web/core/airlines.js';
-import { airportCity } from '../web/core/airports.js';
-import { googleFlightsUrl } from '../web/core/links.js';
+import { placeLabel } from '../web/core/places.js';
+import { googleSearchUrl } from '../web/core/links.js';
+import { comboSearch, daysBetween } from '../web/core/trackers.js';
+import { itineraryLine, routeSegments } from '../web/core/search.js';
 import { parseSubscribers } from './notify.mjs';
 import { parseRecipients, mailTransport } from './lib/mail.mjs';
 
@@ -20,6 +22,7 @@ const L = {
       dates: (r, p, d) => `▼ 找到更便宜的日期（省 ${d}）：${r} ${p}`,
       rise: (r, p, d) => `▲ 漲價 ${d}：${r} 現在 ${p}`,
       target: (r, p) => `🎯 達到目標價：${r} ${p}`,
+      pos: (r, p, pct, c) => `🌏 在${c}站結帳更便宜（省 ${pct}%）：${r} ${p}`,
     },
     lead: {
       start: '已開始每天追蹤這個行程，價格有明顯變化時會通知你。',
@@ -27,10 +30,11 @@ const L = {
       dates: '彈性日期範圍內找到更便宜的日期。',
       rise: '你追蹤的航班漲價了。',
       target: '已達到你設定的目標價！',
+      pos: '同一組航班改在其他國家的網站結帳，價格更低。',
     },
     now: '目前最低', was: '先前', change: '變化', dates: '日期', flex: (n) => `±${n} 天彈性`, carrier: '航空公司', stops: '轉機',
     nonstop: '直飛', nStops: (n) => `${n} 轉`, target: '目標價', low: '追蹤以來最低', typical: 'Google 常見價', level: { low: '偏低', typical: '一般', high: '偏高' },
-    lowBadge: '追蹤以來最低價', open: '在 Google Flights 查看', app: '開啟 ÆtherSky', ow: '單程',
+    lowBadge: '追蹤以來最低價', open: '在 Google Flights 查看', app: '開啟 ÆtherSky', ow: '單程', posRow: '其他國家結帳',
     cabin: { business: '商務艙', first: '頭等艙', premium: '豪華經濟艙', economy: '經濟艙' },
     footer: '價格為搜尋當下的參考價，訂票前請再確認。已排除中國大陸／香港／澳門航空公司與轉機。要停止通知，請在 App 的「航線追蹤」暫停或刪除此追蹤。',
   },
@@ -42,6 +46,7 @@ const L = {
       dates: (r, p, d) => `▼ Cheaper dates found (save ${d}): ${r} ${p}`,
       rise: (r, p, d) => `▲ Price up ${d}: ${r} now ${p}`,
       target: (r, p) => `🎯 Target price reached: ${r} ${p}`,
+      pos: (r, p, pct, c) => `🌏 ${pct}% cheaper on the ${c} site: ${r} ${p}`,
     },
     lead: {
       start: 'This trip is now checked every day. You will hear from us when the price changes significantly.',
@@ -49,10 +54,11 @@ const L = {
       dates: 'Cheaper dates were found within your flexible window.',
       rise: 'The price of a trip you track went up.',
       target: 'Your target price has been reached!',
+      pos: 'The same flights cost less when you pay on another country’s site.',
     },
     now: 'Lowest now', was: 'Before', change: 'Change', dates: 'Dates', flex: (n) => `±${n} days flexible`, carrier: 'Airline', stops: 'Stops',
     nonstop: 'Nonstop', nStops: (n) => `${n} stop${n > 1 ? 's' : ''}`, target: 'Target', low: 'Lowest since tracking', typical: 'Google typical', level: { low: 'low', typical: 'typical', high: 'high' },
-    lowBadge: 'Lowest since tracking', open: 'View on Google Flights', app: 'Open ÆtherSky', ow: 'One way',
+    lowBadge: 'Lowest since tracking', open: 'View on Google Flights', app: 'Open ÆtherSky', ow: 'One way', posRow: 'Pay in another country',
     cabin: { business: 'Business', first: 'First', premium: 'Premium economy', economy: 'Economy' },
     footer: 'Prices are snapshots at search time — confirm before booking. China / Hong Kong / Macau carriers and connections are excluded. To stop these e-mails, pause or delete the tracker in the app (Routes → Real Tracker).',
   },
@@ -64,6 +70,7 @@ const L = {
       dates: (r, p, d) => `▼ 더 저렴한 날짜 발견 (${d} 절약): ${r} ${p}`,
       rise: (r, p, d) => `▲ ${d} 인상: ${r} 현재 ${p}`,
       target: (r, p) => `🎯 목표가 도달: ${r} ${p}`,
+      pos: (r, p, pct, c) => `🌏 ${c} 사이트에서 결제하면 ${pct}% 저렴: ${r} ${p}`,
     },
     lead: {
       start: '이 일정을 매일 확인합니다. 가격이 크게 바뀌면 알려 드립니다.',
@@ -71,33 +78,54 @@ const L = {
       dates: '유연한 날짜 범위에서 더 저렴한 날짜를 찾았습니다.',
       rise: '추적 중인 항공권 가격이 올랐습니다.',
       target: '설정한 목표가에 도달했습니다!',
+      pos: '같은 항공편을 다른 나라 사이트에서 결제하면 더 저렴합니다.',
     },
     now: '현재 최저', was: '이전', change: '변동', dates: '날짜', flex: (n) => `±${n}일 유연`, carrier: '항공사', stops: '경유',
     nonstop: '직항', nStops: (n) => `${n}회 경유`, target: '목표가', low: '추적 이후 최저', typical: 'Google 평균가', level: { low: '낮음', typical: '보통', high: '높음' },
-    lowBadge: '추적 이후 최저가', open: 'Google Flights에서 보기', app: 'ÆtherSky 열기', ow: '편도',
+    lowBadge: '추적 이후 최저가', open: 'Google Flights에서 보기', app: 'ÆtherSky 열기', ow: '편도', posRow: '다른 나라에서 결제',
     cabin: { business: '비즈니스', first: '퍼스트', premium: '프리미엄 이코노미', economy: '이코노미' },
     footer: '가격은 검색 시점의 참고 가격입니다. 예약 전 다시 확인하세요. 중국 본토·홍콩·마카오 항공사와 경유는 제외됩니다. 알림을 멈추려면 앱의 노선 추적에서 이 추적을 일시 중지하거나 삭제하세요.',
   },
 };
 const langOf = (l) => (L[l] ? l : 'zh-TW');
 
+const countryName = (code, lang) => {
+  try {
+    return new Intl.DisplayNames([{ 'zh-TW': 'zh-Hant-TW', en: 'en', ko: 'ko' }[lang] || 'en'], { type: 'region' }).of(String(code).toUpperCase()) || code;
+  } catch {
+    return code;
+  }
+};
+
 function facts(a, lang) {
   const s = L[langOf(lang)];
   const { tracker: t, best, prev } = a;
-  const route = `${airportCity(t.o, lang)} → ${airportCity(t.d, lang)}`;
-  const dates = best.ret ? `${fmtDay(best.dep, lang)} – ${fmtDay(best.ret, lang)}` : `${fmtDay(best.dep, lang)} · ${s.ow}`;
+  const search = comboSearch(t, { dep: best.dep, ret: best.ret, dd: daysBetween(t.depart, best.dep), dr: 0 });
+  const legs = routeSegments(search);
+  const places = [];
+  for (const leg of legs) {
+    if (!places.length || places[places.length - 1] !== leg.o) places.push(leg.o);
+    places.push(leg.d);
+  }
+  const multi = t.trip === 'mc';
+  const route = multi ? places.map((c) => placeLabel(c, lang)).join(' → ') : `${placeLabel(t.o, lang)} → ${placeLabel(t.d, lang)}`;
+  const codes = multi ? itineraryLine(t) : `${t.o}→${t.d}`;
+  const dates = multi
+    ? `${fmtDay(legs[0].date, lang)} – ${fmtDay(legs[legs.length - 1].date, lang)}`
+    : best.ret ? `${fmtDay(best.dep, lang)} – ${fmtDay(best.ret, lang)}` : `${fmtDay(best.dep, lang)} · ${s.ow}`;
   const delta = prev ? best.p - prev.p : 0;
-  const url = googleFlightsUrl({ origin: t.o, destination: t.d, departDate: best.dep, returnDate: best.ret, lang, cabin: t.cabin });
-  return { s, route, dates, delta, url };
+  const url = googleSearchUrl(search, { lang });
+  return { s, route, codes, dates, delta, url };
 }
 
 /** Subject + plain text + HTML for one alert in one language. */
 export function formatTrackerAlert(a, lang = 'zh-TW', siteUrl = null) {
-  const { s, route, dates, delta, url } = facts(a, lang);
+  const { s, route, codes, dates, delta, url } = facts(a, lang);
   const { tracker: t, best, prev, low } = a;
   const price = nt(best.p);
   const d = nt(Math.abs(delta));
-  const subject = `${s.subject[a.kind](`${t.o}→${t.d}`, price, d)}${t.label ? ` · ${t.label}` : ''}`;
+  const head = a.kind === 'pos' ? s.subject.pos(codes, price, Math.round(a.pos.savingsPct), countryName(a.pos.country, lang)) : s.subject[a.kind](codes, price, d);
+  const subject = `${head}${t.label ? ` · ${t.label}` : ''}`;
   const rows = [
     [s.dates, `${dates}${t.mode === 'flex' ? ` (${s.flex(t.flex)})` : ''}`],
     [s.carrier, `${airlineName(best.c, lang)} · ${best.s === 0 ? s.nonstop : s.nStops(best.s)}${best.via?.length ? ` (${best.via.join(', ')})` : ''} · ${s.cabin[t.cabin] || t.cabin}`],
@@ -107,6 +135,7 @@ export function formatTrackerAlert(a, lang = 'zh-TW', siteUrl = null) {
   if (low && low.p < best.p) rows.push([s.low, nt(low.p)]);
   if (best.typ) rows.push([s.typical, `${nt(best.typ[0])}–${nt(best.typ[1])}${best.lvl && s.level[best.lvl] ? ` · ${s.level[best.lvl]}` : ''}`]);
   if (best.fl?.length) rows.push(['✈', best.fl.join(' / ')]);
+  if (a.pos) rows.push([s.posRow, `${countryName(a.pos.country, lang)} · ${nt(a.pos.priceTWD)} (−${Math.round(a.pos.savingsPct)}%)`]);
 
   const text = [
     s.lead[a.kind],
@@ -166,7 +195,7 @@ export async function sendTrackerAlerts(alerts, { env = process.env, siteUrl = n
   for (const sub of parseSubscribers(env.NTFY_TOPICS || env.NTFY_TOPIC)) {
     for (const a of alerts.filter((x) => wants(x.tracker, sub.name))) {
       const m = formatTrackerAlert(a, sub.lang, siteUrl);
-      const headers = { Title: rfc2047(m.subject), Tags: a.kind === 'rise' ? 'chart_with_upwards_trend' : 'chart_with_downwards_trend,airplane', Priority: a.kind === 'target' || a.kind === 'drop' || a.kind === 'dates' ? 'high' : 'default', Click: m.url };
+      const headers = { Title: rfc2047(m.subject), Tags: a.kind === 'rise' ? 'chart_with_upwards_trend' : a.kind === 'pos' ? 'globe_with_meridians,airplane' : 'chart_with_downwards_trend,airplane', Priority: ['target', 'drop', 'dates', 'pos'].includes(a.kind) ? 'high' : 'default', Click: m.url };
       if (env.NTFY_TOKEN) headers.Authorization = `Bearer ${env.NTFY_TOKEN}`;
       try {
         const res = await fetchImpl(`${server}/${encodeURIComponent(sub.topic)}`, { method: 'POST', headers, body: m.text });

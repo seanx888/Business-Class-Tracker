@@ -6,6 +6,7 @@
 import { AIRPORTS, distanceKm } from '../../web/core/airports.js';
 import { AIRLINES, BLOCKED_CARRIERS } from '../../web/core/airlines.js';
 import { normalizeGroup } from './serpapi.mjs';
+import { routeSegments, includeAirlines } from '../../web/core/search.js';
 
 function hash(str) {
   let h = 2166136261;
@@ -181,6 +182,63 @@ const round100 = (x) => Math.round(x / 100) * 100;
 const CABIN_FACTOR = { economy: 0.3, premium: 0.5, business: 1, first: 1.9 };
 
 export function demoSearch(q) {
+  const s = q.search;
+  if (s?.trip === 'mc') return demoMultiCity(q, s);
+  const res = demoRoundTrip(q);
+  return s ? applyDemoFilters(res, s) : res;
+}
+
+const firstCode = (v) => String(v).split(',')[0];
+
+/** Carrier / stops / duration / passenger filters, applied AFTER the offers are generated (so the plain results never change). */
+function applyDemoFilters(res, s) {
+  const only = includeAirlines(s);
+  const party = (s.adults || 1) + 0.75 * (s.children || 0) + 0.75 * (s.infantsSeat || 0) + 0.1 * (s.infantsLap || 0);
+  const offers = res.offers
+    .filter((o) => !only.length || o.legs.every((l) => l.segments.every((g) => only.includes(g.carrier))))
+    .filter((o) => s.maxStops == null || o.legs.every((l) => l.segments.length - 1 <= s.maxStops))
+    .filter((o) => !s.maxHours || o.legs.every((l) => (l.durationMin || 0) <= s.maxHours * 60))
+    .map((o) => (party === 1 ? o : { ...o, price: round100(o.price * party) }));
+  return { ...res, offers };
+}
+
+/** Multi-city: one carrier that can fly every leg, legs priced from the route's benchmark, plus a Hong Kong "trap" to be filtered. */
+function demoMultiCity(q, s) {
+  const legs = routeSegments(s).map((l) => ({ o: firstCode(l.o), d: firstCode(l.d), date: l.date }));
+  const r = rng(hash(`mc|${legs.map((l) => `${l.o}${l.d}${l.date}`).join('|')}`));
+  const drift = q.scanDate ? 0.93 + rng(hash(`${legs[0].o}${legs[0].d}${legs[0].date}${q.scanDate}`))() * 0.14 : 1;
+  const base = (q.benchmark?.typical || 60000) * (CABIN_FACTOR[s.cabin] || 1) * drift;
+  const only = includeAirlines(s);
+  const legBase = (l) => base * (0.25 + 0.75 * Math.min(1, km(l.o, l.d) / 9000));
+  const party = (s.adults || 1) + 0.75 * (s.children || 0);
+  const options = [];
+  for (const [carrier, net] of Object.entries(NET)) {
+    if (only.length && !only.includes(carrier)) continue;
+    const paths = legs.map((l) => routingsFor(l.o, l.d, { [carrier]: net })[0]?.path);
+    if (paths.some((p) => !p)) continue;
+    if (s.maxStops != null && paths.some((p) => p.length - 2 > s.maxStops)) continue;
+    options.push({ carrier, paths, factor: net[2] });
+  }
+  const groups = options.sort(() => r() - 0.5).slice(0, 6).map((o) => {
+    const built = o.paths.map((p, i) => buildLeg(r, o.carrier, p, legs[i].date, {}));
+    const price = round100(legs.reduce((n, l) => n + legBase(l), 0) * 0.92 * o.factor * (0.9 + r() * 0.45) * party);
+    return { price, built };
+  });
+  // The tempting trap: the first leg via Hong Kong on Cathay. It must never survive the exclusion filter.
+  if (!only.length) {
+    const trapPath = [legs[0].o, 'HKG', legs[0].d];
+    const trapLegs = [buildLeg(r, 'CX', trapPath, legs[0].date, {}), ...legs.slice(1).map((l) => buildLeg(r, 'CX', [l.o, 'HKG', l.d], l.date, {}))];
+    groups.push({ price: round100(legs.reduce((n, l) => n + legBase(l), 0) * 0.6 * party), built: trapLegs });
+  }
+  const offers = groups.map((g) => ({ price: g.price, currency: 'TWD', legs: g.built.map(normalizeGroup), inboundVerified: true }));
+  const lowest = offers.length ? Math.min(...offers.map((o) => o.price)) : null;
+  const typical = legs.reduce((n, l) => n + legBase(l), 0) * 0.92 * party;
+  const range = [round100(typical * 0.82), round100(typical * 1.18)];
+  const insights = lowest && r() < 0.85 ? { lowest, level: lowest < range[0] ? 'low' : lowest > range[1] ? 'high' : 'typical', typicalRange: range } : null;
+  return { offers, insights, searches: 1 };
+}
+
+function demoRoundTrip(q) {
   const r = rng(hash(`${q.origin}-${q.destination}-${q.departDate}-${q.returnDate}`));
   // Demo trackers move a little from day to day so price-change alerts can be tried out.
   const drift = q.scanDate ? 0.93 + rng(hash(`${q.origin}${q.destination}${q.departDate}${q.scanDate}`))() * 0.14 : 1;
