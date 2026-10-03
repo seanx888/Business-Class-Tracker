@@ -31,6 +31,7 @@ const MAX_HOURS = [0, 10, 14, 18, 24, 30];
 const host = {
   today: () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10),
   refresh: () => {},          // re-draw the Routes tab if the search view is showing
+  soft: () => {},             // the same, for changes nobody asked for (data arrived): waits while a field has the keyboard
   toast: () => {},
   go: () => {},
   signedIn: () => false,      // signed in and past the forced password change
@@ -79,7 +80,7 @@ function restore() {
   try {
     const saved = JSON.parse(localStorage.getItem(FORM_KEY) || 'null');
     if (!saved || typeof saved !== 'object') return base;
-    const f = { ...base, ...saved, track: false, id: null, created: null };
+    const f = { ...base, ...saved, track: false, id: null, created: null, notify: base.notify }; // who is notified is decided by who is signed in now
     const today = host.today();
     // A saved search whose dates have passed starts over with fresh dates (keeping the places and filters).
     if (!validDate(f.depart) || f.depart <= today) Object.assign(f, { depart: base.depart, return: base.return });
@@ -106,7 +107,7 @@ export async function pingSearch() {
   } catch {
     S.cap.configured = false;
   }
-  host.refresh();
+  host.soft();
 }
 
 const liveState = () => (S.cap.configured === false ? 'off' : !host.signedIn() ? 'signin' : 'ready');

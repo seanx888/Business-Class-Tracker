@@ -30,7 +30,8 @@ export function htmlToText(html) {
     String(html ?? '')
       .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
       .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d|blockquote)>/gi, ' ')
-      .replace(/<[^>]+>/g, ' '),
+      .replace(/<\/?[a-z!][^>]*>/gi, ' ') // a tag starts with a letter, / or ! — a lone "<" in prose is just text
+      .replace(/<\/?[a-z!][^>]*$/i, ' '), // an excerpt cut off in the middle of a tag
   ).replace(/\s+/g, ' ').trim();
 }
 

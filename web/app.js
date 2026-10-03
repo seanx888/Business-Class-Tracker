@@ -5,9 +5,9 @@ import { ALLIANCES, ALLIANCE_ORDER, BLOCKED_CARRIERS, AIRLINES } from './core/ai
 import { AIRPORTS } from './core/airports.js';
 import { rankDeals } from './core/scoring.js';
 import { isChinaFree } from './core/exclusion.js';
-import { searchLinks, googleFlightsUrl, googleSearchUrl } from './core/links.js';
-import { normalizeTracker, trackerCombos, comboCount, comboSearch, searchesPerDay, newTrackerId, daysBetween, CABINS, MAX_FLEX } from './core/trackers.js';
-import { itineraryLine, routeSegments } from './core/search.js';
+import { searchLinks, googleSearchUrl } from './core/links.js';
+import { normalizeTracker, comboSearch, daysBetween } from './core/trackers.js';
+import { itineraryLine } from './core/search.js';
 import { placeLabel } from './core/places.js';
 import { PROGRAMS, OTHER_PROGRAM, programName, programAlliance, programCarrier, programKind } from './core/programs.js';
 import { icon } from './icons.js';
@@ -16,10 +16,12 @@ import {
   SYM, locale, money, localMoney, fmtDay, fmtWhen, dayDiff, city, carrierLabel, cap, todayTpe, bindFormat,
 } from './ui/fmt.js';
 import {
-  bindDeal, logo, allianceName, allianceMark, stopsText, tripText, dealCard, dealDetail, posRows, caveats, toggleCard,
+  bindDeal, logo, allianceName, allianceMark, stopsText, tripText, dealCard, dealDetail, posRows, caveats,
 } from './ui/deal.js';
 import { runClick, runField } from './ui/registry.js';
 import { bindSearch, searchHtml, airportList, pingSearch, openSearch, editTracker, loadParam } from './ui/search.js';
+import { bindCommunity, communityHtml, promosHtml, loadCommunity, communityCounts, communityStatus, walletPromosHtml } from './ui/community.js';
+import { bindPlaybooks, playbooksHtml, openPlaybook, revealPlaybook } from './ui/playbooks.js';
 
 // ───────────────────────── prefs (per-device) ─────────────────────────
 const PREF_KEY = 'bct.prefs.v1';
@@ -82,7 +84,17 @@ const TIER_ORDER = ['hot', 'great', 'good', 'fair'];
 const ext = () => icon('arrow-square-out', { size: 16 });
 
 /** True while a form field has the keyboard — background refreshes must not pull the page out from under it. */
-const typing = () => /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') && !!document.activeElement.closest('main');
+const typing = () => {
+  const el = document.activeElement;
+  if (!el || !el.closest?.('main')) return false;
+  return el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit'].includes(el.type));
+};
+/** Redraw something because data arrived in the background: wait while a text field has the keyboard. */
+function whenIdle(fn, tries = 8) {
+  if (!typing()) return fn();
+  if (tries > 0) setTimeout(() => whenIdle(fn, tries - 1), 1000);
+  return undefined;
+}
 
 function toast(msg, ms = 3500) {
   const el = $('#toast');
@@ -104,10 +116,13 @@ function parseHash() {
   return { tab, sub, id, query: new URLSearchParams(query) };
 }
 function readHash() {
-  const { tab, sub, query } = parseHash();
+  const { tab, sub, id, query } = parseHash();
   state.tab = TABS.includes(tab) ? tab : 'deals';
   if (state.tab === 'deals') state.dealsView = { community: 'community', promos: 'promos' }[sub] || 'fares';
-  if (state.tab === 'special') state.special = { pos: 'pos', play: 'play' }[sub] || 'ex';
+  if (state.tab === 'special') {
+    state.special = { pos: 'pos', play: 'play' }[sub] || 'ex';
+    if (state.special === 'play' && id) openPlaybook(id);
+  }
   if (state.tab === 'routes') {
     state.routesView = { track: 'track', list: 'list' }[sub] || 'search';
     if (sub === 'search' && query.get('s')) loadParam(query.get('s'));
@@ -259,10 +274,21 @@ function carrierChips() {
 }
 
 // ───────────────────────── Deals tab ─────────────────────────
+function dealsSegments() {
+  const n = communityCounts();
+  const count = (v) => (v == null ? '' : ` (${v})`);
+  return segmented('deals-view', [['fares', t('dvFares')], ['community', `${t('dvCommunity')}${count(n.deals)}`], ['promos', `${t('dvPromos')}${count(n.promos)}`]], state.dealsView, t('tabDeals'));
+}
+
 function renderDeals() {
   const el = $('#view-deals');
+  if (state.dealsView !== 'fares') {
+    loadCommunity();
+    el.innerHTML = dealsSegments() + (state.dealsView === 'promos' ? promosHtml() : communityHtml());
+    return;
+  }
   if (!state.data) {
-    el.innerHTML = state.error ? `<div class="empty">${esc(t('loadFail'))} (${esc(state.error)})</div>` : skeleton();
+    el.innerHTML = dealsSegments() + (state.error ? `<div class="empty">${esc(t('loadFail'))} (${esc(state.error)})</div>` : skeleton());
     return;
   }
   const d = state.data;
@@ -276,6 +302,7 @@ function renderDeals() {
   const nFilters = activeFilterCount();
 
   el.innerHTML = `
+    ${dealsSegments()}
     <div class="status">${icon('shield-check', { size: 16 })}<span>${esc(t('status', { n: d.stats?.excluded?.china ?? 0, t: fmtWhen(d.generatedAt) }))}</span></div>
     <button class="hero" data-act="jump" data-id="${esc(top?.id || '')}" ${top ? '' : 'disabled'}>
       <span class="label">${esc(t('bestToday'))}</span>
@@ -333,7 +360,12 @@ function positioningCost(o) {
 
 function renderSpecial() {
   const el = $('#view-special');
-  const seg = segmented('special', [['ex', t('specialEx')], ['pos', t('specialPos')]], state.special, t('tabEx'));
+  const seg = segmented('special', [['ex', t('specialEx')], ['pos', t('specialPos')], ['play', t('specialPlay')]], state.special, t('tabEx'));
+  if (state.special === 'play') {
+    el.innerHTML = seg + playbooksHtml();
+    revealPlaybook();
+    return;
+  }
   if (!state.data) {
     el.innerHTML = seg + skeleton();
     return;
@@ -983,7 +1015,7 @@ function memberCard(m) {
   return `
   <article class="mem" id="mem-${esc(m.id)}">
     <div class="mem-head">
-      <span class="carrier">${carrier ? logo(carrier) : `<span class="logo-wrap"><span class="logo-code">${icon('identification-card', { size: 14 })}</span></span>`}<b>${esc(name)}</b></span>
+      <span class="carrier">${carrier ? logo(carrier) : `<span class="logo-wrap"><span class="logo-code">${icon(programKind(m.program) === 'hotel' ? 'buildings' : 'identification-card', { size: 14 })}</span></span>`}<b>${esc(name)}</b></span>
       ${carrier ? allianceMark(programAlliance(m.program)) : ''}
       ${m.tier ? `<span class="score t-great">${esc(m.tier)}</span>` : ''}
     </div>
@@ -1003,7 +1035,12 @@ function memberCard(m) {
 
 function memberFormHtml(f) {
   const lang = getLang();
-  const groups = ALLIANCE_ORDER.map((a) => [a, Object.keys(PROGRAMS).filter((k) => programAlliance(k) === a)]).filter(([, ks]) => ks.length);
+  const airline = (k) => programKind(k) === 'airline';
+  const groups = ALLIANCE_ORDER.map((a) => [allianceName(a), Object.keys(PROGRAMS).filter((k) => airline(k) && programAlliance(k) === a), true]).filter(([, ks]) => ks.length);
+  for (const [kind, label] of [['hotel', t('memGrpHotel')], ['car', t('memGrpCar')]]) {
+    const ks = Object.keys(PROGRAMS).filter((k) => programKind(k) === kind);
+    if (ks.length) groups.push([label, ks, false]);
+  }
   const owners = [...new Set([...people().map(capName), ...members.map((m) => m.owner).filter(Boolean)])];
   const tiers = PROGRAMS[f.program]?.tiers || [];
   return `
@@ -1015,7 +1052,7 @@ function memberFormHtml(f) {
         <div class="field"><label for="mf-owner">${esc(t('memOwner'))}</label><input id="mf-owner" type="text" data-mf="owner" list="owner-list" value="${esc(f.owner || '')}" maxlength="40" autocomplete="off"></div>
         <div class="field"><label for="mf-program">${esc(t('memProgram'))}</label>
           <select id="mf-program" data-mf="program"><option value="">—</option>
-            ${groups.map(([a, ks]) => `<optgroup label="${esc(allianceName(a))}">${ks.map((k) => `<option value="${k}" ${f.program === k ? 'selected' : ''}>${esc(programName(k, lang))} · ${esc(carrierLabel(PROGRAMS[k].carrier))}</option>`).join('')}</optgroup>`).join('')}
+            ${groups.map(([label, ks, air]) => `<optgroup label="${esc(label)}">${ks.map((k) => `<option value="${k}" ${f.program === k ? 'selected' : ''}>${esc(programName(k, lang))}${air && PROGRAMS[k].carrier ? ` · ${esc(carrierLabel(PROGRAMS[k].carrier))}` : ''}</option>`).join('')}</optgroup>`).join('')}
             <option value="${OTHER_PROGRAM}" ${f.program === OTHER_PROGRAM ? 'selected' : ''}>${esc(t('memOther'))}</option>
           </select></div>
       </div>
@@ -1038,6 +1075,7 @@ function memberFormHtml(f) {
 
 function renderMembers() {
   const el = $('#view-members');
+  loadCommunity();
   const owners = [...new Set(members.map((m) => m.owner).filter(Boolean))].sort();
   const f = owners.includes(state.memberFilter) ? state.memberFilter : 'all';
   const rank = (m) => ALLIANCES[programAlliance(m.program)]?.rank ?? 9;
@@ -1048,6 +1086,7 @@ function renderMembers() {
     <h2>${esc(t('memTitle'))}</h2>
     <p class="intro">${esc(t('memIntro'))}</p>
     <div class="notice">${icon('shield-check')}<span>${esc(t('memPrivacy'))}</span></div>
+    ${walletPromosHtml(members)}
     ${owners.length > 1 ? `<div class="chips" style="margin-top:12px">${chip('mem-filter', 'all', esc(t('memAll')), f === 'all')}${owners.map((o) => chip('mem-filter', o, esc(capName(o)), f === o)).join('')}</div>` : ''}
     ${state.memberForm ? memberFormHtml(state.memberForm) : `<button class="btn primary block new-btn" data-act="mem-new">${icon('plus', { size: 18 })}${esc(t('memAdd'))}</button>`}
     <div class="list mem-list">${list.length ? list.map(memberCard).join('') : `<div class="empty">${esc(t('memEmpty'))}</div>`}</div>
@@ -1131,8 +1170,23 @@ function setting(label, body, help = '') {
   return `<div class="setting"><span class="lbl">${esc(label)}</span>${body}${help ? `<span class="help">${esc(help)}</span>` : ''}</div>`;
 }
 
+function communitySettingsHtml() {
+  const c = communityStatus();
+  if (!c || c.missing) return `<p class="small muted">${esc(t('setCommNone'))}</p>`;
+  const mark = { ok: 'good', blocked: '', error: 'warn', disabled: '' };
+  const rows = [
+    [t('setCommUpdated'), esc(fmtWhen(c.updated))],
+    [t('setCommItems'), `${c.deals} / ${c.promos}`],
+    [t('cDropped', { n: c.excluded }), ''],
+  ].filter(([, v], i) => i < 2 || c.excluded);
+  return `<div class="kv">${rows.map(([k, v]) => `<span>${esc(k)}</span><span>${v}</span>`).join('')}</div>
+    <div class="tags">${c.sources.map((s) => tag(`${s.name} · ${t(`cSrc_${s.status}`)}`, mark[s.status] ?? '')).join('')}</div>
+    <p class="small muted" style="margin-top:10px">${esc(t('setCommNotify'))}</p>`;
+}
+
 function renderSettings() {
   const el = $('#view-settings');
+  loadCommunity();
   const d = state.data;
   const st = d?.stats || {};
   const currencies = d?.fx?.rates ? Object.keys(d.fx.rates) : ['TWD'];
@@ -1171,6 +1225,9 @@ function renderSettings() {
         ${syncBoxHtml()}
         ${state.sync.user?.mustChange ? '' : `<span class="help${['auth', 'error', 'wrong'].includes(state.sync.status) ? ' warn-text' : ''}">${esc(syncStatusText())}</span>`}`, t('syncHelp'))}
     </section>
+
+    <div class="group-title">${esc(t('setCommunity'))}</div>
+    <section class="panel">${communitySettingsHtml()}</section>
 
     <div class="group-title">${esc(t('notifications'))}</div>
     <section class="panel">
@@ -1257,7 +1314,11 @@ function openCard(card, open = true) {
 document.addEventListener('click', async (e) => {
   const tab = e.target.closest('.tabbar button');
   if (tab) {
-    const sub = { special: state.special === 'pos' ? '/pos' : '', routes: state.routesView === 'list' ? '/list' : '' }[tab.dataset.tab] || '';
+    const sub = {
+      deals: { community: '/community', promos: '/promos' }[state.dealsView] || '',
+      special: { pos: '/pos', play: '/play' }[state.special] || '',
+      routes: { track: '/track', list: '/list' }[state.routesView] || '',
+    }[tab.dataset.tab] || '';
     go(`#${tab.dataset.tab}${sub}`);
     return;
   }
@@ -1298,7 +1359,7 @@ document.addEventListener('click', async (e) => {
       state.limit = 40;
       break;
     case 'special':
-      go(v === 'pos' ? '#special/pos' : '#special');
+      go({ pos: '#special/pos', play: '#special/play' }[v] || '#special');
       return;
     case 'ex-open':
       state.exOpen.has(a.dataset.id) ? state.exOpen.delete(a.dataset.id) : state.exOpen.add(a.dataset.id);
@@ -1314,6 +1375,9 @@ document.addEventListener('click', async (e) => {
     case 'q-ow': state.quick.ow = !state.quick.ow; break;
     case 'routes-view':
       go({ track: '#routes/track', list: '#routes/list' }[v] || '#routes');
+      return;
+    case 'deals-view':
+      go({ community: '#deals/community', promos: '#deals/promos' }[v] || '#deals');
       return;
     // Real Tracker form + cards
     case 'trk-new':
@@ -1537,11 +1601,39 @@ $('#install-btn').addEventListener('click', async () => {
 // ───────────────────────── boot ─────────────────────────
 bindFormat({ rates: () => state.data?.fx?.rates, currency: () => prefs.currency });
 bindDeal({ members: () => members, isDemo: () => !!state.data?.isDemo, capName });
+bindPlaybooks({
+  today: todayTpe,
+  fx: () => state.data?.fx || null,
+  go,
+  toast,
+  refresh: () => {
+    if (state.tab === 'special' && state.special === 'play') renderSpecial();
+  },
+  openSearch,
+});
+bindCommunity({
+  today: todayTpe,
+  fetchData,
+  refresh: () => whenIdle(() => {
+    if (state.tab === 'deals' && state.dealsView !== 'fares') renderDeals();
+    else if (state.tab === 'members') renderMembers();
+    else if (state.tab === 'settings') renderSettings();
+  }),
+  toast,
+  notify,
+  go,
+  members: () => members,
+  openSearch,
+  fx: () => state.data?.fx || null,
+});
 bindSearch({
   today: todayTpe,
   refresh: () => {
     if (state.tab === 'routes' && state.routesView === 'search') renderRoutes();
   },
+  soft: () => whenIdle(() => {
+    if (state.tab === 'routes' && state.routesView === 'search') renderRoutes();
+  }),
   toast,
   go,
   signedIn: () => !!(state.sync.user && !state.sync.user.mustChange),

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PLAYBOOKS, playbook, playbooksFor, playCost, pick, COST_FIELDS } from '../web/core/playbooks.js';
+import { PLAYBOOKS, playbook, playbooksFor, playCost, pick, COST_FIELDS, exampleLegs } from '../web/core/playbooks.js';
 import { KIND_PLAYBOOK } from '../web/core/community.js';
 import { normalizeSearch } from '../web/core/search.js';
 import { mentionsChina } from '../web/core/community.js';
@@ -69,4 +69,16 @@ test('playCost: ticket in any currency + card fee + extras, compared with the di
   assert.equal(playCost({ ticket: { amount: 100, currency: 'XXX' }, fx }).total, null, 'unknown currency → no total');
   assert.equal(playCost({ ticket: { amount: 100, currency: 'USD' }, fx }).saving, null, 'no baseline → no saving');
   assert.equal(playCost({ ticket: { amount: 100, currency: 'USD' }, fx, feePct: 0 }).fee, 0);
+});
+
+test('exampleLegs moves the screenshot dates forward in whole weeks, keeping weekdays and spacing', () => {
+  const item = playbook('interline-multicity').example.items[0]; // 2026-10-04, 10-09, 10-27
+  const same = exampleLegs(item, '2026-09-01', 21);
+  assert.deepEqual(same.map((l) => l.date), ['2026-10-04', '2026-10-09', '2026-10-27'], 'already far enough away: untouched');
+  const later = exampleLegs(item, '2026-10-03', 21); // needs the first flight on/after 2026-10-24
+  assert.deepEqual(later.map((l) => l.date), ['2026-10-25', '2026-10-30', '2026-11-17']);
+  for (const [a, b] of item.legs.map((l, i) => [l.date, later[i].date])) assert.equal(new Date(`${a}T00:00:00Z`).getUTCDay(), new Date(`${b}T00:00:00Z`).getUTCDay());
+  assert.deepEqual(later.map((l) => `${l.o}>${l.d}`), ['CRK>TPE', 'TPE>JFK', 'JFK>HKT']);
+  const next = exampleLegs(item, '2027-03-01', 21);
+  assert.ok(next[0].date >= '2027-03-22' && next[0].date < '2027-03-30');
 });

@@ -47,6 +47,8 @@ test('rss: broken items are skipped, non-feeds are recognised, entities decode',
   assert.equal(parseFeed('').items.length, 0);
   assert.equal(decodeEntities('Tom &amp; Jerry &#8211; &#x1F334; &euro;5 &unknown;'), 'Tom & Jerry – 🌴 €5 &unknown;');
   assert.equal(htmlToText('<p>A&nbsp;<b>deal</b></p><script>x()</script><p>now</p>'), 'A deal now');
+  assert.equal(htmlToText('<p>Great fare</p> <a href="x"><img title="a" src="https://e.com/a.jpg" alt="United: Phil'), 'Great fare', 'an excerpt cut off inside a tag leaves no markup behind');
+  assert.equal(htmlToText('5 < 6 and 7 > 3'), '5 < 6 and 7 > 3', 'a lone angle bracket in prose stays');
 });
 
 // ───────────────────────── prices, cabin, kinds ─────────────────────────

@@ -162,3 +162,25 @@ test('result sorting and the default target price', () => {
   assert.equal(suggestTarget(141615), 134500);
   assert.equal(suggestTarget(500), 1000);
 });
+
+test('every error the form can report has a message in every language', async () => {
+  globalThis.document ??= { documentElement: {} };
+  const { STRINGS } = await import('../web/i18n.js');
+  const codes = ['airport', 'area', 'same-airport', 'blocked-airport', 'too-many', 'depart', 'return', 'return-before-depart', 'past', 'segments', 'segment-order', 'blocked-airline', 'not-an-object', 'form'];
+  // and the ones the model really produces for assorted bad forms
+  const seen = new Set();
+  const bad = [
+    { d: '' }, { d: 'Europe' }, { d: 'TPE' }, { d: 'HKG' }, { d: 'JFK EWR LGA BOS LAX' }, { d: 'CDG', depart: '' }, { d: 'CDG', return: '' }, { d: 'CDG', return: '2026-01-01' },
+    { d: 'CDG', depart: '2020-01-01', return: '2020-01-09' }, { d: 'CDG', airlines: ['CA'] },
+  ];
+  for (const over of bad) {
+    const r = trackerFromForm(form({ ...over }), { today: TODAY });
+    if (r.error) seen.add(r.error);
+  }
+  const mc = switchTrip(form({ d: 'CDG' }), 'mc');
+  for (const f of [setSeg(mc, 1, 'date', '2026-01-01'), { ...mc, segs: [mc.segs[0]] }]) {
+    const r = buildSearch(f, { today: TODAY });
+    if (r.error) seen.add(r.error);
+  }
+  for (const c of [...codes, ...seen]) for (const lang of Object.keys(STRINGS)) assert.ok(STRINGS[lang][`sErr_${c}`], `${lang}: sErr_${c}`);
+});

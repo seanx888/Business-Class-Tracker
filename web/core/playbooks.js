@@ -3,6 +3,8 @@
 // playbook says what to double-check. Nothing here is searched or promoted by the app unless it says so.
 //
 //   playbook(id) · playbooksFor(kinds) · pick(text, lang) · playCost({…}) → what the whole trip costs vs the direct fare
+import { shiftDate } from './search.js';
+
 const T = (zh, en, ko) => ({ 'zh-TW': zh, en, ko });
 
 /** Text in the viewer's language (falls back to English). */
@@ -250,4 +252,15 @@ export function playCost({ ticket, extras = {}, fx = null, feePct = 1.5, baselin
     saving,
     savingPct: saving != null ? Math.round((saving / baselineTWD) * 1000) / 10 : null,
   };
+}
+
+/**
+ * An example trip carries the dates of the post's screenshots, which are in the past by the time someone reads them.
+ * Move every date forward in whole weeks (so weekdays are kept) until the first flight is at least `lead` days away.
+ */
+export function exampleLegs(item, today, lead = 21) {
+  const first = item.legs[0].date;
+  const min = shiftDate(today, lead);
+  const weeks = first >= min ? 0 : Math.ceil((Date.parse(`${min}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / (7 * 86400000));
+  return item.legs.map((l) => ({ o: l.o, d: l.d, date: shiftDate(l.date, 7 * weeks) }));
 }
