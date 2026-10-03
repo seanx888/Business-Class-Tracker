@@ -14,7 +14,7 @@
 import { authStore, currentUser, sameOrigin, syncConfigured } from './_lib/auth.mjs';
 import { searchSerpApi, serpApiAccount, walkLegs, isQuotaError } from './_lib/serpapi.mjs';
 import { fetchFx, toTWD } from './_lib/fx.mjs';
-import { buildDeals, loadCountries } from './_lib/deals.mjs';
+import { buildDeals, ensureCountries } from './_lib/deals.mjs';
 import { matchOffer, posResult } from './_lib/pos.mjs';
 import { checkItinerary } from '../core/exclusion.js';
 import { normalizeSearch, routeSegments } from '../core/search.js';
@@ -103,7 +103,7 @@ export async function handle(request, { env = process.env, fetchImpl = fetch, no
   const redact = redactor(env);
   const legCount = routeSegments(search).length;
   const op = body.op;
-  const countries = loadCountries();
+  const countries = await ensureCountries(url.origin, fetchImpl);
   const filter = (itin) => checkItinerary(itin, { countries }).ok;
 
   try {

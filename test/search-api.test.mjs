@@ -7,6 +7,7 @@ import { buildParams, searchSerpApi } from '../web/api/_lib/serpapi.mjs';
 import { normalizeSearch } from '../web/core/search.js';
 import { checkItinerary } from '../web/core/exclusion.js';
 import { fakeGitHub } from './helpers/github.mjs';
+import { ensureCountries, loadCountries } from '../web/api/_lib/deals.mjs';
 
 const fixture = (f) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url)));
 const NOW = Date.parse('2026-10-03T03:00:00Z');
@@ -312,4 +313,22 @@ test('the API ships its own copy of the airport-country table (Vercel deploys on
   assert.ok(web.equals(config), 'run: node scripts/update-airports.mjs, or copy config/airport-countries.json to web/data/');
   const vercel = JSON.parse(readFileSync(new URL('../web/vercel.json', import.meta.url), 'utf8'));
   assert.equal(vercel.functions['api/search.mjs'].maxDuration, 60);
+});
+
+test('the airport-country table: read from the bundle, or asked of the site itself when the file is not in the function', async () => {
+  assert.ok(Object.keys(loadCountries()).length > 5000, 'the bundled table');
+  const table = Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`A${String(i).padStart(2, '0')}`, 'XX']));
+  const calls = [];
+  const site = async (url) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify(table), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const fromSite = await ensureCountries('https://example.vercel.app', site, {});
+  assert.deepEqual(calls, ['https://example.vercel.app/data/airport-countries.json']);
+  assert.equal(Object.keys(fromSite).length, 200);
+  // a broken answer never replaces the fail-closed behaviour
+  const broken = await ensureCountries('https://example.vercel.app', async () => new Response('<html>', { status: 200 }), {});
+  assert.ok(Object.keys(broken).length === 200 || Object.keys(broken).length === 0);
+  const down = await ensureCountries('https://example.vercel.app', async () => { throw new Error('offline'); }, {});
+  assert.ok(typeof down === 'object');
 });

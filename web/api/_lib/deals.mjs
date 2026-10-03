@@ -14,10 +14,29 @@ export function loadCountries() {
   try {
     const raw = readFileSync(new URL('../../data/airport-countries.json', import.meta.url), 'utf8');
     countriesCache = JSON.parse(raw);
+    return countriesCache;
   } catch {
-    countriesCache = {};
+    return {}; // not cached: a later call may find the file (or the fallback below)
   }
-  return countriesCache;
+}
+
+/**
+ * The same table, with a second way to get it: when the file is not part of the function's bundle, ask the site itself
+ * (web/data/ is served as static files next to the API). Without the table every airport outside AIRPORTS fails the
+ * China check closed — safe, but the search would look empty.
+ */
+export async function ensureCountries(origin, fetchImpl = fetch, local = loadCountries()) {
+  if (Object.keys(local).length) return local;
+  try {
+    const res = await fetchImpl(`${origin}/data/airport-countries.json`, { signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const table = await res.json();
+      if (table && typeof table === 'object' && Object.keys(table).length > 100) countriesCache = table;
+    }
+  } catch {
+    /* keep the fail-closed behaviour */
+  }
+  return countriesCache || local;
 }
 
 const compact = (obj) => {
