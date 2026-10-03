@@ -103,6 +103,9 @@ test('classifyPromo: real posts from Travel-Dealz, Head for Points, Reddit, Doct
   assert.equal(promo(find('milelion', /StanChart/)).drop, 'no-brand');
   assert.equal(promo(find('reddit-awardtravel', /never have/)).drop, 'not-promo', 'a forum question');
   assert.equal(promo({ title: '[Expired] Bilt Rent Day: ALL Accor Status Match' }).drop, 'expired');
+  assert.equal(promo({ title: 'Mariner of the Seas: 14-Night Transatlantic Cruise from Barcelona to New Orleans from €526 pp', summary: 'Royal Caribbean cruise sale on the Mariner of the Seas.' }).drop, 'not-promo', 'a cruise ticket sale is not an airline or hotel promotion');
+  assert.equal(promo({ title: "Qatar Airways Avios 35% bonus, Point.me's new tool and more [Roundup]" }).drop, 'not-promo', 'a roundup lists other posts');
+  assert.equal(promo({ title: 'Explora Journeys: Status Match from Many Luxury Cruise Lines + MSC' }).item.category, 'cruise', 'a cruise STATUS MATCH is kept');
   assert.equal(promo({ title: 'Delta Medallion status match', summary: 'Offer ends September 15.' }).drop, 'expired', 'deadline already passed');
   assert.equal(promo({ title: 'Cathay Pacific status match to Marco Polo Club' }).drop, 'china');
   assert.equal(promo({ title: 'Hotel status match', summary: 'Works with Hong Kong properties only' }).drop, 'china');

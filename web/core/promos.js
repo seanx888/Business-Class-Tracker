@@ -92,6 +92,7 @@ export function detectPromoKinds(text, categories = []) {
 
 const CARD = /\b(?:credit|debit|charge) cards?\b|\bcard\b.{0,30}\b(?:offer|bonus|review|perks?)|sign[- ]?up bonus|welcome (?:offer|bonus|gift)|annual fee|referral|\bamex\b|american express|mastercard|\bvisa\b|信用卡|聯名卡|카드/i;
 // Forum chatter ("Do some flights never have saver awards?") mentions the same words as a promotion but is not one.
+const ROUNDUP = /\[?\broundup\b\]?|\bweek in review\b|\bnews round-?up\b/i;
 const QUESTION = /^(?:do|does|did|is|are|was|can|could|how|why|what|which|when|has anyone|anyone|should|would|will|any)\b/i;
 const EXPIRED = /\[(?:expired|ended|dead|expired?\s)[^\]]*\]|\bexpired\b|\bhas ended\b|\bended\b/i;
 
@@ -243,6 +244,10 @@ export function classifyPromo(raw, ctx = {}) {
   if (!brands.length) return { drop: 'no-brand' };
   if (!kinds.length) return { drop: 'not-promo' };
   if (CARD.test(title) && !kinds.includes('status-match')) return { drop: 'card' };
+  // A news roundup is a list of other posts, not an offer. Cruise ticket sales are not airline / hotel promotions;
+  // a cruise status match (Explora ↔ other lines) still is.
+  if (ROUNDUP.test(title) && !kinds.includes('status-match')) return { drop: 'not-promo' };
+  if (brands[0].kind === 'cruise' && !kinds.includes('status-match')) return { drop: 'not-promo' };
 
   const validTo = parseValidTo(`${title}. ${body.slice(0, 700)}`, raw.published) || monthEnd(title, raw.published, kinds);
   if (validTo && today && validTo < today) return { drop: 'expired' };
