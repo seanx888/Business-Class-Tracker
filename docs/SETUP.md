@@ -18,6 +18,8 @@ App 網址 App URL：**https://aethersky.bluechiou.com**
 | 7 | 第一次執行與檢查 · First run & check | ✋ 需手動 Manual | — | 3 min |
 | 8 | Real Tracker 同步（Vercel）· Tracker sync | ✋ 需手動 Manual（選用但推薦） | Free | 5 min |
 | 9 | 追蹤 Email 通知 · Tracker e-mail alerts | ✋ 需手動 Manual | Free | 5 min |
+| 10 | App 內即時搜尋（含多段票、各國結帳比價）· Live search in the app | ✋ 需手動 Manual（選用）| 用 SerpApi 額度 | 3 min |
+| 11 | 社群情報、活動通知、玩法庫 · Community deals, promotions & playbooks | ✅ 自動（通知可調）Automatic | Free | 0–5 min |
 
 > 為什麼 SerpApi / ntfy 還是要設定在 GitHub？每天的票價掃描是在 **GitHub Actions** 執行（Vercel 只負責放網頁），
 > 所以掃描需要的兩個金鑰要放在 GitHub Secrets。Vercel 端**不需要**任何 token。
@@ -222,6 +224,56 @@ usera=USERA的信箱#zh-TW,userb=USERB的信箱#en
 
 ---
 
+## 10. 即時搜尋 · Live flight search（航線追蹤 → 搜尋）
+
+「航線追蹤」分頁的第一個畫面是**搜尋表單**：來回／單程／**多段票（最多 5 段，可加停留點）**，艙等（預設商務艙）、轉機、聯盟、指定航空公司、乘客、行李、最長時間；
+搜尋時打開「追蹤這個搜尋」就能同時設定目標價、彈性日期、通知與「哪國結帳最便宜」，一次完成。
+The Routes tab opens on a search form (round trip / one way / multi-city up to 5 legs). Switch on “Track this search” to set a target price, flexible dates, alerts and a daily “cheapest country to pay” check in the same step.
+
+- **不設定也能用**：沒有即時搜尋時，表單會給你 Google Flights / KAYAK / Skyscanner 的一鍵連結（帶入全部條件）和各國結帳的免費連結；追蹤照常運作。
+- **要開啟即時搜尋**：在 **Vercel → Settings → Environment Variables** 加入和 GitHub 一樣的 `SERPAPI_KEY`（可加 `SERPAPI_KEY_2`），然後 Redeploy。
+  搜尋需要先**登入**（第 8 步的兩組密碼），因為每次搜尋都會用掉 SerpApi 額度；公開頁面不會。
+- **額度保護**：Variable/環境變數 `SEARCH_RESERVE`（預設 60）= 永遠留給每日掃描的搜尋次數；剩餘額度低於這個數字，即時搜尋會暫停並說明原因。每人 10 分鐘最多 30 次請求。
+- **一次搜尋用多少額度**：單程/來回 1–3 次；多段票每多一段、每個被驗證的選項多 1 次（最多 5 次）。「比較各國結帳價」每個國家 1 次（預設 10 國，可取消勾選；開始前會先詢問）。
+- 每個追蹤每天用 1 次搜尋（彈性日期 2 次；勾「同時追蹤各國結帳價」再多 1 次）。
+- 多段票的 Google Flights 連結是照 Google 的網址格式組出來的，尚未能在這個環境實測；如果 Google 改了格式，連結可能只會打開 Google Flights 而沒有帶入條件（KAYAK 連結和 App 內的搜尋不受影響）。
+
+---
+
+## 11. 社群情報、活動通知與玩法庫 · Community deals, promotions & playbooks
+
+**今日好價**分頁多了兩個分頁：**社群情報**（低票價、外站票、多段票、聯運、停留點、隱藏城市、錯誤票價）和 **活動**（票價折扣、指定航線促銷、**會籍 Match**、里程加碼、兌換機票優惠 — 航空、**飯店集團**、郵輪、租車都算）。
+每天 GitHub Actions 掃描時讀取公開的 RSS/Atom 來源（`config/sources.json`），分類後寫入 `web/data/community.json`，App 直接讀取。**特殊票價 → 玩法庫**說明每種玩法的邏輯、購買步驟、真實成本與風險（含貼文裡的阿提哈德聯運範例與成本試算）。
+
+**來源與限制（重要）**
+
+| 來源 | 狀態 | 說明 |
+|---|---|---|
+| Travel-Dealz、Fly4free、The Flight Deal、r/awardtravel、The MileLion、Head for Points、Doctor of Credit、OMAAT、View from the Wing、PTT 航空/省錢版 | ✅ 自動讀取 | RSS，每天一次 |
+| Secret Flying | ⛔ 通常被擋 | 網站用 Cloudflare 擋雲端機房（GitHub Actions）。App 會標示「被擋住」；在家裡/VPS 網路跑 `node scripts/community.mjs` 才讀得到 |
+| FlyerTalk | ⛔ 預設關閉 | Cloudflare 直接拒絕機房 IP（error 1005）|
+| Reddit r/flightdeals | ⛔ 預設關閉 | 該社群已停止更新 |
+| **Facebook 社團** | ❌ 程式無法讀取 | Facebook 禁止自動讀取且需登入。請用 **社群情報 → 貼上貼文**：貼上文字就會解析出路線、價格、航空公司、玩法，並一鍵帶入搜尋/追蹤 |
+
+- 一律排除中國大陸／香港／澳門（航空公司、城市、機場代碼、班機號）；被排除的則數會顯示在畫面上。
+- 新增來源：在 `config/sources.json` 加一筆（RSS/Atom 網址；`enabled: false` 可關閉；`include` 是標題關鍵字過濾）。
+- 讀不到的來源不會讓整個掃描失敗；Actions 的 Summary 會列出每個來源的狀態。
+
+**通知（與追蹤通知用同一組管道）**：新的強力好價、疑似錯誤票價、會籍 Match 和你會員的活動，會用 `NTFY_TOPICS` 推播、`ALERT_EMAILS` + `SMTP_URL`/`RESEND_API_KEY` 寄信（每人用自己的語言）。
+第一次執行不會寄（因為全部都是「新的」）。App 打開時也會提醒新的強力好價與**你有的會員**的活動（每則只提醒一次）。
+
+調整誰收到什麼 — GitHub **Variable** `PROMO_ALERTS`（JSON，沒有設定 = 每人收到最強的幾則）：
+```json
+[
+  {"who":"usera","brands":["DL","KE","MARRIOTT","HILTON"],"kinds":["status-match","bonus-miles","fare-sale"],"minRelevance":45,"deals":true},
+  {"who":"userb","brands":[],"kinds":["status-match","error-fare"],"minRelevance":55,"deals":false}
+]
+```
+`brands` = 會員卡夾的方案代碼（`DL` `KE` `MARRIOTT` `HILTON` `HYATT` `IHG` `ACCOR` `HERTZ`…）或航空公司代碼；空 = 不限。`kinds` 空 = 不限；`deals:false` = 只收活動不收好價。
+暫停這類通知：Variable `COMMUNITY_NOTIFICATIONS` = `paused`（仍會更新資料）。
+
+---
+
 ## 外國站結帳（他國網站／VPN 比較便宜）· Foreign-site checkout
 
 同一張機票在不同國家的網站、用當地貨幣結帳，價格可能差 3–20%。每天掃描完，系統會把**當天最佳票價**
@@ -251,6 +303,8 @@ usera=USERA的信箱#zh-TW,userb=USERB的信箱#en
 |---|---|---|
 | `SERPAPI_KEY` | Secret | SerpApi 金鑰（Google Flights）|
 | `SERPAPI_KEY_2` | Secret | 選用：第二個 SerpApi 金鑰，第一個額度用完自動切換（見第 3 步注意事項）|
+| `SERPAPI_KEY`, `SERPAPI_KEY_2` | **Vercel** env | 開啟 App 內即時搜尋（第 10 步）；和 GitHub 用同一把金鑰 |
+| `SEARCH_RESERVE` | **Vercel** env | 選用：留給每日掃描的搜尋次數，即時搜尋不會用到（預設 60）|
 | `NTFY_TOPICS` | Secret | `family=<共用主題>@zh-TW`（或各自 `usera=…@zh-TW,userb=…@en`）|
 | `VERCEL_TOKEN` | Secret | 不需要（只有 `DEPLOY_TARGET=vercel` 的進階用法才需要）|
 | `DUFFEL_ACCESS_TOKEN` | Secret | 選用 |
@@ -260,6 +314,8 @@ usera=USERA的信箱#zh-TW,userb=USERB的信箱#en
 | `RESEND_API_KEY` | Secret | 選用：用 Resend 取代 SMTP |
 | `TRACKERS` | Variable | Real Tracker 行程 JSON（App 同步自動寫入，第 8 步）|
 | `TRACKER_NOTIFICATIONS` | Variable | `paused` = 暫停追蹤通知（預設開啟）|
+| `PROMO_ALERTS` | Variable | 選用：社群好價／活動通知的個人化 JSON（第 11 步）|
+| `COMMUNITY_NOTIFICATIONS` | Variable | `paused` = 暫停社群好價／活動通知（資料照常更新）|
 | `MAIL_FROM` | Variable | 選用：寄件人名稱與地址 |
 | `PASSWORD_USERA`, `PASSWORD_USERB`, `SESSION_SECRET`, `TRACKERS_GITHUB_TOKEN` | **Vercel** env | 追蹤同步與兩組密碼登入（第 8 步）|
 | `DEPLOY_TARGET` | Variable | `none`（預設，Vercel 讀 GitHub 資料）· `pages` · `vercel` · `pages,vercel` |
@@ -287,4 +343,8 @@ usera=USERA的信箱#zh-TW,userb=USERB的信箱#en
 | 登入顯示「密碼不正確」| 輸入的不是 USERA 或 USERB 目前的密碼；改過密碼後初始密碼就作廢。忘記了 → SECRETS.md 第 B 節「忘記密碼」|
 | 登入後一直要求更改密碼 | 還在用初始密碼；設定新密碼（≥ 12 字元）後才會開始同步 |
 | 同步失敗 | 權杖過期或沒有 **Variables: Read and write** 權限（第 8 步）|
+| 搜尋顯示「即時搜尋尚未啟用」| Vercel 環境變數沒有 `SERPAPI_KEY`，或設定後沒有 Redeploy（第 10 步）。還沒設定時表單會給 Google Flights / KAYAK 連結 |
+| 搜尋顯示「額度已接近保留量」| 本月 SerpApi 剩餘額度低於 `SEARCH_RESERVE`（預設 60）；調低它，或等下個月/加第二把金鑰 |
+| 社群情報顯示「還沒有社群資料」| 還沒跑過每日掃描；Actions → Run workflow，或本機 `node scripts/community.mjs` |
+| 社群來源顯示「被擋住」| Secret Flying 等會擋雲端機房，屬預期；直接開網站，好貼文用「貼上貼文」|
 | 沒收到追蹤 Email | 還在 demo 資料？`ALERT_EMAILS` 名字和「通知誰」一致？Gmail 要用**應用程式密碼**；Summary 的 Real Tracker 列會顯示寄送結果；查垃圾郵件匣 |

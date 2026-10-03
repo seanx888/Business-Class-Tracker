@@ -8,6 +8,7 @@
 import { t, getLang, countryName } from '../i18n.js';
 import { icon } from '../icons.js';
 import { rankDeals } from '../core/scoring.js';
+import { isChinaFree } from '../core/exclusion.js';
 import { AIRPORTS } from '../core/airports.js';
 import { AIRLINES } from '../core/airlines.js';
 import { resolvePlaces, placeLabel } from '../core/places.js';
@@ -462,8 +463,10 @@ async function runSearch({ track = false } = {}) {
   scrollToResults();
   try {
     const res = await api({ op: 'search', search: built.search, verify });
-    const deals = rankDeals(res.deals || [], 'price', { skyteamBoost: host.skyteamBoost() });
-    S.results = { search: built.search, deals, found: res.found, excluded: res.excluded || 0, insights: res.insights || null, quota: res.quota || null, searches: res.searches || 0, at: res.generatedAt, cost: searchCost(legs, verify) };
+    // The server already filtered; the browser checks again (same as for the daily deals).
+    const clean = (res.deals || []).filter((d) => isChinaFree(d));
+    const deals = rankDeals(clean, 'price', { skyteamBoost: host.skyteamBoost() });
+    S.results = { search: built.search, deals, found: res.found, excluded: (res.excluded || 0) + ((res.deals || []).length - clean.length), insights: res.insights || null, quota: res.quota || null, searches: res.searches || 0, at: res.generatedAt, cost: searchCost(legs, verify) };
     S.run = { status: 'done' };
   } catch (e) {
     S.run = { status: 'error', code: e.code || 'error' };
@@ -481,6 +484,14 @@ async function completeDeal(id) {
   try {
     const res = await api({ op: 'complete', search: r.search, token: d.token, firstLeg: d.legs[0], price: d.price });
     if (!res.ok) {
+      r.deals = r.deals.filter((x) => x.id !== id);
+      S.open.delete(id);
+      host.toast(t('sDroppedChina'), 5000);
+      S.working.delete(id);
+      host.refresh();
+      return;
+    }
+    if (!isChinaFree({ legs: res.legs })) {
       r.deals = r.deals.filter((x) => x.id !== id);
       S.open.delete(id);
       host.toast(t('sDroppedChina'), 5000);

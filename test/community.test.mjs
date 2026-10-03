@@ -254,3 +254,10 @@ test('parsePost: English posts, junk and China', () => {
   assert.equal(parseRouteLine('如圖一'), null);
   assert.equal(parseRouteLine('全程只要562美（含行李'), null);
 });
+
+test('scopeOf: Seattle (SEA the airport) is not Southeast Asia (SEA the region)', () => {
+  assert.equal(classifyDeal({ id: 's', title: 'Korean Air: Seattle – Bali, Indonesia. $875. Roundtrip', url: 'https://e.com/s', published: '2026-10-03T00:00:00Z' }, { today: '2026-10-03' }).item.scope, 'global');
+  assert.equal(classifyDeal({ id: 'b', title: 'Bangkok to Paris business class from $1,900', url: 'https://e.com/b', published: '2026-10-03T00:00:00Z' }, { today: '2026-10-03' }).item.scope, 'apac');
+  assert.equal(scopeOf({ o: { kind: 'region', code: 'SEA' }, d: { kind: 'place', code: 'LAX' } }), 'apac', 'the region still counts');
+  assert.equal(scopeOf({ o: { kind: 'place', code: 'SEA' }, d: { kind: 'place', code: 'LAX' } }), 'global');
+});

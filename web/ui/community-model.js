@@ -132,3 +132,9 @@ export function pickAlerts(data, { members = [], seen = new Set(), saved = new S
   const strong = promos.filter((p) => !mine.includes(p) && (p.relevance >= 55 || (p.kinds.includes('status-match') && p.relevance >= 45)));
   return { deals: deals.slice(0, 4), promos: strong.slice(0, 4), mine: mine.slice(0, 4) };
 }
+
+/** Saved promotions that end within `days` days (and have not been mentioned yet): worth a reminder before they are gone. */
+export function pickExpiring(data, { saved = new Set(), seen = new Set(), today, days = 3 } = {}) {
+  if (!data || data.missing || !today) return [];
+  return data.promos.filter((p) => saved.has(p.id) && p.validTo && !seen.has(`exp:${p.id}`) && daysUntil(p.validTo, today) >= 0 && daysUntil(p.validTo, today) <= days);
+}

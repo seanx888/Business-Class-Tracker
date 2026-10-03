@@ -433,9 +433,7 @@ details.cmp { margin-top: 2px; }
 details.cmp .chips { padding: 4px 0 8px; }
 
 /* ── Community deals + promotions ── */
-.chips.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; margin: 0 -16px 8px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; }
-.chips.scroll::-webkit-scrollbar { display: none; }
-.chips.scroll .chip { flex: none; }
+.chips + .chips { margin-top: 8px; }
 .cm-list { margin-top: 10px; }
 .cm-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 8px; }
 .cm-card .tags { margin-top: 0; }

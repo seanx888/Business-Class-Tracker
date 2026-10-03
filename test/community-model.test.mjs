@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { parsePost } from '../web/core/community.js';
 import { normalizeSearch } from '../web/core/search.js';
 import {
-  chinaFree, filterDeals, filterPromos, kindCounts, deadline, dealSearchFields, routeFields, readMarks, writeMarks, pickAlerts, MIN_RELEVANCE, daysUntil,
+  chinaFree, filterDeals, filterPromos, kindCounts, deadline, dealSearchFields, routeFields, readMarks, writeMarks, pickAlerts, pickExpiring, MIN_RELEVANCE, daysUntil,
 } from '../web/ui/community-model.js';
 
 const TODAY = '2026-10-03';
@@ -121,4 +121,12 @@ test('pickAlerts: only NEW and strong items interrupt, once each; your own progr
   assert.deepEqual(pickAlerts({ missing: true }), { deals: [], promos: [], mine: [] });
   assert.deepEqual(pickAlerts(null).deals, []);
   assert.deepEqual(pickAlerts(data, { hidden: new Set(['hot', 'err']) }).deals, []);
+});
+
+test('pickExpiring: a saved promotion about to end is mentioned once', () => {
+  const data = { promos: [promo({ id: 'a', validTo: '2026-10-05' }), promo({ id: 'b', validTo: '2026-10-20' }), promo({ id: 'c', validTo: '2026-10-04' }), promo({ id: 'd', validTo: '2026-10-01' })] };
+  const saved = new Set(['a', 'b', 'd']);
+  assert.deepEqual(pickExpiring(data, { saved, today: TODAY }).map((p) => p.id), ['a'], 'b is far off, c is not saved, d is over');
+  assert.deepEqual(pickExpiring(data, { saved, today: TODAY, seen: new Set(['exp:a']) }), []);
+  assert.deepEqual(pickExpiring({ missing: true }, { saved, today: TODAY }), []);
 });

@@ -14,7 +14,7 @@ import { money, carrierLabel, fmtDay, fmtWhen, city } from './fmt.js';
 import { allianceMark } from './deal.js';
 import { onClick, onField } from './registry.js';
 import {
-  chinaFree, filterDeals, filterPromos, kindCounts, deadline, dealSearchFields, routeFields, readMarks, writeMarks, pickAlerts,
+  chinaFree, filterDeals, filterPromos, kindCounts, deadline, dealSearchFields, routeFields, readMarks, writeMarks, pickAlerts, pickExpiring,
   DEAL_KIND_ORDER, PROMO_KIND_ORDER, PROMO_CATEGORIES, MIN_RELEVANCE,
 } from './community-model.js';
 
@@ -87,7 +87,15 @@ export async function loadCommunity(force = false) {
 /** Tell the person (toast + browser notification, if allowed) about NEW strong items — once per item, on this device. */
 function announce() {
   const a = pickAlerts(C.data, { members: host.members(), seen: marks.seen, saved: marks.saved, hidden: marks.hidden });
+  const ending = pickExpiring(C.data, { saved: marks.saved, seen: marks.seen, today: host.today() });
   const n = a.deals.length + a.promos.length + a.mine.length;
+  if (ending.length) {
+    for (const p of ending) marks.seen.add(`exp:${p.id}`);
+    persistMarks();
+    const msg = t('cAlertEnding', { n: ending.length, title: ending[0].title.slice(0, 70) });
+    host.toast(msg, 7000);
+    if (!n) host.notify(t('appName'), msg);
+  }
   if (!n) return;
   for (const x of [...a.deals, ...a.promos, ...a.mine]) marks.seen.add(x.id);
   persistMarks();
@@ -149,7 +157,7 @@ function stopLabel(r) {
 const kindTags = (kinds, prefix = 'kind_') => kinds.map((k) => tag(t(`${prefix}${k}`), k === 'error-fare' || k === 'status-match' ? 'hot' : k === 'sale' || k === 'fare-sale' ? '' : 'pos')).join('');
 
 function chipRow(act, options, current, label) {
-  return `<div class="chips scroll" role="group" aria-label="${esc(label)}">${options.map(([v, text]) => chip(act, v, esc(text), current === v)).join('')}</div>`;
+  return `<div class="chips" role="group" aria-label="${esc(label)}">${options.map(([v, text]) => chip(act, v, esc(text), current === v)).join('')}</div>`;
 }
 
 function statusLine() {

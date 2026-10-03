@@ -21,7 +21,7 @@ export const KIND_PLAYBOOK = [
 ];
 
 const HOME_AIRPORTS = new Set(['TPE', 'TSA', 'KHH', 'RMQ', 'TNN']);
-const APAC_REGIONS = new Set(['TW', 'JP', 'KR', 'SEA', 'SAS', 'CAS', 'OC']);
+const APAC_REGIONS = new Set(['TW', 'JP', 'KR', 'SEA', 'SAS', 'CAS', 'OC', 'OCNZ', 'ASIA']);
 const APAC_COUNTRIES = new Set(['TW', 'JP', 'KR', 'TH', 'VN', 'PH', 'SG', 'MY', 'ID', 'KH', 'LA', 'MM', 'BN', 'IN', 'LK', 'NP', 'BD', 'MV', 'MN', 'AU', 'NZ', 'GU', 'PW', 'FJ', 'MP']);
 // Cities a Taipei flyer can reach cheaply — a deal starting there is an "ex-station" opportunity.
 export const EX_STATIONS = new Set(['ICN', 'GMP', 'PUS', 'BKK', 'DMK', 'SGN', 'HAN', 'DAD', 'MNL', 'CRK', 'CEB', 'KUL', 'SIN', 'NRT', 'HND', 'KIX', 'NGO', 'FUK', 'CTS', 'OKA', 'CGK', 'DPS', 'HKT', 'PNH', 'SAI', 'DEL', 'BOM']);
@@ -224,7 +224,7 @@ export function scopeOf(route, text = '') {
   const oc = placeCountry(o);
   if (o?.kind === 'place' && HOME_AIRPORTS.has(o.code)) return 'home';
   if (oc === 'TW') return 'home';
-  if (o && (APAC_COUNTRIES.has(oc) || APAC_REGIONS.has(placeRegion(o)) || o.code === 'ASIA' || o.code === 'SEA' || o.code === 'OC')) return 'apac';
+  if (o && (APAC_COUNTRIES.has(oc) || APAC_REGIONS.has(placeRegion(o)))) return 'apac'; // (the code SEA is Seattle as a place, Southeast Asia as a region — placeRegion tells them apart)
   const dc = placeCountry(d);
   if (dc === 'TW' || (d?.kind === 'place' && HOME_AIRPORTS.has(d.code))) return 'inbound';
   if (/taiwan|taipei|taoyuan|台灣|臺灣|台北|桃園|대만|타이베이/i.test(text)) return 'inbound';
