@@ -1,4 +1,6 @@
 // UI strings: 繁體中文 (default) · English · 한국어. No emoji — icons come from icons.js.
+import { MORE } from './i18n-more.js';
+
 export const LANGS = { 'zh-TW': '繁體中文', en: 'English', ko: '한국어' };
 
 const S = {
@@ -355,6 +357,12 @@ const S = {
     earnTitle: '적립 가능한 내 회원', earnSame: '같은 항공사', earnAlliance: '같은 동맹',
   },
 };
+
+// Strings of the later feature screens live in i18n-more.js (search, community, playbooks, …) and are merged in here.
+for (const lang of Object.keys(MORE)) Object.assign(S[lang], MORE[lang]);
+
+/** All UI strings by language — for tests and tooling. */
+export const STRINGS = S;
 
 export const REGIONS = {
   TW: { 'zh-TW': '台灣', en: 'Taiwan', ko: '대만' },

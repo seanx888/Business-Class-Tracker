@@ -1,14 +1,25 @@
 // ÆtherSky (商務艙雷達) — PWA front-end (vanilla ES modules, no build step).
 // Layout follows design-system/aethersky/pages/app.md (Minimal Swiss, SVG icons, hash routes).
 import { t, setLang, getLang, LANGS, regionName, countryName } from './i18n.js';
-import { ALLIANCES, ALLIANCE_ORDER, BLOCKED_CARRIERS, AIRLINES, airlineName } from './core/airlines.js';
-import { AIRPORTS, airportCity } from './core/airports.js';
+import { ALLIANCES, ALLIANCE_ORDER, BLOCKED_CARRIERS, AIRLINES } from './core/airlines.js';
+import { AIRPORTS } from './core/airports.js';
 import { rankDeals } from './core/scoring.js';
 import { isChinaFree } from './core/exclusion.js';
-import { searchLinks, airlineUrl, googleFlightsUrl } from './core/links.js';
-import { normalizeTracker, trackerCombos, comboCount, searchesPerDay, newTrackerId, daysBetween, CABINS, MAX_FLEX } from './core/trackers.js';
-import { PROGRAMS, OTHER_PROGRAM, programName, programAlliance, programCarrier, earningMemberships } from './core/programs.js';
+import { searchLinks, googleFlightsUrl, googleSearchUrl } from './core/links.js';
+import { normalizeTracker, trackerCombos, comboCount, comboSearch, searchesPerDay, newTrackerId, daysBetween, CABINS, MAX_FLEX } from './core/trackers.js';
+import { itineraryLine, routeSegments } from './core/search.js';
+import { placeLabel } from './core/places.js';
+import { PROGRAMS, OTHER_PROGRAM, programName, programAlliance, programCarrier, programKind } from './core/programs.js';
 import { icon } from './icons.js';
+import { esc, segmented, chip, tag, notice, skeleton } from './ui/kit.js';
+import {
+  SYM, locale, money, localMoney, fmtDay, fmtWhen, dayDiff, city, carrierLabel, cap, todayTpe, bindFormat,
+} from './ui/fmt.js';
+import {
+  bindDeal, logo, allianceName, allianceMark, stopsText, tripText, dealCard, dealDetail, posRows, caveats, toggleCard,
+} from './ui/deal.js';
+import { runClick, runField } from './ui/registry.js';
+import { bindSearch, searchHtml, airportList, pingSearch, openSearch, editTracker, loadParam } from './ui/search.js';
 
 // ───────────────────────── prefs (per-device) ─────────────────────────
 const PREF_KEY = 'bct.prefs.v1';
@@ -40,8 +51,8 @@ function savePrefs() {
 // ───────────────────────── state ─────────────────────────
 const TABS = ['deals', 'special', 'routes', 'members', 'settings'];
 const state = {
-  data: null, deals: [], history: null, tab: 'deals', special: 'ex', routesView: 'tracker', error: null, dropped: 0, limit: 40, installEvt: null, exOpen: new Set(), filtersOpen: false,
-  trackerData: null, trackerForm: null, trackerErr: null, trkOpen: new Set(),
+  data: null, deals: [], history: null, tab: 'deals', dealsView: 'fares', special: 'ex', routesView: 'search', error: null, dropped: 0, limit: 40, installEvt: null, exOpen: new Set(), filtersOpen: false,
+  trackerData: null, trkOpen: new Set(),
   sync: { configured: null, status: 'idle', user: null, problems: [], pwMsg: '' },
   memberForm: null, memberErr: null, memberReveal: new Set(), memberFilter: 'all',
 };
@@ -67,58 +78,11 @@ function saveMembers() {
 
 // ───────────────────────── helpers ─────────────────────────
 const $ = (sel) => document.querySelector(sel);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const locale = () => ({ 'zh-TW': 'zh-TW', en: 'en-US', ko: 'ko-KR' })[getLang()] || 'zh-TW';
-const SYM = { TWD: 'NT$', USD: 'US$', KRW: '₩', JPY: '¥', EUR: '€', THB: '฿', VND: '₫', SGD: 'S$', PHP: '₱', MYR: 'RM', GBP: '£', AUD: 'A$', IDR: 'Rp', INR: '₹' };
 const TIER_ORDER = ['hot', 'great', 'good', 'fair'];
-const TIER_ICON = { hot: 'fire', great: 'thumbs-up', good: 'check' };
 const ext = () => icon('arrow-square-out', { size: 16 });
 
-function rate(cur) {
-  if (cur === 'TWD') return 1;
-  return state.data?.fx?.rates?.[cur] || null;
-}
-function money(twd, cur = prefs.currency) {
-  if (twd == null || !Number.isFinite(twd)) return '—';
-  let c = cur;
-  let r = rate(c);
-  if (!r) {
-    c = 'TWD';
-    r = 1;
-  }
-  return (SYM[c] || `${c} `) + Math.round(twd * r).toLocaleString(locale());
-}
-function moneyPerKm(twdPerKm, bare = false) {
-  if (twdPerKm == null) return '';
-  let c = prefs.currency;
-  let r = rate(c);
-  if (!r) {
-    c = 'TWD';
-    r = 1;
-  }
-  const v = twdPerKm * r;
-  const digits = v < 1 ? 3 : v < 10 ? 2 : v < 100 ? 1 : 0;
-  const out = (SYM[c] || c) + v.toFixed(digits);
-  return bare ? out : t('perKm', { v: out });
-}
-const localMoney = (amount, cur) => `${cur} ${Math.round(amount).toLocaleString(locale())}`;
-function fmtDay(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
-  return new Intl.DateTimeFormat(locale(), { month: 'numeric', day: 'numeric', weekday: 'short' }).format(d);
-}
-function fmtDur(min) {
-  if (!Number.isFinite(min)) return '';
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}h${m ? String(m).padStart(2, '0') + 'm' : ''}`;
-}
-const fmtWhen = (iso) => (iso ? new Date(iso).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : '—');
-const hhmm = (s) => (s ? String(s).slice(11, 16) : '');
-const dayDiff = (a, b) => Math.round((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / 86400000);
-const city = (code) => airportCity(code, getLang());
-const carrierLabel = (code) => airlineName(code, getLang());
-const cap = (k) => k[0].toUpperCase() + k.slice(1);
+/** True while a form field has the keyboard — background refreshes must not pull the page out from under it. */
+const typing = () => /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') && !!document.activeElement.closest('main');
 
 function toast(msg, ms = 3500) {
   const el = $('#toast');
@@ -134,11 +98,20 @@ function applyTheme() {
 }
 
 // ───────────────────────── routing (hash, so Back works and tabs are linkable) ─────────────────────────
+function parseHash() {
+  const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
+  const [tab, sub, id] = path.split('/');
+  return { tab, sub, id, query: new URLSearchParams(query) };
+}
 function readHash() {
-  const [tab, sub] = location.hash.replace(/^#\/?/, '').split('/');
+  const { tab, sub, query } = parseHash();
   state.tab = TABS.includes(tab) ? tab : 'deals';
-  if (state.tab === 'special') state.special = sub === 'pos' ? 'pos' : 'ex';
-  if (state.tab === 'routes') state.routesView = sub === 'list' ? 'list' : 'tracker';
+  if (state.tab === 'deals') state.dealsView = { community: 'community', promos: 'promos' }[sub] || 'fares';
+  if (state.tab === 'special') state.special = { pos: 'pos', play: 'play' }[sub] || 'ex';
+  if (state.tab === 'routes') {
+    state.routesView = { track: 'track', list: 'list' }[sub] || 'search';
+    if (sub === 'search' && query.get('s')) loadParam(query.get('s'));
+  }
 }
 function go(hash) {
   if (location.hash === hash) return render();
@@ -182,7 +155,7 @@ async function loadTrackerData(force = false) {
 
 async function loadData(force = false) {
   $('#refresh-btn').classList.add('spin');
-  loadTrackerData(force).then(() => state.tab === 'routes' && renderRoutes());
+  loadTrackerData(force).then(() => state.tab === 'routes' && !typing() && renderRoutes());
   try {
     const data = await fetchData('deals.json', force);
     // Defence in depth: re-verify every published deal against the exclusion rules in this browser.
@@ -272,10 +245,6 @@ function render() {
   ({ deals: renderDeals, special: renderSpecial, routes: renderRoutes, members: renderMembers, settings: renderSettings })[state.tab]();
 }
 
-function notice(text, warn = false) {
-  return `<div class="notice${warn ? ' warn' : ''}">${icon(warn ? 'warning' : 'info')}<span>${esc(text)}</span></div>`;
-}
-
 function renderBanner() {
   const msgs = [];
   if (state.data?.isDemo) msgs.push(notice(t('demoBanner')));
@@ -284,179 +253,9 @@ function renderBanner() {
   $('#banner').innerHTML = msgs.join('');
 }
 
-function skeleton() {
-  return `<div class="skeleton"></div><div class="skeleton"></div>`;
-}
-
-function logo(code) {
-  // Carrier code shows through if the logo image fails to load.
-  return `<span class="logo-wrap"><span class="logo-code">${esc(code)}</span><img class="logo" src="https://www.gstatic.com/flights/airline_logos/70px/${esc(code)}.png" alt="" loading="lazy"></span>`;
-}
-
-const allianceName = (a) => (a === 'NONE' ? t('noAlliance') : ALLIANCES[a]?.name || a);
-function allianceMark(a) {
-  return `<span class="al al-${esc(a)}">${esc(allianceName(a))}</span>`;
-}
-
-function segmented(act, options, current, label) {
-  return `<div class="segmented" role="group" aria-label="${esc(label)}">${options
-    .map(([v, text]) => `<button data-act="${act}" data-v="${esc(v)}" aria-pressed="${current === v}">${esc(text)}</button>`)
-    .join('')}</div>`;
-}
-function chip(act, value, label, pressed, extraClass = '') {
-  return `<button class="chip ${extraClass}" data-act="${act}" data-v="${esc(value)}" aria-pressed="${pressed}">${label}</button>`;
-}
 function carrierChips() {
   const c = prefs.filters.carrierType;
   return `<div class="chips" role="group" aria-label="${esc(t('carrierAll'))}">${chip('f-carrier', 'fsc', esc(t('carrierFsc')), c === 'fsc')}${chip('f-carrier', 'lcc', esc(t('carrierLcc')), c === 'lcc')}${chip('f-carrier', 'all', esc(t('carrierAll')), c === 'all')}</div>`;
-}
-
-function stopsText(d) {
-  const leg = d.legs?.[0];
-  const dur = fmtDur(leg?.durationMin);
-  if (d.stops === 0) return `${t('nonstop')}${dur ? ' · ' + dur : ''}`;
-  const via = (d.via || []).join(', ');
-  return `${t('stops', { n: d.stops })}${via ? ' · ' + t('via', { v: via }) : ''}`;
-}
-function tripText(d) {
-  if (!d.returnDate) return `${fmtDay(d.departDate)} · ${t('ow')}`;
-  return `${fmtDay(d.departDate)} – ${fmtDay(d.returnDate)} · ${t('days', { n: dayDiff(d.departDate, d.returnDate) })}`;
-}
-
-function tag(text, cls = '', ic = '') {
-  return `<span class="tag ${cls}">${ic ? icon(ic, { size: 14 }) : ''}${esc(text)}</span>`;
-}
-function dealTags(d) {
-  const b = [];
-  if (d._errorFare) b.push(tag(t('errorFare'), 'hot', 'lightning'));
-  if (d.pos?.best) b.push(tag(t('posBadge', { c: countryName(d.pos.best.country), p: Math.round(d.pos.best.savingsPct) }), 'pos', 'globe-hemisphere-east'));
-  if (d.label) b.push(tag(d.label, 'pos', 'target'));
-  if (d.viaHome && d.originType === 'exstation') b.push(tag(t('viaHome'), 'good', 'star'));
-  if (d.lieFlat === true) b.push(tag(t('lieFlat'), '', 'bed'));
-  if (d.lieFlat === false) b.push(tag(t('recliner'), 'warn'));
-  if (d.budget) b.push(tag(t('budget'), '', 'seat'));
-  if (d.mixedCabin) b.push(tag(t('mixedCabin'), 'warn'));
-  if (d.overnightLayover) b.push(tag(t('overnight'), 'warn', 'moon'));
-  else if (d.longestLayoverMin > 480) b.push(tag(t('longLayover'), 'warn', 'clock'));
-  if (d.ageDays > 0) b.push(tag(t('seen', { n: d.ageDays })));
-  return b.length ? `<div class="tags">${b.join('')}</div>` : '';
-}
-
-function scorePill(d) {
-  const ic = TIER_ICON[d._tier];
-  return `<span class="score t-${d._tier}" title="${esc(t('score'))} ${d._score}">${ic ? icon(ic, { size: 14 }) : ''}${esc(t('tier_' + d._tier))} ${d._score}</span>`;
-}
-
-function dealCard(d) {
-  const disc = d._discount;
-  const delta = disc == null ? '' : disc > 0
-    ? `<div class="delta">${esc(t('vsTypical', { p: disc }))}</div>`
-    : `<div class="delta up">${esc(t('aboveTypical', { p: Math.abs(disc) }))}</div>`;
-  return `
-  <article class="deal${d._tier === 'hot' || d._errorFare ? ' is-hot' : ''}" id="deal-${esc(d.id)}">
-    <button class="deal-main" data-act="toggle" data-id="${esc(d.id)}" aria-expanded="false">
-      <div class="deal-head">
-        <span class="carrier">${logo(d.primaryCarrier)}<b>${esc(carrierLabel(d.primaryCarrier))}</b></span>
-        ${allianceMark(d.alliance)}
-        ${scorePill(d)}
-      </div>
-      <div class="deal-body">
-        <div class="route">${esc(d.origin)}${icon('arrow-right', { size: 16 })}${esc(d.destination)}</div>
-        <div class="price">${money(d.priceTWD)}</div>
-        <div class="cities">${esc(city(d.origin))} – ${esc(city(d.destination))}</div>
-        ${delta}
-      </div>
-      <div class="meta">${esc(tripText(d))} · ${esc(stopsText(d))}</div>
-      ${dealTags(d)}
-    </button>
-    <div class="deal-detail" hidden></div>
-  </article>`;
-}
-
-function legHtml(leg, title, date) {
-  const parts = [];
-  leg.segments.forEach((s, i) => {
-    const plus = s.dep && s.arr ? dayDiff(s.dep, s.arr) : 0;
-    const op = s.operatingName && !String(s.operatingName).toLowerCase().includes(String(s.carrierName || carrierLabel(s.carrier)).toLowerCase())
-      ? ` · ${esc(t('operatedBy', { v: s.operatingName }))}` : '';
-    const flat = s.lieFlat === true ? ` · ${t('lieFlat')}` : s.lieFlat === false ? ` · ${t('recliner')}` : '';
-    parts.push(`<li class="seg">
-      <div class="t">${esc(hhmm(s.dep))} ${esc(s.from)} – ${esc(hhmm(s.arr))}${plus > 0 ? `<sup>+${plus}</sup>` : ''} ${esc(s.to)} <span class="muted small">${esc(city(s.to))}</span></div>
-      <div class="m">${esc(s.flightNumber || s.carrier)} · ${esc(carrierLabel(s.carrier))}${s.aircraft ? ' · ' + esc(s.aircraft) : ''}${flat} · ${fmtDur(s.durationMin)}${op}</div>
-    </li>`);
-    const l = leg.layovers?.[i];
-    if (l && i < leg.segments.length - 1) {
-      const long = l.durationMin > 480 || l.overnight;
-      parts.push(`<li class="lay${long ? ' warn' : ''}">${icon(l.overnight ? 'moon' : 'clock', { size: 14 })}${esc(t('layover', { a: `${l.airport} ${city(l.airport)}`, d: fmtDur(l.durationMin) }))}</li>`);
-    }
-  });
-  return `<div class="sec"><h4>${esc(title)} · ${fmtDay(date)}</h4><ol class="timeline">${parts.join('')}</ol></div>`;
-}
-
-function posMarketUrl(d, m) {
-  return googleFlightsUrl({ origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate, currency: m.currency, lang: getLang(), gl: m.country });
-}
-
-function posRows(d) {
-  const home = { country: 'TW', currency: d.currency || 'TWD', price: d.price ?? d.priceTWD, priceTWD: d.priceTWD, savingsTWD: 0, savingsPct: 0, home: true };
-  const rows = [home, ...(d.pos?.markets || [])].sort((a, b) => a.priceTWD - b.priceTWD);
-  return `<div class="pos-list">${rows.map((m) => {
-    const val = m.home ? '' : m.savingsPct >= 1
-      ? `<small class="save">${esc(t('posSave', { v: money(m.savingsTWD) }))}</small>`
-      : m.savingsPct <= -1 ? `<small class="more">${esc(t('posMore', { p: Math.round(-m.savingsPct) }))}</small>` : `<small class="more">${esc(t('posSame'))}</small>`;
-    const sub = `${localMoney(m.price, m.currency)}${m.match === 'carrier' ? ` · ${t('posViaCarrier')}` : ''}`;
-    return `<a class="pos-row" href="${esc(posMarketUrl(d, m))}" target="_blank" rel="noopener">
-      <span class="cc">${esc(m.country)}</span>
-      <span class="who">${esc(m.home ? t('posHome') : t('posMarket', { c: countryName(m.country) }))}<small>${esc(sub)}</small></span>
-      <span class="val">${money(m.priceTWD)}${val}</span>
-    </a>`;
-  }).join('')}</div>`;
-}
-
-function caveats(open = false) {
-  return `<details class="caveats"${open ? ' open' : ''}><summary>${icon('info', { size: 16 })}${esc(t('posCaveatsTitle'))}</summary><ul>${t('posCaveats').map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>`;
-}
-
-function dealDetail(d) {
-  const secs = [legHtml(d.legs[0], t('outbound'), d.departDate)];
-  if (d.legs[1]) secs.push(legHtml(d.legs[1], t('inbound'), d.returnDate));
-  else if (d.returnDate) secs.push(`<p class="small muted">${esc(t('inboundUnknown'))}</p>`);
-  secs.push(`<div class="verify">${icon('shield-check', { size: 16 })}${esc(d.inboundVerified ? t('verifiedFull') : t('verifiedOut'))}</div>`);
-
-  const r = d.reference;
-  const kv = [];
-  if (r) kv.push([t('ref_' + r.source), `${money(r.value)}${r.low && r.high ? ` (${money(r.low)}–${money(r.high)})` : ''}`]);
-  if (d.priceLevel) {
-    const lvl = t('lvl_' + d.priceLevel);
-    kv.push([t('googleLevel'), esc(lvl.startsWith('lvl_') ? d.priceLevel : lvl)]);
-  }
-  kv.push([t('score'), `${d._score} · ${esc(t('tier_' + d._tier))}`]);
-  if (d._cpk != null) kv.push([t('perKmLbl'), esc(moneyPerKm(d._cpk, true))]);
-  if (d.price && d.currency && d.currency !== 'TWD') kv.push([d.currency, localMoney(d.price, d.currency)]);
-  secs.push(`<div class="sec"><h4>${esc(t('priceRef'))}</h4><div class="kv">${kv.map(([k, v]) => `<span>${esc(k)}</span><span>${v}</span>`).join('')}</div></div>`);
-
-  if (d.pos?.markets?.length) {
-    secs.push(`<div class="sec"><h4>${esc(t('posSection'))}${state.data?.isDemo ? ` · ${esc(t('posDemo'))}` : ''}</h4>${posRows(d)}${caveats()}</div>`);
-  }
-
-  const earn = earningMemberships(members, d.primaryCarrier, d.alliance);
-  if (earn.length) {
-    secs.push(`<div class="sec"><h4>${esc(t('earnTitle'))}</h4><div class="tags">${earn.slice(0, 4).map(({ m, why }) =>
-      tag(`${programName(m.program, getLang(), m.programName)}${m.owner ? ` · ${capName(m.owner)}` : ''} (${t(why === 'same' ? 'earnSame' : 'earnAlliance')})`, why === 'same' ? 'good' : '', 'identification-card')).join('')}</div></div>`);
-  }
-
-  const links = searchLinks({ origin: d.origin, destination: d.destination, departDate: d.departDate, returnDate: d.returnDate, currency: 'TWD', lang: getLang() });
-  const site = airlineUrl(d.primaryCarrier);
-  const [google, ...others] = links;
-  secs.push(`<div class="actions">
-      <a class="btn primary block" href="${esc(google.url)}" target="_blank" rel="noopener">${esc(t('openGoogle'))}${ext()}</a>
-      <div class="row">
-        ${others.map((l) => `<a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}
-        ${site ? `<a class="btn" href="${esc(site)}" target="_blank" rel="noopener">${esc(t('airlineSite'))}</a>` : ''}
-      </div>
-      <button class="btn quiet" data-act="target" data-route="${esc(d.routeKey)}">${icon('target', { size: 16 })}${esc(t('setAlert'))}</button>
-    </div>`);
-  return secs.join('');
 }
 
 // ───────────────────────── Deals tab ─────────────────────────
@@ -640,7 +439,7 @@ function quickSearchHtml() {
   return `
     <section class="panel">
       <h3>${esc(t('quickSearch'))}</h3>
-      ${apDatalist()}
+      ${airportList()}
       <div class="grid2">
         <div class="field"><label for="q-from">${esc(t('from'))}</label><input id="q-from" type="text" data-q="from" list="ap-list" value="${esc(q.from)}" maxlength="3" autocapitalize="characters"></div>
         <div class="field"><label for="q-to">${esc(t('to'))}</label><input id="q-to" type="text" data-q="to" list="ap-list" value="${esc(q.to)}" maxlength="3" autocapitalize="characters"></div>
@@ -655,8 +454,14 @@ function quickSearchHtml() {
 
 function renderRoutes() {
   const el = $('#view-routes');
-  const seg = segmented('routes-view', [['tracker', t('rtTracker')], ['list', t('rtRoutes')]], state.routesView, t('tabRoutes'));
-  if (state.routesView === 'tracker') {
+  const n = prefs.trackers.length;
+  const seg = segmented('routes-view', [['search', t('rtSearch')], ['track', n ? `${t('rtTracker')} (${n})` : t('rtTracker')], ['list', t('rtRoutes')]], state.routesView, t('tabRoutes'));
+  if (state.routesView === 'search') {
+    pingSearch();
+    el.innerHTML = seg + searchHtml();
+    return;
+  }
+  if (state.routesView === 'track') {
     el.innerHTML = seg + trackerHtml();
     return;
   }
@@ -710,15 +515,10 @@ function renderRoutes() {
 // ───────────────────────── Real Tracker (Routes tab, default view) ─────────────────────────
 // Trips are kept on this device (prefs.trackers) and, when sync is set up, in the private GitHub
 // variable TRACKERS that the daily scanner reads. Results come from data/trackers.json.
-const todayTpe = () => new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
 const people = () => (state.data?.people?.length ? state.data.people : []);
 const capName = (n) => (/^user[a-z]$/i.test(n) ? String(n).toUpperCase() : String(n || '').replace(/^./, (c) => c.toUpperCase()));
 // New trackers notify whoever is signed in (the password says who that is); otherwise everyone.
 const myNotify = () => (state.sync.user && people().includes(state.sync.user.name) ? [state.sync.user.name] : 'all');
-
-function apDatalist() {
-  return `<datalist id="ap-list">${Object.entries(AIRPORTS).map(([c, a]) => `<option value="${c}">${esc(city(c))} · ${esc(a.en)}</option>`).join('')}</datalist>`;
-}
 
 function trackerList() {
   const results = state.trackerData?.trackers || {};
@@ -745,10 +545,46 @@ function changeHtml(delta, key) {
   return `<span class="${down ? 'save' : 'up'}">${icon(down ? 'trend-down' : 'trend-up', { size: 14 })}${esc(t(key, { v: `${down ? '−' : '+'}${money(Math.abs(delta))}` }))}</span>`;
 }
 
+const stopLabel = (v) => String(v).split(',').join('/');
+const trackerStops = (tr) => (tr.trip === 'mc' ? itineraryLine(tr).split('→') : [tr.o, tr.d]);
+
 function trackerDates(tr) {
+  if (tr.trip === 'mc') {
+    const dates = (tr.segs || []).map((x) => x.date);
+    return `${fmtDay(dates[0])} – ${fmtDay(dates[dates.length - 1])} · ${t('legsN', { n: dates.length })}`;
+  }
   return tr.trip === 'rt' && tr.return
     ? `${fmtDay(tr.depart)} – ${fmtDay(tr.return)} · ${t('days', { n: dayDiff(tr.depart, tr.return) })}`
     : `${fmtDay(tr.depart)} · ${t('ow')}`;
+}
+
+/** What narrows a tracker beyond route and dates: alliance, airlines, passengers, bags, longest trip, country check. */
+function trackerFilterTags(tr) {
+  const out = [];
+  if (tr.alliance) out.push(allianceMark(tr.alliance));
+  if (tr.airlines?.length) out.push(tag(tr.airlines.map(carrierLabel).join(' · '), '', 'airplane-tilt'));
+  const pax = (tr.adults || 1) + (tr.children || 0) + (tr.infantsSeat || 0) + (tr.infantsLap || 0);
+  if (pax > 1) out.push(tag(t('sPaxN', { n: pax }), '', 'users-three'));
+  if (tr.bags) out.push(tag(t('sBagsN', { n: tr.bags }), '', 'suitcase-rolling'));
+  if (tr.maxHours) out.push(tag(t('sHoursN', { n: tr.maxHours }), '', 'clock'));
+  if (tr.pos) out.push(tag(t('trkPosOn'), 'pos', 'globe-hemisphere-east'));
+  return out.length ? `<div class="tags">${out.join('')}</div>` : '';
+}
+
+function trackerPosHtml(tr, st, bestCombo) {
+  const pos = st?.pos;
+  if (!tr.pos || !pos?.markets?.length) return '';
+  const open = state.trkOpen.has(`${tr.id}:pos`);
+  const best = pos.best;
+  const head = best
+    ? `<b class="save">${esc(t('posBadge', { c: countryName(best.country), p: Math.round(best.savingsPct) }))}</b> ${money(best.priceTWD)}`
+    : esc(t('trkPosNone', { n: pos.markets.filter((m) => !m.none).length }));
+  const rows = open ? `<div class="pos-list">${pos.markets.filter((m) => !m.none).map((m) => {
+    const url = googleSearchUrl(comboSearch(tr, bestCombo), { lang: getLang(), currency: m.currency, gl: m.country });
+    const val = m.savingsPct >= 1 ? `<small class="save">${esc(t('posSave', { v: money(m.savingsTWD ?? 0) }))}</small>` : m.savingsPct <= -1 ? `<small class="more">${esc(t('posMore', { p: Math.round(-m.savingsPct) }))}</small>` : `<small class="more">${esc(t('posSame'))}</small>`;
+    return `<a class="pos-row" href="${esc(url)}" target="_blank" rel="noopener"><span class="cc">${esc(m.country)}</span><span class="who">${esc(t('posMarket', { c: countryName(m.country) }))}<small>${esc(localMoney(m.price, m.currency))} · ${esc(fmtDay(m.at))}</small></span><span class="val">${money(m.priceTWD)}${val}</span></a>`;
+  }).join('')}</div>` : '';
+  return `<div class="trk-pos"><button type="button" class="linkish" data-act="trk-pos" data-id="${esc(tr.id)}" aria-expanded="${open}">${icon('globe-hemisphere-east', { size: 16 })} ${head}</button>${rows}</div>`;
 }
 
 function trackerCard({ tr, st, local }) {
@@ -763,6 +599,7 @@ function trackerCard({ tr, st, local }) {
   bits.push(t('cabin_' + tr.cabin));
   if (tr.maxStops === 0) bits.push(t('nonstopOnly'));
   else if (tr.maxStops === 1) bits.push(t('trkStops1'));
+  else if (tr.maxStops === 2) bits.push(t('sStops2'));
 
   const meta = [];
   if (best) {
@@ -781,18 +618,20 @@ function trackerCard({ tr, st, local }) {
   if (st?.lastSearched) meta.push(esc(t('trkLastCheck', { d: fmtDay(st.lastSearched) })));
   if (st?.alert?.date && st.alert.kind !== 'rise-silent') meta.push(esc(t('trkLastAlert', { d: fmtDay(st.alert.date) })));
 
-  const link = googleFlightsUrl({ origin: tr.o, destination: tr.d, departDate: best?.dep || tr.depart, returnDate: best ? best.ret : tr.return, currency: 'TWD', lang: getLang(), cabin: tr.cabin });
+  const bestCombo = { dep: best?.dep || tr.depart, ret: best ? best.ret : tr.return, dd: best ? daysBetween(tr.depart, best.dep) : 0 };
+  const link = googleSearchUrl(comboSearch(tr, bestCombo), { currency: 'TWD', lang: getLang() });
   const samples = Object.entries(st?.samples || {}).filter(([, s]) => Number.isFinite(s.p)).sort((a, b) => a[1].p - b[1].p);
   const open = state.trkOpen.has(tr.id);
   const pill = `<span class="status-pill s-${esc(status)}">${esc(t('trk_status_' + status))}</span>`;
   return `
   <article class="trk${status === 'expired' || status === 'paused' ? ' dim' : ''}${best && tr.target && best.p <= tr.target ? ' hit' : ''}" id="trk-${esc(tr.id)}">
     <div class="trk-head">
-      <div class="route">${esc(tr.o)}${icon('arrow-right', { size: 16 })}${esc(tr.d)}</div>
+      <div class="route${tr.trip === 'mc' && trackerStops(tr).length > 3 ? ' long' : ''}">${trackerStops(tr).map((x) => esc(stopLabel(x))).join(icon('arrow-right', { size: 16 }))}</div>
       ${pill}
     </div>
-    <div class="cities">${esc(city(tr.o))} – ${esc(city(tr.d))}${tr.label ? ` · <b>${esc(tr.label)}</b>` : ''}${local ? '' : ` · ${esc(t('trkFromServer'))}`}</div>
+    <div class="cities">${[...new Set(trackerStops(tr))].map((x) => esc(placeLabel(x, getLang()))).join(' – ')}${tr.label ? ` · <b>${esc(tr.label)}</b>` : ''}${local ? '' : ` · ${esc(t('trkFromServer'))}`}</div>
     <div class="trk-sub">${bits.map(esc).join(' · ')}</div>
+    ${trackerFilterTags(tr)}
     <div class="trk-body">
       <div>
         <span class="field-label">${esc(t('trkNow'))}</span>
@@ -802,6 +641,7 @@ function trackerCard({ tr, st, local }) {
       <div>${h.length ? sparkline(h) : ''}</div>
     </div>
     ${meta.length ? `<div class="trk-meta">${meta.map((m) => `<span>${m}</span>`).join('')}</div>` : ''}
+    ${trackerPosHtml(tr, st, bestCombo)}
     <div class="trk-actions">
       <a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Google Flights${ext()}</a>
       ${samples.length > 1 ? `<button class="btn quiet" data-act="trk-dates" data-id="${esc(tr.id)}" aria-expanded="${open}">${icon('calendar-blank', { size: 16 })}${esc(t('trkDates'))}</button>` : ''}
@@ -817,59 +657,14 @@ function trackerCard({ tr, st, local }) {
   </article>`;
 }
 
-function defaultTrackerForm() {
-  const today = todayTpe();
-  const dep = new Date(Date.parse(today) + 60 * 86400000).toISOString().slice(0, 10);
-  const ret = new Date(Date.parse(today) + 70 * 86400000).toISOString().slice(0, 10);
-  return { o: 'TPE', d: '', trip: 'rt', mode: 'fixed', depart: dep, return: ret, flex: 3, cabin: 'business', maxStops: null, target: '', alertOn: 'drop', notify: myNotify(), label: '' };
-}
-
-function trackerFormHtml(f) {
-  // Search cost depends only on the date shape, so show it before airports are filled in.
-  const shape = { mode: f.mode, flex: f.mode === 'flex' ? Number(f.flex) : 0, trip: f.trip };
-  const perDay = searchesPerDay(shape);
-  const combos = comboCount(shape);
-  const tomorrow = new Date(Date.parse(todayTpe()) + 86400000).toISOString().slice(0, 10);
-  const who = people();
-  const notifyOn = (n) => (n === 'all' ? f.notify === 'all' : Array.isArray(f.notify) && f.notify.includes(n));
-  return `
-    <section class="panel trk-form" id="trk-form">
-      <h3>${esc(t(f.editing ? 'trkEdit' : 'trkNew'))}</h3>
-      <div class="grid2">
-        <div class="field"><label for="tf-o">${esc(t('from'))}</label><input id="tf-o" type="text" data-tf="o" list="ap-list" value="${esc(f.o)}" maxlength="3" autocapitalize="characters" autocomplete="off"></div>
-        <div class="field"><label for="tf-d">${esc(t('to'))}</label><input id="tf-d" type="text" data-tf="d" list="ap-list" value="${esc(f.d)}" maxlength="3" autocapitalize="characters" autocomplete="off" placeholder="CDG"></div>
-      </div>
-      ${segmented('tf-trip', [['rt', t('rt')], ['ow', t('ow')]], f.trip, t('rt'))}
-      ${segmented('tf-mode', [['fixed', t('trkFixed')], ['flex', t('trkFlex')]], f.mode, t('trkFlex'))}
-      <div class="grid2">
-        <div class="field"><label for="tf-dep">${esc(t('depart'))}</label><input id="tf-dep" type="date" data-tf="depart" min="${tomorrow}" value="${esc(f.depart)}"></div>
-        <div class="field"><label for="tf-ret">${esc(t('ret'))}</label><input id="tf-ret" type="date" data-tf="return" min="${esc(f.depart || tomorrow)}" value="${esc(f.return || '')}" ${f.trip === 'ow' ? 'disabled' : ''}></div>
-      </div>
-      ${f.mode === 'flex' ? `<div class="form-row"><span class="field-label">${esc(t('trkFlexLbl'))}</span><div class="chips">${[1, 2, 3, 5, MAX_FLEX].map((n) => chip('tf-flex', n, esc(t('trkFlexN', { n })), Number(f.flex) === n)).join('')}</div></div>` : ''}
-      <div class="form-row"><span class="field-label">${esc(t('trkCabin'))}</span><div class="chips">${CABINS.map((c) => chip('tf-cabin', c, esc(t('cabin_' + c)), f.cabin === c)).join('')}</div></div>
-      <div class="form-row"><span class="field-label">${esc(t('trkStops'))}</span><div class="chips">${[['any', t('trkStopsAny')], ['0', t('nonstopOnly')], ['1', t('trkStops1')]].map(([v, l]) => chip('tf-stops', v, esc(l), String(f.maxStops ?? 'any') === v)).join('')}</div></div>
-      <div class="field form-row"><label for="tf-target">${esc(t('trkTarget'))}</label><input id="tf-target" type="number" inputmode="numeric" min="0" step="1000" data-tf="target" value="${esc(f.target || '')}"></div>
-      <div class="form-row"><span class="field-label">${esc(t('trkAlert'))}</span><div class="chips">${chip('tf-alert', 'drop', esc(t('trkAlertDrop')), f.alertOn !== 'any')}${chip('tf-alert', 'any', esc(t('trkAlertAny')), f.alertOn === 'any')}</div></div>
-      ${who.length ? `<div class="form-row"><span class="field-label">${esc(t('trkNotify'))}</span><div class="chips">${chip('tf-notify', 'all', esc(t('trkNotifyAll')), notifyOn('all'))}${who.map((n) => chip('tf-notify', n, esc(capName(n)), notifyOn(n))).join('')}</div></div>` : ''}
-      <div class="field form-row"><label for="tf-label">${esc(t('trkLabel'))}</label><input id="tf-label" type="text" data-tf="label" maxlength="60" value="${esc(f.label || '')}" placeholder="${esc(t('trkLabelPh'))}"></div>
-      <p class="small muted form-row">${icon('info', { size: 14 })} ${esc(t('trkCost', { n: perDay, c: combos }))}${shape.mode === 'flex' ? ` ${esc(t('trkCostFlex', { d: Math.max(1, Math.ceil((combos - 1) / Math.max(1, perDay - 1))) }))}` : ''}</p>
-      ${state.trackerErr ? notice(t('trkErr_' + state.trackerErr), true) : ''}
-      <div class="form-actions">
-        <button class="btn primary" data-act="trk-save">${icon('check', { size: 16 })}${esc(t('trkSave'))}</button>
-        <button class="btn quiet" data-act="trk-cancel">${esc(t('cancel'))}</button>
-      </div>
-    </section>`;
-}
-
 function trackerHtml() {
   const list = trackerList();
   const showHow = prefs.trackers.length && !(syncReady() && prefs.synced && state.sync.status === 'ok');
   const json = JSON.stringify(prefs.trackers);
   return `
-    ${apDatalist()}
     <p class="intro">${esc(t('trkIntro'))}</p>
     ${state.trackerData?.notifications === 'paused' ? notice(t('trkNotifPaused'), true) : ''}
-    ${state.trackerForm ? trackerFormHtml(state.trackerForm) : `<button class="btn primary block new-btn" data-act="trk-new">${icon('plus', { size: 18 })}${esc(t('trkNew'))}</button>`}
+    <button class="btn primary block new-btn" data-act="trk-new">${icon('plus', { size: 18 })}${esc(t('trkNew'))}</button>
     <div class="list trk-list">${list.length ? list.map(trackerCard).join('') : `<div class="empty">${esc(t('trkEmpty'))}</div>`}</div>
     ${showHow ? `
       <section class="panel">
@@ -1154,33 +949,14 @@ function syncBoxHtml() {
     </details>`;
 }
 
-async function saveTrackerForm() {
-  const f = state.trackerForm;
-  const raw = {
-    ...f,
-    id: f.id || newTrackerId(),
-    created: f.created || todayTpe(),
-    return: f.trip === 'rt' ? f.return : null,
-    flex: f.mode === 'flex' ? Number(f.flex) : 0,
-    target: f.target ? Number(f.target) : null,
-  };
-  const { tracker, error } = normalizeTracker(raw);
-  const err = error || (!trackerCombos(tracker, todayTpe()).length ? 'past' : null);
-  if (err) {
-    state.trackerErr = err;
-    renderRoutes();
-    document.querySelector('#trk-form .notice')?.scrollIntoView({ block: 'center' });
-    return;
-  }
+// A tracker made in the search form: kept on this device first, then sent to the server when signed in.
+async function commitTracker(tracker) {
   const i = prefs.trackers.findIndex((x) => x.id === tracker.id);
   if (i >= 0) prefs.trackers[i] = tracker;
   else prefs.trackers.unshift(tracker);
-  state.trackerForm = null;
-  state.trackerErr = null;
-  renderRoutes();
   const ok = await pushTrackers();
   toast(t(ok ? 'trkSaved' : 'trkSavedLocal'), 5000);
-  renderRoutes();
+  return { ok };
 }
 
 // ───────────────────────── Members tab (member wallet) ─────────────────────────
@@ -1490,6 +1266,7 @@ document.addEventListener('click', async (e) => {
   const act = a.dataset.act;
   const v = a.dataset.v;
   const f = prefs.filters;
+  if (await runClick(act, a, e)) return; // screens in web/ui/ own their own actions
   switch (act) {
     case 'toggle': {
       const card = a.closest('.deal');
@@ -1536,51 +1313,21 @@ document.addEventListener('click', async (e) => {
     case 'set-boost': prefs.skyteamBoost = v; break;
     case 'q-ow': state.quick.ow = !state.quick.ow; break;
     case 'routes-view':
-      go(v === 'list' ? '#routes/list' : '#routes');
+      go({ track: '#routes/track', list: '#routes/list' }[v] || '#routes');
       return;
     // Real Tracker form + cards
     case 'trk-new':
-      state.trackerForm = defaultTrackerForm();
-      state.trackerErr = null;
-      renderRoutes();
-      $('#tf-d')?.focus();
+      openSearch({ track: true });
       return;
-    case 'trk-cancel':
-      state.trackerForm = null;
-      state.trackerErr = null;
-      renderRoutes();
-      return;
-    case 'trk-save':
-      saveTrackerForm();
-      return;
-    case 'tf-trip': case 'tf-mode': case 'tf-flex': case 'tf-cabin': case 'tf-stops': case 'tf-alert': case 'tf-notify': {
-      const tf = state.trackerForm;
-      if (!tf) return;
-      if (act === 'tf-trip') tf.trip = v;
-      if (act === 'tf-mode') tf.mode = v;
-      if (act === 'tf-flex') tf.flex = Number(v);
-      if (act === 'tf-cabin') tf.cabin = v;
-      if (act === 'tf-stops') tf.maxStops = v === 'any' ? null : Number(v);
-      if (act === 'tf-alert') tf.alertOn = v;
-      if (act === 'tf-notify') {
-        if (v === 'all') tf.notify = 'all';
-        else {
-          const cur = new Set(Array.isArray(tf.notify) ? tf.notify : []);
-          cur.has(v) ? cur.delete(v) : cur.add(v);
-          tf.notify = cur.size ? [...cur] : 'all';
-        }
-      }
-      state.trackerErr = null;
-      renderRoutes();
-      return;
-    }
     case 'trk-edit': {
       const tr = prefs.trackers.find((x) => x.id === a.dataset.id);
-      if (!tr) return;
-      state.trackerForm = { ...tr, target: tr.target || '', flex: tr.flex || 3, return: tr.return || '', editing: true };
-      state.trackerErr = null;
-      renderRoutes();
-      $('#trk-form')?.scrollIntoView({ block: 'start' });
+      if (tr) editTracker(tr);
+      return;
+    }
+    case 'deal-search': {
+      const d = state.deals.find((x) => x.id === a.dataset.id);
+      if (!d) return;
+      openSearch({ fields: { trip: d.returnDate ? 'rt' : 'ow', o: d.origin, d: d.destination, depart: d.departDate, return: d.returnDate || '', cabin: 'business' } });
       return;
     }
     case 'trk-del':
@@ -1603,6 +1350,12 @@ document.addEventListener('click', async (e) => {
       state.trkOpen.has(a.dataset.id) ? state.trkOpen.delete(a.dataset.id) : state.trkOpen.add(a.dataset.id);
       renderRoutes();
       return;
+    case 'trk-pos': {
+      const key = `${a.dataset.id}:pos`;
+      state.trkOpen.has(key) ? state.trkOpen.delete(key) : state.trkOpen.add(key);
+      renderRoutes();
+      return;
+    }
     // Sync
     case 'sync-login':
       await syncLogin($('#sync-pass')?.value || '', !!$('#sync-remember')?.checked);
@@ -1684,7 +1437,7 @@ document.addEventListener('click', async (e) => {
     case 'q-from': state.quick.from = v; break;
     case 'refresh': loadData(true); return;
     case 'target': {
-      go('#routes');
+      go('#routes/list');
       requestAnimationFrame(() => {
         const input = document.querySelector(`[data-target="${CSS.escape(a.dataset.route)}"]`);
         input?.scrollIntoView({ block: 'center' });
@@ -1716,19 +1469,13 @@ document.addEventListener('click', async (e) => {
 // Form fields update state as you type — no re-render, so focus and the keyboard stay put.
 document.addEventListener('input', (e) => {
   const el = e.target;
-  if (el.dataset.tf && state.trackerForm) {
-    state.trackerForm[el.dataset.tf] = el.dataset.tf === 'o' || el.dataset.tf === 'd' ? el.value.trim().toUpperCase() : el.value;
-    if (el.dataset.tf === 'depart') {
-      const ret = $('#tf-ret');
-      if (ret) ret.min = el.value;
-    }
-  } else if (el.dataset.mf && state.memberForm && el.dataset.mf !== 'program') {
-    state.memberForm[el.dataset.mf] = el.value;
-  }
+  if (runField(el, 'input', e)) return;
+  if (el.dataset.mf && state.memberForm && el.dataset.mf !== 'program') state.memberForm[el.dataset.mf] = el.value;
 });
 
 document.addEventListener('change', (e) => {
   const el = e.target;
+  if (runField(el, 'change', e)) return;
   if (el.dataset.mf === 'program' && state.memberForm) {
     state.memberForm.program = el.value;
     renderMembers();
@@ -1788,6 +1535,36 @@ $('#install-btn').addEventListener('click', async () => {
 });
 
 // ───────────────────────── boot ─────────────────────────
+bindFormat({ rates: () => state.data?.fx?.rates, currency: () => prefs.currency });
+bindDeal({ members: () => members, isDemo: () => !!state.data?.isDemo, capName });
+bindSearch({
+  today: todayTpe,
+  refresh: () => {
+    if (state.tab === 'routes' && state.routesView === 'search') renderRoutes();
+  },
+  toast,
+  go,
+  signedIn: () => !!(state.sync.user && !state.sync.user.mustChange),
+  requireSignIn: () => {
+    state.gateSkipped = false;
+    try {
+      sessionStorage.removeItem(GATE_SKIP_KEY);
+    } catch {
+      /* private mode */
+    }
+    renderGate();
+  },
+  sessionExpired: () => {
+    state.sync.user = null;
+    state.sync.status = 'auth';
+    renderAuth();
+  },
+  people,
+  myNotify,
+  capName,
+  commitTracker,
+  skyteamBoost: () => prefs.skyteamBoost,
+});
 $('#refresh-btn').innerHTML = icon('arrow-clockwise', { size: 22 });
 $('#install-btn').innerHTML = icon('download-simple', { size: 22 });
 document.querySelectorAll('.tabbar button[data-icon]').forEach((b) => b.insertAdjacentHTML('afterbegin', icon(b.dataset.icon, { size: 24 })));
@@ -1811,7 +1588,7 @@ syncPing()
   })
   .then(() => {
     savePrefs();
-    if (state.tab === 'routes' || state.tab === 'settings') render();
+    if ((state.tab === 'routes' || state.tab === 'settings') && !typing()) render();
   });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -336,3 +336,42 @@ export function mentionsChinaPlace(text) {
   for (const m of s.matchAll(PAREN_CODE)) if (BLOCKED_AIRPORTS.has(m[1])) return true;
   return false;
 }
+
+const THREE_LETTERS = /^[A-Za-z]{3}$/;
+
+/**
+ * What a person types into a From / To box → the airports behind it. Codes ("TPE", "NRT HND", "tyo"), city names in any of the
+ * three languages ("東京", "Tokyo", "도쿄", "New York"), or a mix separated by commas.
+ * @returns {{ codes: string[] } | { error: 'airport' | 'blocked-airport' | 'too-many' | 'area', code?: string }}
+ *   'area' = a country or region was typed ("菲律賓", "Europe"): the search needs a city or airport instead.
+ */
+export function resolvePlaces(input, { max = MAX_PLACES } = {}) {
+  const text = String(input ?? '').trim();
+  if (!text) return { error: 'airport' };
+  if (mentionsChinaPlace(text)) return { error: 'blocked-airport' };
+  const codes = [];
+  const add = (c) => {
+    if (!codes.includes(c)) codes.push(c);
+  };
+  for (const chunk of text.split(/[,;/、，\n]+/).map((s) => s.trim()).filter(Boolean)) {
+    const words = chunk.split(/\s+/);
+    if (words.every((w) => THREE_LETTERS.test(w) && knownCode(w.toUpperCase()))) {
+      words.forEach((w) => add(w.toUpperCase()));
+      continue;
+    }
+    const hits = findPlaces(chunk);
+    if (hits.length) {
+      for (const h of hits) {
+        if (h.kind !== 'place') return { error: ['CN', 'HK', 'MO'].includes(h.code) ? 'blocked-airport' : 'area', code: h.code };
+        add(h.code);
+      }
+      continue;
+    }
+    if (words.length === 1 && THREE_LETTERS.test(chunk)) {
+      add(chunk.toUpperCase()); // well-formed but not in our table: the live search / scanner decide
+      continue;
+    }
+    return { error: 'airport' };
+  }
+  return parsePlaces(codes, { max });
+}
